@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from './supabase-server';
 import { getServiceSupabase } from './supabase-admin';
 import { uploadImage, deleteImageByUrl } from './storage';
-import type { Product, WholesaleProduct, GalleryItem, BarloventoEvent, SiteContent } from './queries';
+import type { Product, WholesaleProduct, GalleryItem, BarloventoEvent, SiteContent, Nutrition } from './queries';
 
 // ----------------------------------------------------------------
 // Auth helper
@@ -31,6 +31,7 @@ export type ProductoInput = {
   badge: string | null;
   is_active: boolean;
   sort_order: number;
+  nutrition: Nutrition | null;
 };
 
 export type GalleryInput = {
@@ -60,7 +61,10 @@ export type EventoInput = {
  * de un Server Action; sí lo acepta dentro de FormData).
  * Campos esperados:
  *   id, name, description, price, currency, category, image,
- *   badge, is_active, sort_order, imageFile (File | null)
+ *   badge, is_active, sort_order, nutrition, imageFile (File | null)
+ *
+ * Nutrition: se envía como JSON string en el campo `nutrition_json`.
+ * Si el JSON está vacío o no se puede parsear, se guarda como NULL.
  */
 export async function upsertProduct(formData: FormData): Promise<Product> {
   const supabase = await requireAdmin();
@@ -76,6 +80,7 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
     badge: ((formData.get('badge') as string) || '').trim() || null,
     is_active: formData.get('is_active') === 'true',
     sort_order: Number(formData.get('sort_order') ?? 99),
+    nutrition: parseNutritionField(formData.get('nutrition_json') as string | null),
   };
   const imageFile = formData.get('imageFile') as File | null;
 
@@ -95,6 +100,7 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
     badge: input.badge || null,
     is_active: input.is_active,
     sort_order: Number(input.sort_order),
+    nutrition: input.nutrition,
   };
 
   // Si es un producto nuevo, lo ubicamos al final de la lista. El admin
@@ -335,6 +341,7 @@ export async function upsertWholesaleProduct(
     badge: ((formData.get('badge') as string) || '').trim() || null,
     is_active: formData.get('is_active') === 'true',
     sort_order: Number(formData.get('sort_order') ?? 99),
+    nutrition: parseNutritionField(formData.get('nutrition_json') as string | null),
   };
   const imageFile = formData.get('imageFile') as File | null;
 
@@ -354,6 +361,7 @@ export async function upsertWholesaleProduct(
     badge: input.badge || null,
     is_active: input.is_active,
     sort_order: Number(input.sort_order),
+    nutrition: input.nutrition,
   };
 
   const { data, error } = await supabase
@@ -794,4 +802,42 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
     .slice(0, 60);
+}
+
+/**
+ * Parsea el campo `nutrition_json` que llega por FormData. Devuelve NULL si:
+ *   - el string está vacío
+ *   - el JSON es inválido
+ *   - el shape no tiene rows o todas las filas están vacías
+ * Esto permite que el admin "deshabilite" la tabla nutricional enviando
+ * un string vacío.
+ */
+function parseNutritionField(raw: string | null): Nutrition | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  const obj = parsed as Record<string, unknown>;
+  const portion = typeof obj.portion === 'string' ? obj.portion.trim() : '';
+  const sp = obj.servings_per_package;
+  const servings_per_package =
+    typeof sp === 'number' && Number.isFinite(sp) ? sp : null;
+  const rowsIn = Array.isArray(obj.rows) ? obj.rows : [];
+  const rows = rowsIn
+    .map((r) => {
+      if (!r || typeof r !== 'object') return null;
+      const rec = r as Record<string, unknown>;
+      const nutrient = typeof rec.nutrient === 'string' ? rec.nutrient.trim() : '';
+      const amount = typeof rec.amount === 'string' ? rec.amount.trim() : '';
+      const dv = typeof rec.dv === 'string' ? rec.dv.trim() : '';
+      if (!nutrient && !amount && !dv) return null;
+      return { nutrient, amount, dv };
+    })
+    .filter((r): r is { nutrient: string; amount: string; dv: string } => r !== null);
+  if (!portion && rows.length === 0) return null;
+  return { portion, servings_per_package, rows };
 }

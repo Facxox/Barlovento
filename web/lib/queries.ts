@@ -21,6 +21,7 @@ export type Product = {
   badge: string | null;
   is_active: boolean;
   sort_order: number;
+  nutrition: Nutrition | null;
 };
 
 /**
@@ -29,6 +30,18 @@ export type Product = {
  * público no la consume — solo el panel admin.
  */
 export type WholesaleProduct = Product;
+
+/**
+ * Información nutricional tipo packaging. La cantidad de filas puede
+ * variar entre productos — algunos alfajores declaran 4 nutrientes,
+ * otros 10. `amount` y `dv` son strings para mantener el formato libre
+ * ("22 g", "9 %", "180 kcal").
+ */
+export type Nutrition = {
+  portion: string;
+  servings_per_package: number | null;
+  rows: { nutrient: string; amount: string; dv: string }[];
+};
 
 export type Category = {
   id: string;            // slug — se guarda en products.category / wholesale_products.category

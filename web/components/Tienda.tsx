@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useCart } from './CartContext';
 import { Reveal } from './Reveal';
 import GoldDivider from './GoldDivider';
+import NutritionTable from './NutritionTable';
 import type { Product, Category } from '@/lib/queries';
 
 const formatUY = (n: number) =>
@@ -125,6 +126,9 @@ function ProductCard({
   delay: number;
   onAdd: () => void;
 }) {
+  const [showNutrition, setShowNutrition] = useState(false);
+  const hasNutrition = !!product.nutrition;
+
   return (
     <Reveal delay={delay}>
       <article className="group">
@@ -181,6 +185,34 @@ function ProductCard({
             </svg>
           </a>
         </div>
+
+        {hasNutrition && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setShowNutrition((v) => !v)}
+              aria-expanded={showNutrition}
+              aria-controls={`nutrition-${product.id}`}
+              className="inline-flex items-center gap-2 font-body text-[10px] uppercase tracking-ultra text-gold-deep hover:text-ink"
+            >
+              <span>{showNutrition ? 'Ocultar' : 'Ver'} información nutricional</span>
+              <span
+                className={[
+                  'inline-block transition-transform',
+                  showNutrition ? 'rotate-180' : '',
+                ].join(' ')}
+                aria-hidden
+              >
+                ▾
+              </span>
+            </button>
+            {showNutrition && (
+              <div id={`nutrition-${product.id}`}>
+                <NutritionTable data={product.nutrition} />
+              </div>
+            )}
+          </div>
+        )}
       </article>
     </Reveal>
   );

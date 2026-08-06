@@ -6,7 +6,7 @@ import {
   upsertProduct,
   upsertWholesaleProduct,
 } from '@/lib/admin-actions';
-import type { Product, WholesaleProduct, Category } from '@/lib/queries';
+import type { Product, WholesaleProduct, Category, Nutrition } from '@/lib/queries';
 import ImageDropzone from './ImageDropzone';
 
 type Mode = 'create' | 'edit';
@@ -41,6 +41,18 @@ export default function ProductoForm({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Información nutricional (opcional). Estructura tipo packaging.
+  const [nutrition, setNutrition] = useState<Nutrition>(
+    initial?.nutrition ?? {
+      portion: '',
+      servings_per_package: null,
+      rows: [],
+    }
+  );
+  const [nutritionEnabled, setNutritionEnabled] = useState<boolean>(
+    !!initial?.nutrition
+  );
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -61,6 +73,18 @@ export default function ProductoForm({
         // dejamos el server action calcularlo al final de la lista si es
         // un producto nuevo.
         fd.append('sort_order', initial?.sort_order?.toString() ?? '9999');
+        // Información nutricional: serializamos a JSON. Si el toggle está
+        // apagado mandamos string vacío para que el server guarde NULL.
+        fd.append(
+          'nutrition_json',
+          nutritionEnabled
+            ? JSON.stringify({
+                portion: nutrition.portion.trim(),
+                servings_per_package: nutrition.servings_per_package,
+                rows: nutrition.rows,
+              })
+            : ''
+        );
         if (file) fd.append('imageFile', file);
         if (isWholesale) {
           await upsertWholesaleProduct(fd);
@@ -189,6 +213,136 @@ export default function ProductoForm({
               className={inputCls}
             />
           </Field>
+
+          {/* Información nutricional — opcional, estilo etiqueta */}
+          <fieldset className="border border-carbon-line bg-carbon-raised/40 p-5">
+            <legend className="px-2 font-body text-[10px] uppercase tracking-ultra text-gold">
+              Información nutricional
+            </legend>
+
+            <label className="mb-3 flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={nutritionEnabled}
+                onChange={(e) => setNutritionEnabled(e.target.checked)}
+                className="h-4 w-4 accent-gold"
+              />
+              <span className="font-body text-sm text-bone">
+                Mostrar tabla nutricional en la tienda
+              </span>
+            </label>
+
+            {nutritionEnabled && (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Porción">
+                    <input
+                      value={nutrition.portion}
+                      onChange={(e) =>
+                        setNutrition({ ...nutrition, portion: e.target.value })
+                      }
+                      placeholder="Ej: 1 alfajor (40 g)"
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label="Porciones por envase (opcional)">
+                    <input
+                      type="number"
+                      value={nutrition.servings_per_package ?? ''}
+                      onChange={(e) =>
+                        setNutrition({
+                          ...nutrition,
+                          servings_per_package:
+                            e.target.value === '' ? null : Number(e.target.value),
+                        })
+                      }
+                      placeholder="Ej: 12"
+                      className={inputCls}
+                    />
+                  </Field>
+                </div>
+
+                <div>
+                  <p className="mb-2 font-body text-[10px] uppercase tracking-ultra text-bone/50">
+                    Nutrientes
+                  </p>
+                  <div className="grid gap-2">
+                    <div className="grid grid-cols-[1fr_140px_80px_40px] gap-2 font-body text-[10px] uppercase tracking-ultra text-bone/40">
+                      <span>Nombre</span>
+                      <span>Cantidad</span>
+                      <span>% VD</span>
+                      <span></span>
+                    </div>
+                    {nutrition.rows.map((row, i) => (
+                      <div
+                        key={i}
+                        className="grid grid-cols-[1fr_140px_80px_40px] gap-2"
+                      >
+                        <input
+                          value={row.nutrient}
+                          onChange={(e) => {
+                            const next = [...nutrition.rows];
+                            next[i] = { ...row, nutrient: e.target.value };
+                            setNutrition({ ...nutrition, rows: next });
+                          }}
+                          placeholder="Valor energético"
+                          className={inputCls}
+                        />
+                        <input
+                          value={row.amount}
+                          onChange={(e) => {
+                            const next = [...nutrition.rows];
+                            next[i] = { ...row, amount: e.target.value };
+                            setNutrition({ ...nutrition, rows: next });
+                          }}
+                          placeholder="180 kcal"
+                          className={inputCls}
+                        />
+                        <input
+                          value={row.dv}
+                          onChange={(e) => {
+                            const next = [...nutrition.rows];
+                            next[i] = { ...row, dv: e.target.value };
+                            setNutrition({ ...nutrition, rows: next });
+                          }}
+                          placeholder="9%"
+                          className={inputCls}
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNutrition({
+                              ...nutrition,
+                              rows: nutrition.rows.filter((_, idx) => idx !== i),
+                            })
+                          }
+                          className="font-body text-[10px] uppercase tracking-ultra text-bone/40 hover:text-red-400"
+                          aria-label={`Quitar fila ${i + 1}`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNutrition({
+                          ...nutrition,
+                          rows: [
+                            ...nutrition.rows,
+                            { nutrient: '', amount: '', dv: '' },
+                          ],
+                        })
+                      }
+                      className="self-start font-body text-[10px] uppercase tracking-ultra text-gold hover:text-gold-light"
+                    >
+                      + Agregar nutriente
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </fieldset>
 
           <ImageDropzone
             file={file}
