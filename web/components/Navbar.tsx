@@ -59,7 +59,7 @@ export default function Navbar() {
       ].join(' ')}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-10">
-        <Link href="#inicio" className="flex items-center gap-3" aria-label="Barlovento">
+        <Link href="/" className="flex items-center gap-3" aria-label="Barlovento">
           {/* Logo del local — wordmark oficial */}
           <img
             src="/Logo.jpg"
