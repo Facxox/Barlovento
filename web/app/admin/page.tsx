@@ -1,7 +1,5 @@
 import Link from 'next/link';
-import { getProducts } from '@/lib/queries';
-import { getGallery } from '@/lib/queries';
-import { getEvents } from '@/lib/queries';
+import { getProducts, getGallery, getEvents } from '@/lib/queries';
 import { listOrders, countPendingOrders } from '@/lib/orders';
 
 export default async function AdminDashboard() {
@@ -13,6 +11,16 @@ export default async function AdminDashboard() {
   ]);
   const orders = await listOrders();
   const recentOrders = orders.slice(0, 5);
+
+  const quickLinks = [
+    { href: '/admin/productos', label: 'Productos' },
+    { href: '/admin/categorias', label: 'Categorías' },
+    { href: '/admin/galeria', label: 'Galería' },
+    { href: '/admin/eventos', label: 'Eventos' },
+    { href: '/admin/textos', label: 'Textos de marca' },
+    { href: '/admin/pedidos', label: 'Pedidos' },
+    { href: '/admin/usuarios', label: 'Usuarios' },
+  ];
 
   const cards: Array<{ href: string; label: string; value: string | number; hint: string }> = [
     {
@@ -69,6 +77,35 @@ export default async function AdminDashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Accesos directos a todas las funcionalidades */}
+      <section className="mt-12">
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
+              Accesos directos
+            </p>
+            <h2 className="mt-2 font-display text-2xl text-bone">
+              Todas las funcionalidades
+            </h2>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {quickLinks.map((q) => (
+            <Link
+              key={q.href}
+              href={q.href}
+              className="group flex items-center justify-between border border-carbon-line bg-carbon px-5 py-4 transition hover:border-gold/60"
+            >
+              <span className="font-body text-sm text-bone">{q.label}</span>
+              <span className="font-body text-xs uppercase tracking-ultra text-bone/40 group-hover:text-gold">
+                Abrir →
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <section className="mt-12">
         <div className="flex items-end justify-between">
