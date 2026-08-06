@@ -1,21 +1,32 @@
 import Link from 'next/link';
-import { getProducts, getGallery, getEvents } from '@/lib/queries';
+import { getProducts, getGallery, getEvents, getCategories } from '@/lib/queries';
 import { listOrders, countPendingOrders } from '@/lib/orders';
+import { getServerSupabase } from '@/lib/supabase-server';
 
 export default async function AdminDashboard() {
-  const [products, gallery, events, pending] = await Promise.all([
+  const [products, gallery, events, categories, pending] = await Promise.all([
     getProducts(),
     getGallery(),
     getEvents(),
+    getCategories(),
     countPendingOrders(),
   ]);
+
+  // Usuarios: leemos directo desde Supabase (la tabla `profiles`) sin pasar
+  // por `listUsersWithStats` para evitar traer todos los pedidos. Si no
+  // hay conexión a Supabase, devolvemos 0.
+  let userCount = 0;
+  const supabase = await getServerSupabase();
+  if (supabase) {
+    const { count } = await supabase
+      .from('profiles')
+      .select('user_id', { count: 'exact', head: true });
+    userCount = count ?? 0;
+  }
+
   const orders = await listOrders();
   const recentOrders = orders.slice(0, 5);
 
-  // Tarjetas del dashboard. Cada una con el mismo formato visual que la
-  // card de Productos: eyebrow, número grande, hint, y "Gestionar →".
-  // Las tarjetas que no tienen una métrica dinámica (Categorías, Textos,
-  // Usuarios) muestran un guion y un hint neutro.
   type Card = {
     href: string;
     label: string;
@@ -33,8 +44,8 @@ export default async function AdminDashboard() {
     {
       href: '/admin/categorias',
       label: 'Categorías',
-      value: '—',
-      hint: 'Administrá las categorías del catálogo',
+      value: categories.length,
+      hint: `${categories.filter((c) => c.is_active).length} activas`,
     },
     {
       href: '/admin/galeria',
@@ -49,12 +60,6 @@ export default async function AdminDashboard() {
       hint: `${events.filter((e) => e.kind === 'past').length} en archivo`,
     },
     {
-      href: '/admin/textos',
-      label: 'Textos de marca',
-      value: '—',
-      hint: 'Historia, misión, visión, valores y más',
-    },
-    {
       href: '/admin/pedidos',
       label: 'Pedidos pendientes',
       value: pending,
@@ -63,8 +68,14 @@ export default async function AdminDashboard() {
     {
       href: '/admin/usuarios',
       label: 'Usuarios',
+      value: userCount,
+      hint: 'Cuentas registradas',
+    },
+    {
+      href: '/admin/textos',
+      label: 'Textos de marca',
       value: '—',
-      hint: 'Roles y mayoristas',
+      hint: 'Historia, misión, visión, valores y más',
     },
   ];
 
