@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { getBrowserSupabase } from '@/lib/types';
 import { updateProfile } from '@/lib/profile-actions';
+import { signOut } from '@/lib/auth-actions';
 
 type Profile = {
   email?: string | null;
@@ -46,11 +46,8 @@ export default function CuentaForm({ initial }: { initial?: Profile }) {
   };
 
   const onSignOut = async () => {
-    const supabase = getBrowserSupabase();
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    router.push('/');
-    router.refresh();
+    await signOut();
+    window.location.assign('/');
   };
 
   return (

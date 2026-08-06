@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
-import { getBrowserSupabase } from '@/lib/types';
+import { usePathname } from 'next/navigation';
+import { signOut } from '@/lib/auth-actions';
 
 const tabs = [
   { href: '/admin', label: 'Resumen' },
@@ -15,14 +15,11 @@ const tabs = [
 ];
 
 export default function AdminNav() {
-  const router = useRouter();
   const pathname = usePathname();
 
   const onLogout = async () => {
-    const supabase = getBrowserSupabase();
-    if (supabase) await supabase.auth.signOut();
-    router.push('/admin/login');
-    router.refresh();
+    await signOut();
+    window.location.assign('/admin/login');
   };
 
   return (

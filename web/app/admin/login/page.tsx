@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { getBrowserSupabase } from '@/lib/types';
+import { useSearchParams } from 'next/navigation';
+import { signIn } from '@/lib/auth-actions';
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/admin';
 
@@ -18,23 +17,13 @@ function LoginForm() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const supabase = getBrowserSupabase();
-    if (!supabase) {
-      setError('Supabase no está configurado todavía.');
-      setLoading(false);
-      return;
-    }
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const result = await signIn(email, password, redirectTo);
     setLoading(false);
-    if (error) {
-      setError(error.message);
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
-    router.push(redirectTo);
-    router.refresh();
+    window.location.assign(result.destination);
   };
 
   return (

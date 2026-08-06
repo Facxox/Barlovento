@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getBrowserSupabase } from '@/lib/types';
+import { signIn } from '@/lib/auth-actions';
 
 export default function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const next = params?.get('next') ?? '/mi-cuenta';
 
@@ -18,26 +17,14 @@ export default function LoginForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const supabase = getBrowserSupabase();
-    if (!supabase) {
-      setError('Supabase no está configurado todavía.');
-      return;
-    }
     setLoading(true);
-    const { data, error: err } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const result = await signIn(email, password, next);
     setLoading(false);
-    if (err) {
-      setError('Email o contraseña incorrectos.');
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
-    if (!data.session) {
-      setError('La sesión no pudo iniciarse. Revisá la configuración de Supabase.');
-      return;
-    }
-    window.location.assign(next);
+    window.location.assign(result.destination);
   };
 
   return (

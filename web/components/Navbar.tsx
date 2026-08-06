@@ -35,11 +35,11 @@ export default function Navbar() {
     if (!supabase) return;
 
     let mounted = true;
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(({ data }: { data: { user: { email?: string | null } | null } }) => {
       if (mounted) setUserEmail(data.user?.email ?? null);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event: string, session: { user?: { email?: string | null } | null } | null) => {
       setUserEmail(session?.user?.email ?? null);
     });
 

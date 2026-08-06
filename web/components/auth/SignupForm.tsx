@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getBrowserSupabase } from '@/lib/types';
+import { signUp } from '@/lib/auth-actions';
+import { validatePassword } from '@/lib/password-validation';
 
 export default function SignupForm() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -20,73 +19,54 @@ export default function SignupForm() {
     e.preventDefault();
     setError(null);
 
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
-      return;
-    }
     if (!fullName.trim()) {
       setError('Poné tu nombre.');
       return;
     }
 
-    const supabase = getBrowserSupabase();
-    if (!supabase) {
-      setError('Supabase no está configurado todavía.');
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.ok) {
+      setError(pwCheck.reason);
       return;
     }
 
     setLoading(true);
-
-    // signUp con metadata.full_name → el trigger lo levanta en profiles.
-    const { error: signUpError } = await supabase.auth.signUp({
+    const result = await signUp({
       email,
       password,
-      options: {
-        data: { full_name: fullName.trim() },
-        emailRedirectTo: `${window.location.origin}/`,
-      },
+      fullName,
+      phone,
+      address,
+      city,
     });
-
-    if (signUpError) {
-      setError(signUpError.message);
-      setLoading(false);
-      return;
-    }
-
-    // Si la confirmación por email está activada en Supabase,
-    // la sesión no se crea acá. Forzamos signIn para entrar al sitio
-    // ya logueado (si falla por email-not-confirmed, mostramos mensaje).
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
     setLoading(false);
 
-    if (signInError) {
-      // Abrimos en nueva pestaña la pantalla "Revisa tu correo" para que el
-      // usuario confirme desde su mail. No redirigimos la pestaña actual:
-      // si confirma el email y vuelve a /signup, sigue viendo su formulario.
-      window.open(
-        '/signup/check-email',
-        'barlovento-check-email',
-        'noopener,noreferrer'
-      );
-      setError(
-        'Cuenta creada. Te abrimos una pestaña para que revises tu email y la confirmes.'
-      );
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
-    router.push('/mi-cuenta');
-    router.refresh();
+    if (result.needsConfirmation) {
+      window.location.assign(result.destination);
+      return;
+    }
+
+    window.location.assign(result.destination);
   };
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <Field label="Nombre completo" value={fullName} onChange={setFullName} required autoComplete="name" />
       <Field label="Email" type="email" value={email} onChange={setEmail} required autoComplete="email" />
-      <Field label="Contraseña" type="password" value={password} onChange={setPassword} required autoComplete="new-password" hint="Mínimo 6 caracteres." />
+      <Field
+        label="Contraseña"
+        type="password"
+        value={password}
+        onChange={setPassword}
+        required
+        autoComplete="new-password"
+        hint="Mínimo 8 caracteres con mayúsculas, minúsculas, números y un símbolo."
+      />
       <div className="grid grid-cols-2 gap-3">
         <Field label="Teléfono" type="tel" value={phone} onChange={setPhone} required autoComplete="tel" />
         <Field label="Ciudad" value={city} onChange={setCity} required autoComplete="address-level2" />

@@ -1,22 +1,18 @@
 import { createBrowserClient } from '@supabase/ssr';
 
+let browserClient: ReturnType<typeof createBrowserClient> | null = null;
+
 /**
  * Cliente Supabase en el navegador.
  *
- * La integración SSR sincroniza la sesión entre localStorage y cookies para
- * que las páginas y APIs del servidor puedan leer al usuario autenticado.
+ * Usa el storage de cookies estándar de @supabase/ssr para que las páginas y
+ * APIs del servidor reciban la misma sesión que el navegador.
  */
 export function getBrowserSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return null;
 
-  return createBrowserClient(url, key, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storageKey: 'barlovento-auth',
-    },
-  });
+  if (!browserClient) browserClient = createBrowserClient(url, key);
+  return browserClient;
 }

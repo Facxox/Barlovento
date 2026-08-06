@@ -1,4 +1,4 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 /**
@@ -15,14 +15,6 @@ export async function getServerSupabase() {
 
   const cookieStore = cookies();
 
-  const cookieOptions: CookieOptions = {
-    maxAge: 60 * 60 * 24 * 365,
-    path: '/',
-    sameSite: 'lax',
-    httpOnly: false, // el browser client necesita leerlas
-    secure: process.env.NODE_ENV === 'production',
-  };
-
   return createServerClient(url, key, {
     cookies: {
       getAll() {
@@ -31,7 +23,7 @@ export async function getServerSupabase() {
       setAll(toSet) {
         try {
           toSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, { ...cookieOptions, ...options })
+            cookieStore.set(name, value, options)
           );
         } catch {
           // Server Components no pueden setear cookies; el middleware se encarga.
