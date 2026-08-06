@@ -135,12 +135,15 @@ Barlovento/
 │   │   ├── queries.ts                 # getProducts / getGallery / getEvents / getSiteContent (con fallback)
 │   │   ├── admin-queries.ts           # listUsersWithStats (admin only)
 │   │   ├── admin-actions.ts           # Server Actions: upsert/delete productos, galería, eventos, textos, customer_type
+│   │   ├── auth-actions.ts            # Server Actions: signIn / signUp / signOut (escriben cookies SSR)
+│   │   ├── password-validation.ts     # Validador compartido cliente+server (longitud, clases, blacklist)
 │   │   ├── profile-actions.ts         # updateProfile + listMyOrders
 │   │   ├── storage.ts                 # uploadImage + deleteImageByUrl (bucket barlovento-media)
 │   │   ├── orders.ts                  # listOrders + countPendingOrders
 │   │   └── mercadopago.ts             # getMercadoPago (singleton)
 │   ├── public/                        # Assets estáticos servidos por Next
 │   └── supabase/migrations/0002_customer_type.sql
+└── supabase/migrations/0004_auth_security_hardening.sql   # Hardening: search_path + EXECUTE restringido
 ```
 
 ---
@@ -160,6 +163,11 @@ Definidas en `web/.env.example` (copiar a `web/.env.local`):
 **Importante**: `NEXT_PUBLIC_*` se exponen al bundle del cliente. Las otras dos **nunca** deben llegar al cliente.
 
 **JWT expiry**: el cliente configura `maxAge: 1 año` en cookies. Para que esto funcione, el JWT expiry en Supabase Dashboard → Auth → Settings tiene que estar en 1 año también (default 1h rompería la sesión).
+
+**Estado de credenciales en Vercel (2026-08-06)**:
+- `SUPABASE_SERVICE_ROLE_KEY` — rotada el 2026-08-06 ~13:30.
+- `MERCADO_PAGO_ACCESS_TOKEN` — rotado el 2026-08-06 ~13:30.
+- `SUPABASE_ANON_KEY` y `MERCADO_PAGO_PUBLIC_KEY` — **pendientes** por decisión del usuario.
 
 ---
 
@@ -277,10 +285,17 @@ Convenciones de path:
 4. Devuelve `init_point` → cliente hace `window.location.href`.
 5. Al volver, el `success|failure|pending` page muestra el estado (sin webhook configurado todavía para update status → paid).
 
-### 6.3 Login y sesión
-- `getBrowserSupabase` configura persistencia en `localStorage` con TTL 1 año y `autoRefreshToken: false`.
-- El `Navbar` escucha `onAuthStateChange` y muestra "Iniciar sesión" o "Mi cuenta" según el estado.
-- En `mi-cuenta`, server component llama `getUser()` y, si no hay user, redirige a `/login`.
+### 6.3 Login y sesión (flujo SSR)
+- **Persistencia**: cookies nativas de `@supabase/ssr` (no `localStorage`). `getBrowserSupabase` reusa una instancia única por render.
+- **Server Actions** en `lib/auth-actions.ts`:
+  - `signIn(email, password)` → valida server-side; Supabase escribe las cookies en la respuesta.
+  - `signUp(...)` → crea usuario con `emailRedirectTo` derivado de `NEXT_PUBLIC_SITE_URL`. Si requiere confirmación, devuelve `destination='/signup/check-email'` con `needsConfirmation=true`.
+  - `signOut()` → invalida sesión y limpia cookies desde el servidor.
+- **Formularios**: `LoginForm`, `SignupForm` y `app/admin/login` llaman las Server Actions y, tras éxito, hacen `window.location.assign(destination)` para que el siguiente request ya lleve la cookie. Errores vuelven como `{ ok:false, error }`.
+- **Sanitización de destinos**: helper `safeInternalPath()` acepta solo rutas que empiecen por `/` (rechaza `//`, esquemas y hosts externos). Aplicado a `?next=`, `?destination=` y `?redirect=`.
+- **Middleware**: protege `/mi-cuenta/:path*` además de `/admin/:path*`. Sin sesión en rutas protegidas → redirect a `/login?next=<path>`. `next` se sanitiza antes de redirigir.
+- **Navbar**: detecta sesión con `getUser()` + `onAuthStateChange`. Tras logout, navega completo a `/` para limpiar estado cliente.
+- **`/api/me`**: sigue devolviendo `{ user, profile }` (con `{ user:null, profile:null }` si no hay sesión). No filtra detalles de auth.
 
 ### 6.4 Middleware de admin
 - `web/middleware.ts` corre para todo `/admin/:path*`.
@@ -342,6 +357,10 @@ Next.js no acepta `File` como argumento directo de un Server Action. **Todos los
 - **Fix profile persistence**: `updateProfile` cambió de `.update().eq()` a `.upsert(..., { onConflict: 'user_id' })` para crear la fila si no existía (algunos users se loguean sin que el trigger de signup haya corrido).
 - **Fix Navbar auth-aware**: detecta `userEmail` con `getUser()` + `onAuthStateChange`, cambia "Iniciar sesión" → "Mi cuenta" cuando hay sesión.
 - **Fix admin panel button**: agregado `is_admin` a la policy de SELECT de `profiles` con función `SECURITY DEFINER` para evitar recursión de RLS.
+- **Unify SSR auth flow** (commit `81825f9`): `lib/auth-actions.ts` con `signIn/signUp/signOut` server-side. `getBrowserSupabase` deja `localStorage` y pasa a cookies nativas de `@supabase/ssr`. Middleware protege `/mi-cuenta` y sanitiza `next`. Helper `safeInternalPath()` bloquea open redirects.
+- **Hardening Supabase** (`0004_auth_security_hardening.sql` aplicada): `search_path=''` + `EXECUTE` restringido en 4 funciones. `mark_user_as_admin` solo `service_role`. `profiles_admin_view` con `security_invoker=true` (idempotente).
+- **Validación de contraseñas** (`lib/password-validation.ts`): 8 chars + clases + blacklist local, ejecutada en cliente y server. Alternativa app-layer a HaveIBeenPwned (Free plan).
+- **Rotaciones Vercel**: `SUPABASE_SERVICE_ROLE_KEY` y `MERCADO_PAGO_ACCESS_TOKEN` rotados el 2026-08-06 ~13:30. Pendientes `SUPABASE_ANON_KEY` y `MERCADO_PAGO_PUBLIC_KEY`.
 
 ### Fases del proyecto (acumulado)
 - **Fase 1**: sitio estático con JSON local.
@@ -353,13 +372,35 @@ Next.js no acepta `File` como argumento directo de un Server Action. **Todos los
 
 ## 9. Estado actual y temas abiertos
 
-### 9.1 Botón "Panel admin" en /mi-cuenta
-**Síntoma**: el usuario tiene `is_admin=true` en la DB pero el botón no se muestra en `/mi-cuenta`.
+### 9.1 Botón "Panel admin" en /mi-cuenta — ✅ Resuelto 2026-08-06
+La RLS recursiva se rompió con la función `public.is_admin(uid) SECURITY DEFINER` y la policy `profiles admin read all`. El botón se muestra correctamente cuando `is_admin=true` en `profiles`.
 
-**Causa más probable** (en diagnóstico al 2026-08-06): RLS de `profiles` filtraba la fila para el user logueado. Se agregó policy con función `public.is_admin(uid) SECURITY DEFINER` para romper la recursión. Pendiente verificar:
-- Confirmar que la policy quedó aplicada en la DB del usuario.
-- Confirmar que la función `is_admin` devuelve `true` para su `auth.uid()`.
-- Si el botón sigue sin aparecer tras el fix, mirar el JSON de la response a `/rest/v1/profiles` en Network de DevTools.
+### 9.6 Hardening de auth (2026-08-06)
+
+**Server Actions con cookies**: el flujo de login/signup/logout pasó a server-side (ver §6.3) para que Supabase pueda escribir las cookies de sesión en la respuesta. El browser ya no depende de `localStorage`.
+
+**Migración `0004_auth_security_hardening.sql`** (aplicada vía `mcp__supabase__apply_migration`):
+- Fija `search_path = ''` en `set_updated_at`, `handle_new_user`, `mark_user_as_admin`, `is_admin`.
+- Revoca `EXECUTE` público de `handle_new_user`, `set_updated_at`, `mark_user_as_admin`, `is_admin`.
+- `mark_user_as_admin(p_email)` queda accesible solo a `service_role` (escalada de privilegios si la llama `authenticated`).
+- `is_admin(uid)` queda accesible a `authenticated` (la invocan las RLS) y `service_role`. `anon` no puede mapear admins internos.
+- `profiles_admin_view` con `security_invoker=true` (ALTER idempotente).
+
+**Validación de contraseñas**: `haveIBeenPwned` exige Pro plan; en Free se implementa protección equivalente en `lib/password-validation.ts`:
+- Mínimo 8 caracteres.
+- Debe incluir mayúsculas, minúsculas, dígitos y un símbolo.
+- Blacklist local de ~47 contraseñas triviales (case-insensitive).
+- Se ejecuta tanto en el `SignupForm` (cliente) como en la Server Action `signUp` (defensa contra bypass por llamadas directas).
+
+**Avisos restantes en Security Advisor**:
+- `is_admin` invocable por `authenticated` — esperado, lo requieren las policies RLS.
+- `auth_leaked_password_protection` — requiere Pro; mitigado a nivel de aplicación.
+
+**Pendientes no automatizables** (decisión del usuario, registrados en §4):
+- Rotar `SUPABASE_ANON_KEY` y `MERCADO_PAGO_PUBLIC_KEY` en Vercel.
+- Confirmar en Supabase Auth → URL Configuration:
+  - Site URL: `https://barlovento-oy5q.vercel.app`
+  - Redirect URLs: `https://barlovento-oy5q.vercel.app/**` + `http://localhost:3000/**`
 
 ### 9.2 Falta webhook de Mercado Pago
 Los orders quedan en `status='pending'` aunque el cliente pague. Falta implementar el endpoint que recibe la notificación de MP y hace update a `paid` (más `mp_payment_id`). Hoy el merchant confirma manualmente desde el panel de pedidos.
