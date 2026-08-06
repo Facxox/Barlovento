@@ -16,6 +16,9 @@ type Body = {
   customer_name?: string | null;
   customer_phone?: string | null;
   customer_email?: string | null;
+  customer_address?: string | null;
+  customer_city?: string | null;
+  customer_notes?: string | null;
 };
 
 function siteUrl(): string {
@@ -76,6 +79,9 @@ export async function POST(req: NextRequest) {
         statement_descriptor: 'Barlovento',
         metadata: {
           source: 'web',
+          customer_address: body.customer_address ?? null,
+          customer_city: body.customer_city ?? null,
+          customer_notes: body.customer_notes ?? null,
         },
       },
     });
@@ -105,6 +111,9 @@ export async function POST(req: NextRequest) {
       customer_name: body.customer_name ?? null,
       customer_phone: body.customer_phone ?? null,
       customer_email: body.customer_email ?? null,
+      customer_address: body.customer_address ?? null,
+      customer_city: body.customer_city ?? null,
+      customer_notes: body.customer_notes ?? null,
       mp_preference_id: preferenceId,
     });
     if (error) {

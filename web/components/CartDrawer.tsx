@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useCart } from './CartContext';
 
 function formatUY(n: number) {
@@ -13,9 +14,8 @@ function formatUY(n: number) {
 
 export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
   const { items, isOpen, close, setQty, remove, subtotal, clear } = useCart();
+  const router = useRouter();
   const phone = whatsapp.replace(/\D/g, '');
-  const [mpBusy, setMpBusy] = useState(false);
-  const [mpError, setMpError] = useState<string | null>(null);
   // Si el usuario logueado es mayorista, no mostramos Mercado Pago.
   const [customerType, setCustomerType] = useState<'retail' | 'wholesale' | null>(
     null
@@ -72,39 +72,10 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
     } catch {}
   };
 
-  const handleMercadoPago = async () => {
-    if (mpBusy || items.length === 0) return;
-    setMpBusy(true);
-    setMpError(null);
-    try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: items.map((i) => ({
-            id: i.id,
-            name: i.name,
-            qty: i.qty,
-            price: i.price,
-            currency: i.currency,
-          })),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.ok || !data.init_point) {
-        setMpError(
-          data?.error === 'mercadopago_not_configured'
-            ? 'Mercado Pago no está configurado todavía.'
-            : 'No pudimos iniciar el pago. Probá de nuevo.'
-        );
-        setMpBusy(false);
-        return;
-      }
-      window.location.href = data.init_point;
-    } catch {
-      setMpError('No pudimos iniciar el pago. Probá de nuevo.');
-      setMpBusy(false);
-    }
+  const goCheckout = () => {
+    if (items.length === 0) return;
+    close();
+    router.push('/checkout');
   };
 
   return (
@@ -217,16 +188,11 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
 
               {showMercadoPago && (
                 <button
-                  onClick={handleMercadoPago}
-                  disabled={mpBusy}
-                  className="block w-full rounded-full border border-gold py-3 text-center font-body text-gold hover:bg-gold hover:text-carbon transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={goCheckout}
+                  className="block w-full rounded-full border border-gold py-3 text-center font-body text-gold hover:bg-gold hover:text-carbon transition"
                 >
-                  {mpBusy ? 'Conectando con Mercado Pago…' : 'Pagar con Mercado Pago'}
+                  Pagar con Mercado Pago
                 </button>
-              )}
-
-              {showMercadoPago && mpError && (
-                <p className="text-center font-body text-xs text-red-400">{mpError}</p>
               )}
 
               <button

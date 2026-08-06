@@ -53,7 +53,9 @@ export default function Navbar() {
   // header no puede arrancar transparente: forzamos el fondo carbon apenas el
   // usuario sale del landing. En la home seguimos respetando el scroll para
   // mantener la superposición sobre el Hero oscuro.
-  const forceSolid = pathname?.startsWith('/productos') ?? false;
+  const forceSolid =
+    (pathname?.startsWith('/productos') ?? false) ||
+    (pathname?.startsWith('/checkout') ?? false);
   const solid = forceSolid || scrolled;
 
   return (
