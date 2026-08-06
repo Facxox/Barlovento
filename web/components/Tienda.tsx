@@ -64,8 +64,9 @@ export default function Tienda({
                 Pedí online o por WhatsApp.
               </h2>
               <p className="mt-4 text-ink/70 font-body leading-relaxed">
-                Hacemos envíos a todo el país y también despachamos en Trinidad.
-                Elegí el canal que prefieras al finalizar.
+                Hacemos envíos a todo el país por encomienda, a cargo del
+                cliente. Coordinamos el despacho apenas confirmamos el pago:
+                el envío se abona cuando te llega.
               </p>
             </div>
 
