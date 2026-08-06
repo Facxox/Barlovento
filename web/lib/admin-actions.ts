@@ -202,6 +202,9 @@ export async function moveWholesaleProduct(
  * Estrategia: movemos ambos registros a valores temporales negativos para
  * evitar pisar el sort_order del otro durante la transacción, y luego
  * asignamos los valores definitivos.
+ *
+ * Dispatch sobre `table` porque las cinco tablas tienen tipos de Row
+ * distintos y supabase-js no acepta un union genérico en `.from()`.
  */
 async function swapAdjacent(
   table: 'products' | 'wholesale_products' | 'categories' | 'gallery_items' | 'events',
@@ -209,47 +212,75 @@ async function swapAdjacent(
   id: string | number,
   dir: -1 | 1
 ): Promise<void> {
+  switch (table) {
+    case 'products':
+      return swapAdjacentImpl('products', pkCol, id as string, dir, 'id');
+    case 'wholesale_products':
+      return swapAdjacentImpl('wholesale_products', pkCol, id as string, dir, 'id');
+    case 'categories':
+      return swapAdjacentImpl('categories', pkCol, id as string, dir, 'id');
+    case 'gallery_items':
+      return swapAdjacentImpl('gallery_items', pkCol, id as number, dir, 'id');
+    case 'events':
+      return swapAdjacentImpl('events', pkCol, id as number, dir, 'id');
+  }
+}
+
+type TableName =
+  | 'products'
+  | 'wholesale_products'
+  | 'categories'
+  | 'gallery_items'
+  | 'events';
+
+async function swapAdjacentImpl<T extends TableName>(
+  table: T,
+  pkCol: string,
+  id: string | number,
+  dir: -1 | 1,
+  _pk: 'id' // sólo para satisfacer el tipado de supabase-js
+): Promise<void> {
   const supabase = await requireAdmin();
 
-  const { data: source, error: srcErr } = await supabase
+  const sourceRes = await supabase
     .from(table)
-    .select(`${pkCol}, sort_order`)
+    .select('*')
     .eq(pkCol, id)
     .maybeSingle();
-  if (srcErr || !source) return;
+  if (sourceRes.error || !sourceRes.data) return;
+  const source = sourceRes.data as Record<string, unknown> & { sort_order: number };
+  const sourcePkVal = source[pkCol];
 
-  // Hallamos el vecino inmediato: row con sort_order menor (dir=-1) o
-  // mayor (dir=1) que el source, ordenando de modo que el primero sea el
-  // más cercano.
-  let neighborQuery = supabase
+  const baseQuery = supabase
     .from(table)
-    .select(`${pkCol}, sort_order`)
+    .select('*')
     .order('sort_order', { ascending: dir === 1 })
     .limit(1);
-  neighborQuery =
-    dir === -1 ? neighborQuery.lt('sort_order', source.sort_order)
-              : neighborQuery.gt('sort_order', source.sort_order);
+  const neighborQuery =
+    dir === -1
+      ? baseQuery.lt('sort_order', source.sort_order)
+      : baseQuery.gt('sort_order', source.sort_order);
 
-  const { data: nb, error: nbErr } = await neighborQuery.maybeSingle();
-  if (nbErr || !nb) return;
+  const neighborRes = await neighborQuery.maybeSingle();
+  if (neighborRes.error || !neighborRes.data) return;
+  const nb = neighborRes.data as Record<string, unknown> & { sort_order: number };
+  const nbPkVal = nb[pkCol];
 
-  // Valores temporales únicos negativos para evitar conflictos durante
-  // la transacción.
   const tempA = -source.sort_order - 1;
   const tempB = -nb.sort_order - 1;
 
-  const upd = async (colVal: string | number, sortTemp: number) => {
+  const upd = async (colVal: unknown, sortTemp: number) => {
     const { error } = await supabase
       .from(table)
       .update({ sort_order: sortTemp })
-      .eq(pkCol, colVal);
+      .eq(pkCol, colVal as string | number);
     if (error) throw new Error(`swapAdjacent[${table}]: ${error.message}`);
   };
 
-  await upd(source[pkCol], tempA);
-  await upd(nb[pkCol], tempB);
-  await upd(source[pkCol], nb.sort_order);
-  await upd(nb[pkCol], source.sort_order);
+  await upd(sourcePkVal, tempA);
+  await upd(nbPkVal, tempB);
+  await upd(sourcePkVal, nb.sort_order);
+  await upd(nbPkVal, source.sort_order);
 }
 
 export async function moveCategory(
