@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from './supabase-server';
+import { getServiceSupabase } from './supabase-admin';
 import { uploadImage, deleteImageByUrl } from './storage';
 import type { Product, WholesaleProduct, GalleryItem, BarloventoEvent, SiteContent } from './queries';
 
@@ -522,6 +523,43 @@ export async function updateCustomerType(
   if (error) throw new Error(`updateCustomerType: ${error.message}`);
   revalidatePath('/admin/usuarios');
   revalidatePath('/mi-cuenta');
+}
+
+/**
+ * Cambia el flag `is_admin` de un usuario. Solo admin puede llamarlo.
+ *
+ * Seguridad:
+ *  - Verifica que el caller sea admin (`requireAdminStrict`).
+ *  - Usa el service-role client para bypassear RLS (la policy self-update
+ *    no permite escribir is_admin, y un admin update sobre la fila de otro
+ *    usuario sería bloqueado por RLS de todas formas).
+ *  - Impide que un admin se desactive a sí mismo para evitar lockout.
+ */
+export async function setAdmin(
+  userId: string,
+  isAdmin: boolean
+): Promise<void> {
+  const supabase = await requireAdminStrict();
+  const {
+    data: { user: caller },
+  } = await supabase.auth.getUser();
+  if (caller?.id === userId && !isAdmin) {
+    throw new Error(
+      'No podés quitarte el rol admin a vos mismo (quedaría el panel sin acceso).'
+    );
+  }
+  const admin = getServiceSupabase();
+  if (!admin) {
+    throw new Error(
+      'Server misconfigurado: falta SUPABASE_SERVICE_ROLE_KEY para cambiar roles.'
+    );
+  }
+  const { error } = await admin
+    .from('profiles')
+    .update({ is_admin: isAdmin })
+    .eq('user_id', userId);
+  if (error) throw new Error(`setAdmin: ${error.message}`);
+  revalidatePath('/admin/usuarios');
 }
 
 // ----------------------------------------------------------------

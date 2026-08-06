@@ -2,7 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateCustomerType, type CustomerType } from '@/lib/admin-actions';
+import {
+  updateCustomerType,
+  setAdmin,
+  type CustomerType,
+} from '@/lib/admin-actions';
 import type { AdminProfile, UsersStats } from '@/lib/admin-queries';
 import UserOrdersDrawer from './UserOrdersDrawer';
 
@@ -16,9 +20,11 @@ const formatUY = (n: number) =>
 export default function UsuariosTable({
   initial,
   stats,
+  currentUserId,
 }: {
   initial: AdminProfile[];
   stats: UsersStats;
+  currentUserId: string | null;
 }) {
   const router = useRouter();
   const [users, setUsers] = useState(initial);
@@ -64,6 +70,33 @@ export default function UsuariosTable({
         setUsers((list) =>
           list.map((x) =>
             x.user_id === u.user_id ? { ...x, customer_type: prev } : x
+          )
+        );
+        setError(err.message ?? 'Error al guardar.');
+      } finally {
+        setBusyId(null);
+      }
+    });
+  };
+
+  const onToggleAdmin = (u: AdminProfile) => {
+    const next = !u.is_admin;
+    const prev = u.is_admin;
+    setUsers((list) =>
+      list.map((x) =>
+        x.user_id === u.user_id ? { ...x, is_admin: next } : x
+      )
+    );
+    setBusyId(u.user_id);
+    setError(null);
+    startTransition(async () => {
+      try {
+        await setAdmin(u.user_id, next);
+        router.refresh();
+      } catch (err: any) {
+        setUsers((list) =>
+          list.map((x) =>
+            x.user_id === u.user_id ? { ...x, is_admin: prev } : x
           )
         );
         setError(err.message ?? 'Error al guardar.');
@@ -136,6 +169,7 @@ export default function UsuariosTable({
             {filtered.map((u) => {
               const isBusy = busyId === u.user_id;
               const isWholesale = u.customer_type === 'wholesale';
+              const isSelf = currentUserId === u.user_id;
               return (
                 <tr
                   key={u.user_id}
@@ -194,22 +228,47 @@ export default function UsuariosTable({
                     })}
                   </td>
                   <td className="p-3 text-right">
-                    <button
-                      onClick={() => onToggle(u)}
-                      disabled={isBusy}
-                      className={[
-                        'rounded-full px-3 py-1.5 font-body text-[10px] uppercase tracking-ultra transition disabled:opacity-50',
-                        isWholesale
-                          ? 'border border-carbon-line text-bone/70 hover:bg-carbon-raised'
-                          : 'bg-gold text-carbon hover:bg-gold-light',
-                      ].join(' ')}
-                    >
-                      {isBusy
-                        ? '…'
-                        : isWholesale
-                        ? 'Pasar a minorista'
-                        : 'Pasar a mayorista'}
-                    </button>
+                    <div className="flex flex-col items-end gap-2">
+                      <button
+                        onClick={() => onToggle(u)}
+                        disabled={isBusy}
+                        className={[
+                          'rounded-full px-3 py-1.5 font-body text-[10px] uppercase tracking-ultra transition disabled:opacity-50',
+                          isWholesale
+                            ? 'border border-carbon-line text-bone/70 hover:bg-carbon-raised'
+                            : 'bg-gold text-carbon hover:bg-gold-light',
+                        ].join(' ')}
+                      >
+                        {isBusy
+                          ? '…'
+                          : isWholesale
+                          ? 'Pasar a minorista'
+                          : 'Pasar a mayorista'}
+                      </button>
+                      <button
+                        onClick={() => onToggleAdmin(u)}
+                        disabled={isBusy || (isSelf && u.is_admin)}
+                        title={
+                          isSelf && u.is_admin
+                            ? 'No podés quitarte el rol admin a vos mismo'
+                            : u.is_admin
+                            ? 'Quitar rol admin'
+                            : 'Ascender a admin'
+                        }
+                        className={[
+                          'rounded-full px-3 py-1.5 font-body text-[10px] uppercase tracking-ultra transition disabled:opacity-40 disabled:cursor-not-allowed',
+                          u.is_admin
+                            ? 'border border-carbon-line text-bone/70 hover:bg-carbon-raised'
+                            : 'border border-gold/50 text-gold hover:bg-gold/10',
+                        ].join(' ')}
+                      >
+                        {isBusy
+                          ? '…'
+                          : u.is_admin
+                          ? 'Quitar admin'
+                          : 'Hacer admin'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );

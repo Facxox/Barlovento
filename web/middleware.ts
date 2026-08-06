@@ -8,9 +8,19 @@ import { NextResponse, type NextRequest } from 'next/server';
  *  - /admin/* (excepto /admin/login) requiere user autenticado Y is_admin=true.
  *  - /admin/login: si ya hay user logueado → /admin.
  *  - si no configurado, deja pasar (modo dev).
+ *
+ * Además reenvía el pathname en `x-pathname` para que el root layout pueda
+ * ocultar el chrome público (Navbar/Footer/Float/Cart) en /admin/*.
  */
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  // Reenviamos el pathname al layout para detectar rutas admin. Hay que
+  // crear la request "siguiente" antes de pasar por supabase, porque las
+  // cookies se setean contra `request` y `response` por separado.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', request.nextUrl.pathname);
+  let response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -24,7 +34,9 @@ export async function middleware(request: NextRequest) {
       },
       setAll(toSet) {
         toSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
+        response = NextResponse.next({
+          request: { headers: requestHeaders },
+        });
         toSet.forEach(({ name, value, options }) =>
           response.cookies.set(name, value, options)
         );
@@ -73,8 +85,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/admin/:path*',
-    '/mi-cuenta/:path*',
-    '/api/me',
+    // Todas las rutas (excepto _next y assets) para poder pasar x-pathname.
+    '/((?!_next/static|_next/image|favicon.ico|Logo.jpg|Assets/).*)',
   ],
 };

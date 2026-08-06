@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import './globals.css';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -40,6 +41,13 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const { contacto } = await getSiteContent();
+
+  // El panel de admin tiene su propia navegación (AdminNav) y no debe
+  // mostrar el chrome público (Navbar/Footer/Float/Cart). Mantenerlos
+  // rompía los anchors del navbar (#eventos, #galeria, etc.) que
+  // navegaban a /admin#eventos en vez de a la home.
+  const isAdmin = headers().get('x-pathname')?.startsWith('/admin') ?? false;
+
   return (
     <html lang="es">
       <head>
@@ -56,11 +64,11 @@ export default async function RootLayout({
       </head>
       <body>
         <CartProvider>
-          <Navbar />
+          {!isAdmin && <Navbar />}
           <main>{children}</main>
-          <Footer />
-          <WhatsAppFloat whatsapp={contacto.whatsapp} />
-          <CartDrawer whatsapp={contacto.whatsapp} />
+          {!isAdmin && <Footer />}
+          {!isAdmin && <WhatsAppFloat whatsapp={contacto.whatsapp} />}
+          {!isAdmin && <CartDrawer whatsapp={contacto.whatsapp} />}
         </CartProvider>
       </body>
     </html>
