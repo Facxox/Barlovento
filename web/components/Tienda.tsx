@@ -1,10 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useCart } from './CartContext';
 import { Reveal } from './Reveal';
 import GoldDivider from './GoldDivider';
-import NutritionTable from './NutritionTable';
 import type { Product, Category } from '@/lib/queries';
 
 const formatUY = (n: number) =>
@@ -126,94 +126,69 @@ function ProductCard({
   delay: number;
   onAdd: () => void;
 }) {
-  const [showNutrition, setShowNutrition] = useState(false);
-  const hasNutrition = !!product.nutrition;
-
   return (
     <Reveal delay={delay}>
-      <article className="group">
-        <div className="relative aspect-square overflow-hidden bg-ink/5 hover-zoom">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={product.image}
-            alt={product.name}
-            className="h-full w-full object-cover"
-          />
-          {product.badge && (
-            <span className="absolute left-4 top-4 inline-flex items-center rounded-full border border-gold/70 bg-cream/90 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-ink">
-              {product.badge}
-            </span>
-          )}
-        </div>
-
-        <div className="mt-5 flex items-start justify-between gap-4">
-          <div>
-            <p className="font-body text-[10px] uppercase tracking-ultra text-ink/50">
-              {labelById.get(product.category) ?? product.category}
-            </p>
-            <h3 className="mt-1 font-display text-2xl text-ink leading-tight">
-              {product.name}
-            </h3>
-          </div>
-          <p className="font-display text-2xl text-ink/90 whitespace-nowrap">
-            {formatUY(product.price)}
-          </p>
-        </div>
-
-        <p className="mt-3 text-ink/65 font-body text-sm leading-relaxed">
-          {product.description}
-        </p>
-
-        <div className="mt-5 flex gap-2">
-          <button
-            onClick={onAdd}
-            className="flex-1 rounded-full bg-ink px-4 py-3 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon"
-          >
-            Agregar
-          </button>
-          <a
-            href={`https://wa.me/59899366522?text=${encodeURIComponent(
-              `Hola! Quiero consultar por ${product.name}.`
-            )}`}
-            target="_blank"
-            rel="noopener"
-            className="grid place-items-center rounded-full border border-ink/30 px-4 text-ink/80 hover:border-ink hover:text-ink transition"
-            aria-label="Consultar por WhatsApp"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19.05 4.91A10 10 0 0 0 4.1 18.16L3 22l3.93-1.03A10 10 0 1 0 19.05 4.91Zm-7.07 15.45a8.31 8.31 0 0 1-4.24-1.16l-.3-.18-2.33.61.62-2.27-.2-.32a8.32 8.32 0 1 1 6.45 3.32Z" />
-            </svg>
-          </a>
-        </div>
-
-        {hasNutrition && (
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() => setShowNutrition((v) => !v)}
-              aria-expanded={showNutrition}
-              aria-controls={`nutrition-${product.id}`}
-              className="inline-flex items-center gap-2 font-body text-[10px] uppercase tracking-ultra text-gold-deep hover:text-ink"
-            >
-              <span>{showNutrition ? 'Ocultar' : 'Ver'} información nutricional</span>
-              <span
-                className={[
-                  'inline-block transition-transform',
-                  showNutrition ? 'rotate-180' : '',
-                ].join(' ')}
-                aria-hidden
-              >
-                ▾
+      <Link
+        href={`/productos/${product.id}`}
+        className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded-sm"
+      >
+        <article>
+          <div className="relative aspect-square overflow-hidden bg-ink/5 hover-zoom">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={product.image}
+              alt={product.name}
+              className="h-full w-full object-cover"
+            />
+            {product.badge && (
+              <span className="absolute left-4 top-4 inline-flex items-center rounded-full border border-gold/70 bg-cream/90 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-ink">
+                {product.badge}
               </span>
-            </button>
-            {showNutrition && (
-              <div id={`nutrition-${product.id}`}>
-                <NutritionTable data={product.nutrition} />
-              </div>
             )}
           </div>
-        )}
-      </article>
+
+          <div className="mt-5 flex items-start justify-between gap-4">
+            <div>
+              <p className="font-body text-[10px] uppercase tracking-ultra text-ink/50">
+                {labelById.get(product.category) ?? product.category}
+              </p>
+              <h3 className="mt-1 font-display text-2xl text-ink leading-tight">
+                {product.name}
+              </h3>
+            </div>
+            <p className="font-display text-2xl text-ink/90 whitespace-nowrap">
+              {formatUY(product.price)}
+            </p>
+          </div>
+
+          <div className="mt-5 flex gap-2">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onAdd();
+              }}
+              className="flex-1 rounded-full bg-ink px-4 py-3 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon"
+            >
+              Agregar
+            </button>
+            <a
+              href={`https://wa.me/59899366522?text=${encodeURIComponent(
+                `Hola! Quiero consultar por ${product.name}.`
+              )}`}
+              target="_blank"
+              rel="noopener"
+              onClick={(e) => e.stopPropagation()}
+              className="grid place-items-center rounded-full border border-ink/30 px-4 text-ink/80 hover:border-ink hover:text-ink transition"
+              aria-label="Consultar por WhatsApp"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.05 4.91A10 10 0 0 0 4.1 18.16L3 22l3.93-1.03A10 10 0 1 0 19.05 4.91Zm-7.07 15.45a8.31 8.31 0 0 1-4.24-1.16l-.3-.18-2.33.61.62-2.27-.2-.32a8.32 8.32 0 1 1 6.45 3.32Z" />
+              </svg>
+            </a>
+          </div>
+        </article>
+      </Link>
     </Reveal>
   );
 }
