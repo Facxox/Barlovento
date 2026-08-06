@@ -40,6 +40,7 @@ export default async function AdminProductoEditPage({
   if (!product) notFound();
   const categories = await getCategories();
 
+  const supabase = await getServerSupabase();
   let total = 0;
   if (supabase) {
     const table = isWholesale ? 'wholesale_products' : 'products';
