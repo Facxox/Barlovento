@@ -61,7 +61,7 @@ export default function TextosEditor({ initial }: { initial: SiteContent }) {
       <header className="mb-8">
         <h1 className="font-display text-3xl text-bone">Textos de marca</h1>
         <p className="mt-1 font-body text-sm text-bone/60">
-          Editá las cuatro secciones que aparecen en el sitio.
+          Editá las secciones que aparecen en el sitio.
         </p>
       </header>
 
@@ -185,6 +185,203 @@ export default function TextosEditor({ initial }: { initial: SiteContent }) {
             value={textos.vision.body}
             onChange={(v) =>
               setTextos({ ...textos, vision: { ...textos.vision, body: v } })
+            }
+          />
+        </Section>
+
+        <Section
+          title="Valores"
+          k="valores"
+          saved={saved === 'valores'}
+          busy={busy === 'valores'}
+          onSave={() => save('valores')}
+        >
+          <Input
+            label="Eyebrow"
+            value={textos.valores.eyebrow}
+            onChange={(v) =>
+              setTextos({ ...textos, valores: { ...textos.valores, eyebrow: v } })
+            }
+          />
+          <Input
+            label="Titular"
+            value={textos.valores.headline}
+            onChange={(v) =>
+              setTextos({ ...textos, valores: { ...textos.valores, headline: v } })
+            }
+          />
+          <ListEditor
+            label="Valores (Título y cuerpo por línea, separados por —)"
+            items={textos.valores.items}
+            onChange={(items) =>
+              setTextos({ ...textos, valores: { ...textos.valores, items } })
+            }
+          />
+        </Section>
+
+        <Section
+          title="Puntos de venta"
+          k="puntos_venta"
+          saved={saved === 'puntos_venta'}
+          busy={busy === 'puntos_venta'}
+          onSave={() => save('puntos_venta')}
+        >
+          <Input
+            label="Eyebrow"
+            value={textos.puntos_venta.eyebrow}
+            onChange={(v) =>
+              setTextos({ ...textos, puntos_venta: { ...textos.puntos_venta, eyebrow: v } })
+            }
+          />
+          <Input
+            label="Titular"
+            value={textos.puntos_venta.headline}
+            onChange={(v) =>
+              setTextos({ ...textos, puntos_venta: { ...textos.puntos_venta, headline: v } })
+            }
+          />
+          <Textarea
+            label="Introducción"
+            rows={3}
+            value={textos.puntos_venta.intro}
+            onChange={(v) =>
+              setTextos({ ...textos, puntos_venta: { ...textos.puntos_venta, intro: v } })
+            }
+          />
+          <Textarea
+            label="Departamentos (uno por línea)"
+            rows={6}
+            value={textos.puntos_venta.departamentos.join('\n')}
+            onChange={(v) =>
+              setTextos({
+                ...textos,
+                puntos_venta: {
+                  ...textos.puntos_venta,
+                  departamentos: v
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 0),
+                },
+              })
+            }
+          />
+        </Section>
+
+        <Section
+          title="Regalos empresariales"
+          k="regalos_empresariales"
+          saved={saved === 'regalos_empresariales'}
+          busy={busy === 'regalos_empresariales'}
+          onSave={() => save('regalos_empresariales')}
+        >
+          <Input
+            label="Eyebrow"
+            value={textos.regalos_empresariales.eyebrow}
+            onChange={(v) =>
+              setTextos({
+                ...textos,
+                regalos_empresariales: { ...textos.regalos_empresariales, eyebrow: v },
+              })
+            }
+          />
+          <Input
+            label="Titular"
+            value={textos.regalos_empresariales.headline}
+            onChange={(v) =>
+              setTextos({
+                ...textos,
+                regalos_empresariales: { ...textos.regalos_empresariales, headline: v },
+              })
+            }
+          />
+          <Textarea
+            label="Cuerpo"
+            rows={4}
+            value={textos.regalos_empresariales.body}
+            onChange={(v) =>
+              setTextos({
+                ...textos,
+                regalos_empresariales: { ...textos.regalos_empresariales, body: v },
+              })
+            }
+          />
+          <ListEditor
+            label="Casos de uso (Título y cuerpo por línea, separados por —)"
+            items={textos.regalos_empresariales.items}
+            onChange={(items) =>
+              setTextos({
+                ...textos,
+                regalos_empresariales: { ...textos.regalos_empresariales, items },
+              })
+            }
+          />
+          <Input
+            label="Texto del botón (CTA)"
+            value={textos.regalos_empresariales.cta}
+            onChange={(v) =>
+              setTextos({
+                ...textos,
+                regalos_empresariales: { ...textos.regalos_empresariales, cta: v },
+              })
+            }
+          />
+        </Section>
+
+        <Section
+          title="Mayoristas"
+          k="mayoristas"
+          saved={saved === 'mayoristas'}
+          busy={busy === 'mayoristas'}
+          onSave={() => save('mayoristas')}
+        >
+          <Input
+            label="Eyebrow"
+            value={textos.mayoristas.eyebrow}
+            onChange={(v) =>
+              setTextos({ ...textos, mayoristas: { ...textos.mayoristas, eyebrow: v } })
+            }
+          />
+          <Input
+            label="Titular"
+            value={textos.mayoristas.headline}
+            onChange={(v) =>
+              setTextos({ ...textos, mayoristas: { ...textos.mayoristas, headline: v } })
+            }
+          />
+          <Textarea
+            label="Introducción"
+            rows={3}
+            value={textos.mayoristas.intro}
+            onChange={(v) =>
+              setTextos({ ...textos, mayoristas: { ...textos.mayoristas, intro: v } })
+            }
+          />
+          <Textarea
+            label="Beneficios (uno por línea)"
+            rows={5}
+            value={textos.mayoristas.beneficios.join('\n')}
+            onChange={(v) =>
+              setTextos({
+                ...textos,
+                mayoristas: {
+                  ...textos.mayoristas,
+                  beneficios: v.split('\n').map((s) => s.trim()).filter((s) => s.length > 0),
+                },
+              })
+            }
+          />
+          <Textarea
+            label="Requisitos (uno por línea)"
+            rows={4}
+            value={textos.mayoristas.requisitos.join('\n')}
+            onChange={(v) =>
+              setTextos({
+                ...textos,
+                mayoristas: {
+                  ...textos.mayoristas,
+                  requisitos: v.split('\n').map((s) => s.trim()).filter((s) => s.length > 0),
+                },
+              })
             }
           />
         </Section>
@@ -330,5 +527,57 @@ function Textarea({
         className="mt-1 w-full border-b border-carbon-line bg-transparent px-2 py-2 font-body text-bone focus:border-gold outline-none resize-none"
       />
     </label>
+  );
+}
+
+function ListEditor({
+  label,
+  items,
+  onChange,
+}: {
+  label: string;
+  items: { title: string; body: string }[];
+  onChange: (items: { title: string; body: string }[]) => void;
+}) {
+  return (
+    <div className="block">
+      <span className="font-body text-[10px] uppercase tracking-ultra text-bone/50">
+        {label}
+      </span>
+      <div className="mt-2 space-y-3">
+        {items.map((it, i) => {
+          const line = `${it.title} — ${it.body}`;
+          return (
+            <div key={i} className="flex items-start gap-2">
+              <input
+                value={line}
+                onChange={(e) => {
+                  const next = [...items];
+                  const [t = '', b = ''] = e.target.value.split('—').map((s) => s.trim());
+                  next[i] = { title: t, body: b };
+                  onChange(next);
+                }}
+                className="mt-1 w-full border-b border-carbon-line bg-transparent px-2 py-2 font-body text-bone focus:border-gold outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((_, idx) => idx !== i))}
+                className="mt-2 font-body text-[10px] uppercase tracking-ultra text-bone/40 hover:text-red-400"
+                aria-label={`Quitar item ${i + 1}`}
+              >
+                Quitar
+              </button>
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => onChange([...items, { title: '', body: '' }])}
+          className="font-body text-[10px] uppercase tracking-ultra text-gold hover:text-gold-light"
+        >
+          + Agregar item
+        </button>
+      </div>
+    </div>
   );
 }

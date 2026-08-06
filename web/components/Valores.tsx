@@ -5,7 +5,7 @@ import { Reveal } from './Reveal';
 export default async function Valores() {
   const { valores: va } = await getSiteContent();
   return (
-    <section className="bg-cream py-28 lg:py-40">
+    <section className="bg-cream text-ink py-28 lg:py-40">
       <GoldDivider />
 
       <div className="mx-auto max-w-7xl px-6 pt-24 lg:px-10">

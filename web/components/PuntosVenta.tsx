@@ -5,7 +5,7 @@ import { Reveal } from './Reveal';
 export default async function PuntosVenta() {
   const { puntos_venta: pv } = await getSiteContent();
   return (
-    <section id="puntos-venta" className="bg-cream py-28 lg:py-40">
+    <section id="puntos-venta" className="bg-cream text-ink py-28 lg:py-40">
       <GoldDivider />
 
       <div className="mx-auto grid max-w-7xl gap-16 px-6 pt-24 lg:grid-cols-12 lg:gap-20 lg:px-10">
