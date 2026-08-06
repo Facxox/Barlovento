@@ -62,6 +62,26 @@ export type SiteContent = {
     headline: string;
     items: { title: string; body: string }[];
   };
+  puntos_venta: {
+    eyebrow: string;
+    headline: string;
+    intro: string;
+    departamentos: string[];
+  };
+  regalos_empresariales: {
+    eyebrow: string;
+    headline: string;
+    body: string;
+    items: { title: string; body: string }[];
+    cta: string;
+  };
+  mayoristas: {
+    eyebrow: string;
+    headline: string;
+    intro: string;
+    beneficios: string[];
+    requisitos: string[];
+  };
   contacto: {
     whatsapp: string;
     email: string;
@@ -160,6 +180,9 @@ export async function getSiteContent(): Promise<SiteContent> {
       mision:   map.mision   ?? fallback.mision,
       vision:   map.vision   ?? fallback.vision,
       valores:  map.valores  ?? fallback.valores,
+      puntos_venta:         map.puntos_venta         ?? fallback.puntos_venta,
+      regalos_empresariales: map.regalos_empresariales ?? fallback.regalos_empresariales,
+      mayoristas:           map.mayoristas           ?? fallback.mayoristas,
       contacto: map.contacto ?? fallback.contacto,
     };
   } catch {

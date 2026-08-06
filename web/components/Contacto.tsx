@@ -5,14 +5,20 @@ import GoldDivider from './GoldDivider';
 import { Reveal } from './Reveal';
 import type { SiteContent } from '@/lib/queries';
 
-export default function Contacto({ contacto }: { contacto: SiteContent['contacto'] }) {
+export default function Contacto({
+  contacto,
+  mayoristas,
+}: {
+  contacto: SiteContent['contacto'];
+  mayoristas: SiteContent['mayoristas'];
+}) {
   const c = contacto;
-  const [sent, setSent] = useState(false);
+  const m = mayoristas;
   const [form, setForm] = useState({ name: '', email: '', message: '' });
+  const [sent, setSent] = useState(false);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Fase 1: simulado. En Fase 4 lo mandamos a un endpoint /api/contact.
     setSent(true);
     setForm({ name: '', email: '', message: '' });
     setTimeout(() => setSent(false), 3500);
@@ -46,6 +52,16 @@ export default function Contacto({ contacto }: { contacto: SiteContent['contacto
               <Row label="Email">
                 <a href={`mailto:${c.email}`} className="gold-underline font-body text-bone">
                   {c.email}
+                </a>
+              </Row>
+              <Row label="Instagram">
+                <a href={c.instagram} target="_blank" rel="noreferrer" className="gold-underline font-body text-bone">
+                  @barloventouy
+                </a>
+              </Row>
+              <Row label="Facebook">
+                <a href={c.facebook} target="_blank" rel="noreferrer" className="gold-underline font-body text-bone">
+                  @barloventouy
                 </a>
               </Row>
               <Row label="Dirección">
@@ -95,6 +111,63 @@ export default function Contacto({ contacto }: { contacto: SiteContent['contacto
               </p>
             )}
           </form>
+        </Reveal>
+      </div>
+
+      {/* Mayoristas / Comercio */}
+      <div className="mx-auto mt-28 max-w-7xl border-t border-carbon-line px-6 pt-20 lg:px-10">
+        <Reveal>
+          <div className="grid gap-12 lg:grid-cols-12">
+            <div className="lg:col-span-5">
+              <p className="text-eyebrow">{m.eyebrow}</p>
+              <h2 className="mt-5 h-section">{m.headline}</h2>
+              <p className="mt-6 prose-editorial max-w-md">{m.intro}</p>
+              <a
+                href={`https://wa.me/${c.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent('Hola! Quiero ser punto de venta de Barlovento.')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="group mt-8 inline-flex items-center gap-3 rounded-full bg-gold px-7 py-3.5 font-body text-sm font-medium text-carbon transition hover:bg-gold-light"
+              >
+                Quiero ser punto de venta
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </a>
+            </div>
+
+            <div className="lg:col-span-7">
+              <div className="grid gap-10 md:grid-cols-2">
+                <div>
+                  <p className="font-body text-[11px] uppercase tracking-ultra text-gold">
+                    Beneficios
+                  </p>
+                  <ul className="mt-5 space-y-3">
+                    {m.beneficios.map((b, i) => (
+                      <li
+                        key={i}
+                        className="border-t border-carbon-line pt-3 font-body text-bone/80 leading-relaxed"
+                      >
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-body text-[11px] uppercase tracking-ultra text-gold">
+                    Requisitos
+                  </p>
+                  <ul className="mt-5 space-y-3">
+                    {m.requisitos.map((r, i) => (
+                      <li
+                        key={i}
+                        className="border-t border-carbon-line pt-3 font-body text-bone/80 leading-relaxed"
+                      >
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
         </Reveal>
       </div>
     </section>

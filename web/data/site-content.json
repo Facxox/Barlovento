@@ -48,12 +48,65 @@
       }
     ]
   },
+  "puntos_venta": {
+    "eyebrow": "Puntos de venta",
+    "headline": "Dónde conseguir nuestros alfajores",
+    "intro": "Hoy estamos presentes en almacenes, kioskos y cafeterías de distintos puntos del país. Si tu comercio quiere sumarse, escribinos desde la sección Mayoristas.",
+    "departamentos": [
+      "Flores",
+      "Durazno",
+      "Florida",
+      "Canelones",
+      "Paysandú",
+      "Salto",
+      "Tacuarembó",
+      "Montevideo",
+      "Maldonado",
+      "Artigas"
+    ]
+  },
+  "regalos_empresariales": {
+    "eyebrow": "Regalos empresariales",
+    "headline": "Alfajores que llevan tu marca",
+    "body": "Armamos kits y packs personalizados para empresas: alfajores artesanales individuales en cajas, presentaciones para clientes, empleados o eventos corporativos. Nos adaptamos a cada necesidad con cantidad, packaging y sabores a medida.",
+    "items": [
+      {
+        "title": "Para clientes y fidelización",
+        "body": "Cajas individuales o sets que tus clientes reciben con tu marca y la nuestra."
+      },
+      {
+        "title": "Para empleados y fin de año",
+        "body": "Packs por área, con tarjeta personalizada y entrega coordinada."
+      },
+      {
+        "title": "Para eventos y lanzamientos",
+        "body": "Bandejas y exhibidores pensados para recepciones, ferias y activations."
+      }
+    ],
+    "cta": "Armar mi pack"
+  },
+  "mayoristas": {
+    "eyebrow": "Mayoristas o comercio",
+    "headline": "¿Querés vender Barlovento?",
+    "intro": "Sumá nuestros alfajores artesanales a tu tienda, kiosko o cafetería. Te dejamos una lista de beneficios, requisitos y un formulario para empezar.",
+    "beneficios": [
+      "Producto con demanda comprobada y rotación sostenida.",
+      "Margen atractivo para el comercio.",
+      "Material de punto de venta y apoyo en redes.",
+      "Reposición simple y entrega coordinada en todo el país."
+    ],
+    "requisitos": [
+      "Tener un comercio habilitado (kiosko, almacén, cafetería, vinoteca, tienda).",
+      "Compromiso mínimo de una caja por sabor al mes.",
+      "Espacio de góndola o exhibidor para el producto."
+    ]
+  },
   "contacto": {
     "whatsapp": "+59899366522",
     "email": "barloventouruguay@gmail.com",
     "direccion": "Trinidad, Flores, Uruguay",
-    "instagram": "https://instagram.com/barlovento.uy",
-    "facebook": "https://facebook.com/barloventoalfajores",
+    "instagram": "https://instagram.com/barloventouy",
+    "facebook": "https://facebook.com/barloventouy",
     "horarios": "Lunes a viernes · 9 a 18 h"
   }
 }
