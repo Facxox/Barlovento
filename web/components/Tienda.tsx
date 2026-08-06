@@ -1,0 +1,158 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { useCart } from './CartContext';
+import { Reveal } from './Reveal';
+import GoldDivider from './GoldDivider';
+import type { Product } from '@/lib/queries';
+
+const formatUY = (n: number) =>
+  new Intl.NumberFormat('es-UY', { style: 'currency', currency: 'UYU', maximumFractionDigits: 0 }).format(n);
+
+export default function Tienda({ products }: { products: Product[] }) {
+  const { add } = useCart();
+  const categories = useMemo(
+    () => ['todos', ...Array.from(new Set(products.map((p) => p.category)))],
+    [products]
+  );
+  const [filter, setFilter] = useState<string>('todos');
+
+  const filtered = useMemo(
+    () =>
+      products
+        .filter((p) => p.is_active)
+        .filter((p) => filter === 'todos' || p.category === filter)
+        .sort((a, b) => a.sort_order - b.sort_order),
+    [products, filter]
+  );
+
+  return (
+    <section id="tienda" className="bg-cream text-ink py-28 lg:py-40">
+      <GoldDivider />
+
+      <div className="mx-auto max-w-7xl px-6 pt-24 lg:px-10">
+        <Reveal>
+          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div className="max-w-xl">
+              <p className="text-eyebrow text-gold-deep">Tienda online</p>
+              <h2 className="mt-5 h-section text-ink">
+                Pedí online o por WhatsApp.
+              </h2>
+              <p className="mt-4 text-ink/70 font-body leading-relaxed">
+                Hacemos envíos a todo el país y también despachamos en Trinidad.
+                Elegí el canal que prefieras al finalizar.
+              </p>
+            </div>
+
+            {/* Filtros */}
+            <div className="flex flex-wrap gap-2">
+              {categories.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setFilter(c)}
+                  className={[
+                    'rounded-full border px-4 py-2 font-body text-xs uppercase tracking-ultra transition',
+                    filter === c
+                      ? 'border-ink bg-ink text-cream'
+                      : 'border-ink/20 text-ink/70 hover:border-ink hover:text-ink',
+                  ].join(' ')}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Reveal>
+
+        <div className="mt-16 grid gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((p, i) => (
+            <ProductCard
+              key={p.id}
+              product={p}
+              delay={i * 100}
+              onAdd={() =>
+                add({
+                  id: p.id,
+                  name: p.name,
+                  price: p.price,
+                  currency: p.currency,
+                  image: p.image,
+                })
+              }
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProductCard({
+  product,
+  delay,
+  onAdd,
+}: {
+  product: Product;
+  delay: number;
+  onAdd: () => void;
+}) {
+  return (
+    <Reveal delay={delay}>
+      <article className="group">
+        <div className="relative aspect-square overflow-hidden bg-ink/5 hover-zoom">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={product.image}
+            alt={product.name}
+            className="h-full w-full object-cover"
+          />
+          {product.badge && (
+            <span className="absolute left-4 top-4 inline-flex items-center rounded-full border border-gold/70 bg-cream/90 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-ink">
+              {product.badge}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-5 flex items-start justify-between gap-4">
+          <div>
+            <p className="font-body text-[10px] uppercase tracking-ultra text-ink/50">
+              {product.category}
+            </p>
+            <h3 className="mt-1 font-display text-2xl text-ink leading-tight">
+              {product.name}
+            </h3>
+          </div>
+          <p className="font-display text-2xl text-ink/90 whitespace-nowrap">
+            {formatUY(product.price)}
+          </p>
+        </div>
+
+        <p className="mt-3 text-ink/65 font-body text-sm leading-relaxed">
+          {product.description}
+        </p>
+
+        <div className="mt-5 flex gap-2">
+          <button
+            onClick={onAdd}
+            className="flex-1 rounded-full bg-ink px-4 py-3 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon"
+          >
+            Agregar
+          </button>
+          <a
+            href={`https://wa.me/59899366522?text=${encodeURIComponent(
+              `Hola! Quiero consultar por ${product.name}.`
+            )}`}
+            target="_blank"
+            rel="noopener"
+            className="grid place-items-center rounded-full border border-ink/30 px-4 text-ink/80 hover:border-ink hover:text-ink transition"
+            aria-label="Consultar por WhatsApp"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19.05 4.91A10 10 0 0 0 4.1 18.16L3 22l3.93-1.03A10 10 0 1 0 19.05 4.91Zm-7.07 15.45a8.31 8.31 0 0 1-4.24-1.16l-.3-.18-2.33.61.62-2.27-.2-.32a8.32 8.32 0 1 1 6.45 3.32Z" />
+            </svg>
+          </a>
+        </div>
+      </article>
+    </Reveal>
+  );
+}

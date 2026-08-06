@@ -1,0 +1,29 @@
+[
+  {
+    "id": 1,
+    "title": "Feria del Alfajor — Trinidad",
+    "date": "2026-09-12",
+    "location": "Plaza Constitución, Trinidad",
+    "description": "Stand propio con toda la línea y dos ediciones especiales que solo aparecen en la feria.",
+    "image": "/Assets/Stand en feria.png",
+    "kind": "upcoming"
+  },
+  {
+    "id": 2,
+    "title": "Expo Prado 2026",
+    "date": "2026-10-04",
+    "location": "Predio rural del Prado, Montevideo",
+    "description": "Catering de alfajores parainauguración del stand de productores del interior.",
+    "image": "/Assets/Catering.png",
+    "kind": "upcoming"
+  },
+  {
+    "id": 3,
+    "title": "Premio Pyme — Medalla de Oro",
+    "date": "2025-11-22",
+    "location": "Cámara Empresarial de Trinidad",
+    "description": "Reconocimiento como Mejor Alfajor Pyme en el departamento de Flores.",
+    "image": "/Assets/Premiación medalla.png",
+    "kind": "past"
+  }
+]

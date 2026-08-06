@@ -1,0 +1,8 @@
+[
+  { "id": 1, "title": "Proceso en el obrador", "category": "elaboracion", "image": "/Assets/Proceso de obrador.png", "sort_order": 1 },
+  { "id": 2, "title": "Corte transversal", "category": "producto", "image": "/Assets/FotoProducto1.png", "sort_order": 2 },
+  { "id": 3, "title": "Stand en la feria", "category": "ferias", "image": "/Assets/Stand en feria.png", "sort_order": 3 },
+  { "id": 4, "title": "Equipo en jornada", "category": "elaboracion", "image": "/Assets/Equipo en jornada.png", "sort_order": 4 },
+  { "id": 5, "title": "Catering para eventos", "category": "ferias", "image": "/Assets/Catering.png", "sort_order": 5 },
+  { "id": 6, "title": "Premiación medalla de oro", "category": "ferias", "image": "/Assets/Premiación medalla.png", "sort_order": 6 }
+]

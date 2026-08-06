@@ -1,0 +1,74 @@
+[
+  {
+    "id": "clasico",
+    "name": "Alfajor Clásico",
+    "description": "Dos tapas de masa sable dorada, dulce de leche reposado y un baño de chocolate semiamargo. La receta que empezó todo.",
+    "price": 120,
+    "currency": "UYU",
+    "category": "clasicos",
+    "image": "/Assets/FotoProducto1.png",
+    "badge": "El original",
+    "is_active": true,
+    "sort_order": 1
+  },
+  {
+    "id": "chocolate-negro",
+    "name": "Chocolate Negro 70%",
+    "description": "Para los que buscan intensidad. Cobertura de chocolate 70% cacao sobre un corazón generoso de dulce de leche.",
+    "price": 145,
+    "currency": "UYU",
+    "category": "chocolate",
+    "image": "/Assets/FotoProducto2.png",
+    "badge": "Intenso",
+    "is_active": true,
+    "sort_order": 2
+  },
+  {
+    "id": "bombon",
+    "name": "Bombón Barlovento",
+    "description": "Masa tierna, dulce de leche y un terminado de merengue italiano tostado. El favorito de las mesas dulces.",
+    "price": 165,
+    "currency": "UYU",
+    "category": "especiales",
+    "image": "/Assets/FotoProducto3.png",
+    "badge": "Edición limitada",
+    "is_active": true,
+    "sort_order": 3
+  },
+  {
+    "id": "coco",
+    "name": "Coco & Dulce de Leche",
+    "description": "Cobertura de coco rallado caramelizado. Crocante por fuera, suave por dentro. Un viaje a la costa.",
+    "price": 135,
+    "currency": "UYU",
+    "category": "especiales",
+    "image": "/Assets/FotoProducto5.png",
+    "badge": null,
+    "is_active": true,
+    "sort_order": 4
+  },
+  {
+    "id": "frutos-rojos",
+    "name": "Frutos del Bosque",
+    "description": "Reducción de frutos rojos artesanales, chocolate blanco y un toque de limón. Frescura en cada mordisco.",
+    "price": 175,
+    "currency": "UYU",
+    "category": "especiales",
+    "image": "/Assets/FotoProducto6.png",
+    "badge": "Nuevo",
+    "is_active": true,
+    "sort_order": 5
+  },
+  {
+    "id": "marroc",
+    "name": "Marroc & Almendras",
+    "description": "Trozos de almendra tostada, pasta de maní y un baño de chocolate con leche. Para compartir — o no.",
+    "price": 155,
+    "currency": "UYU",
+    "category": "clasicos",
+    "image": "/Assets/FotoProducto1.png",
+    "badge": null,
+    "is_active": true,
+    "sort_order": 6
+  }
+]

@@ -1,0 +1,30 @@
+{
+  "historia": {
+    "eyebrow": "Nuestra historia",
+    "headline": "De una receta familiar a un oficio compartido",
+    "body": [
+      "Barlovento nació en una cocina de Trinidad, donde una receta familiar se hizo primero famosa entre los vecinos y, después, entre los que cruzaban el departamento para probarla.",
+      "Hoy seguimos trabajando como el primer día: masa a mano, reposos largos, dulce de leche en paila. Cada alfajor pasa por cuatro personas antes de llegar a tu mesa."
+    ],
+    "image": "/Assets/historia-obrador.png",
+    "image_caption": "Obrador en Trinidad, Flores"
+  },
+  "mision": {
+    "eyebrow": "Misión",
+    "headline": "Devolverle al alfajor su carácter artesanal",
+    "body": "Producir alfajores en pequeñas series, con materia prima local y procesos honestos. Que cada unidad que sale del obrador pueda llevar nuestro nombre sin reservas."
+  },
+  "vision": {
+    "eyebrow": "Visión",
+    "headline": "Trinidad como capital del alfajor artesanal",
+    "body": "Convertir a nuestro departamento en un punto de referencia del alfajor hecho a mano, tanto para Uruguay como para quien lo descubra de paso."
+  },
+  "contacto": {
+    "whatsapp": "+59899366522",
+    "email": "hola@barlovento.uy",
+    "direccion": "Trinidad, Flores, Uruguay",
+    "instagram": "https://instagram.com/barlovento.uy",
+    "facebook": "https://facebook.com/barloventoalfajores",
+    "horarios": "Lunes a viernes · 9 a 18 h"
+  }
+}
