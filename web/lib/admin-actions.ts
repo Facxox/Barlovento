@@ -472,6 +472,9 @@ export async function cloneProductToWholesale(
     badge: source.badge,
     is_active: true,
     sort_order: nextSort,
+    nutrition: (source as { nutrition?: unknown }).nutrition as
+      | WholesaleProduct['nutrition']
+      | null ?? null,
   };
 
   const { error: insertError } = await supabase
