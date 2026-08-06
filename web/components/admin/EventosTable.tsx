@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   upsertEvent,
   deleteEvent,
+  moveEvent,
 } from '@/lib/admin-actions';
 import type { BarloventoEvent } from '@/lib/queries';
 import ImageDropzone from './ImageDropzone';
@@ -18,10 +20,12 @@ const empty = {
 };
 
 export default function EventosTable({ events }: { events: BarloventoEvent[] }) {
+  const router = useRouter();
   const [list, setList] = useState(events);
   const [draft, setDraft] = useState(empty);
   const [editing, setEditing] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -85,6 +89,20 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
     startTransition(async () => {
       setList((prev) => prev.filter((e) => e.id !== id));
       await deleteEvent(id);
+    });
+  };
+
+  const onMove = (e: BarloventoEvent, dir: -1 | 1) => {
+    setBusyId(e.id);
+    startTransition(async () => {
+      try {
+        await moveEvent(e.id, dir);
+        router.refresh();
+      } catch (err: any) {
+        setError(err.message ?? 'No pudimos reordenar.');
+      } finally {
+        setBusyId(null);
+      }
     });
   };
 
@@ -180,6 +198,7 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-carbon-line text-bone/50 font-body text-[10px] uppercase tracking-ultra">
+              <th className="w-12 p-3"></th>
               <th className="p-3">Fecha</th>
               <th className="p-3">Título</th>
               <th className="p-3">Lugar</th>
@@ -188,8 +207,30 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
             </tr>
           </thead>
           <tbody>
-            {list.map((e) => (
-              <tr key={e.id} className="border-b border-carbon-line/40 last:border-0">
+            {list.map((e, i) => (
+              <tr
+                key={e.id}
+                className={[
+                  'border-b border-carbon-line/40 last:border-0',
+                  busyId === e.id ? 'opacity-50' : '',
+                ].join(' ')}
+              >
+                <td className="p-3">
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      onClick={() => onMove(e, -1)}
+                      disabled={i === 0}
+                      className="text-bone/50 hover:text-gold disabled:opacity-30"
+                      aria-label="Subir"
+                    >▲</button>
+                    <button
+                      onClick={() => onMove(e, 1)}
+                      disabled={i === list.length - 1}
+                      className="text-bone/50 hover:text-gold disabled:opacity-30"
+                      aria-label="Bajar"
+                    >▼</button>
+                  </div>
+                </td>
                 <td className="p-3 font-body text-sm text-bone/80">{e.date}</td>
                 <td className="p-3 font-body text-sm text-bone">{e.title}</td>
                 <td className="p-3 font-body text-sm text-bone/70">{e.location}</td>
@@ -225,7 +266,7 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
             ))}
             {list.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-bone/50 font-body text-sm">
+                <td colSpan={6} className="p-8 text-center text-bone/50 font-body text-sm">
                   Sin eventos todavía.
                 </td>
               </tr>

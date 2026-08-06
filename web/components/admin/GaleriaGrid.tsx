@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   upsertGalleryItem,
   deleteGalleryItem,
+  moveGalleryItem,
 } from '@/lib/admin-actions';
 import type { GalleryItem } from '@/lib/queries';
 import ImageDropzone from './ImageDropzone';
@@ -15,11 +17,13 @@ const CATEGORIES: Array<GalleryItem['category']> = [
 ];
 
 export default function GaleriaGrid({ items }: { items: GalleryItem[] }) {
+  const router = useRouter();
   const [list, setList] = useState(items);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<GalleryItem['category']>('elaboracion');
   const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +60,20 @@ export default function GaleriaGrid({ items }: { items: GalleryItem[] }) {
     startTransition(async () => {
       setList((prev) => prev.filter((g) => g.id !== id));
       await deleteGalleryItem(id);
+    });
+  };
+
+  const onMove = (g: GalleryItem, dir: -1 | 1) => {
+    setBusyId(g.id);
+    startTransition(async () => {
+      try {
+        await moveGalleryItem(g.id, dir);
+        router.refresh();
+      } catch (err: any) {
+        setError(err.message ?? 'No pudimos reordenar.');
+      } finally {
+        setBusyId(null);
+      }
     });
   };
 
@@ -122,8 +140,14 @@ export default function GaleriaGrid({ items }: { items: GalleryItem[] }) {
       </form>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {list.map((g) => (
-          <div key={g.id} className="group relative overflow-hidden border border-carbon-line bg-carbon">
+        {list.map((g, i) => (
+          <div
+            key={g.id}
+            className={[
+              'group relative overflow-hidden border border-carbon-line bg-carbon',
+              busyId === g.id ? 'opacity-50' : '',
+            ].join(' ')}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={g.image} alt={g.title} className="aspect-[4/3] w-full object-cover" />
             <div className="flex items-center justify-between gap-2 p-3">
@@ -133,12 +157,28 @@ export default function GaleriaGrid({ items }: { items: GalleryItem[] }) {
                   {g.category}
                 </p>
               </div>
-              <button
-                onClick={() => onDelete(g.id)}
-                className="rounded-full border border-red-500/40 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-red-400 hover:bg-red-500/20 transition"
-              >
-                Borrar
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    onClick={() => onMove(g, -1)}
+                    disabled={i === 0}
+                    className="font-body text-[10px] leading-none text-bone/50 hover:text-gold disabled:opacity-30"
+                    aria-label="Subir"
+                  >▲</button>
+                  <button
+                    onClick={() => onMove(g, 1)}
+                    disabled={i === list.length - 1}
+                    className="font-body text-[10px] leading-none text-bone/50 hover:text-gold disabled:opacity-30"
+                    aria-label="Bajar"
+                  >▼</button>
+                </div>
+                <button
+                  onClick={() => onDelete(g.id)}
+                  className="rounded-full border border-red-500/40 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-red-400 hover:bg-red-500/20 transition"
+                >
+                  Borrar
+                </button>
+              </div>
             </div>
           </div>
         ))}

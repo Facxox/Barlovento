@@ -17,13 +17,11 @@ export default function ProductoForm({
   initial,
   variant = 'retail',
   categories,
-  totalProducts,
 }: {
   mode: Mode;
   initial?: Product | WholesaleProduct;
   variant?: Variant;
   categories: Category[];
-  totalProducts: number;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -39,13 +37,6 @@ export default function ProductoForm({
   );
   const [badge, setBadge] = useState(initial?.badge ?? '');
   const [isActive, setIsActive] = useState(initial?.is_active ?? true);
-  // Orden: 1..N (N = total de productos en la tabla). Si estoy editando, el
-  // conteo incluye al producto actual; si estoy creando, se posiciona al final
-  // (N+1) por defecto.
-  const maxPosition = mode === 'edit' ? Math.max(1, totalProducts) : Math.max(1, totalProducts + 1);
-  const [sortOrder, setSortOrder] = useState(
-    initial?.sort_order?.toString() ?? String(maxPosition)
-  );
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -66,7 +57,10 @@ export default function ProductoForm({
         fd.append('image', existingImage);
         fd.append('badge', badge);
         fd.append('is_active', String(isActive));
-        fd.append('sort_order', sortOrder);
+        // sort_order lo gestiona el admin desde la lista con flechas;
+        // dejamos el server action calcularlo al final de la lista si es
+        // un producto nuevo.
+        fd.append('sort_order', initial?.sort_order?.toString() ?? '9999');
         if (file) fd.append('imageFile', file);
         if (isWholesale) {
           await upsertWholesaleProduct(fd);
@@ -160,17 +154,9 @@ export default function ProductoForm({
               </select>
             </Field>
             <Field label="Orden">
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-                className={inputCls}
-              >
-                {Array.from({ length: maxPosition }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n}>
-                    {n} de {maxPosition}
-                  </option>
-                ))}
-              </select>
+              <p className="mt-2 font-body text-xs text-bone/60">
+                Editá el orden desde la lista de productos con las flechas ▲▼.
+              </p>
             </Field>
           </div>
 

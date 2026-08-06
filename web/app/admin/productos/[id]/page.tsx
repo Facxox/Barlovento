@@ -39,26 +39,12 @@ export default async function AdminProductoEditPage({
   );
   if (!product) notFound();
   const categories = await getCategories();
-
-  const supabase = await getServerSupabase();
-  let total = 0;
-  if (supabase) {
-    const table = isWholesale ? 'wholesale_products' : 'products';
-    const { count } = await supabase
-      .from(table)
-      .select('id', { count: 'exact', head: true });
-    total = count ?? 0;
-  } else {
-    total = productsJson.length;
-  }
-
   return (
     <ProductoForm
       mode="edit"
       initial={product}
       variant={isWholesale ? 'wholesale' : 'retail'}
       categories={categories}
-      totalProducts={total}
     />
   );
 }

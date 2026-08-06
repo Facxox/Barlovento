@@ -6,6 +6,7 @@ import {
   upsertCategory,
   deleteCategory,
   toggleCategoryActive,
+  moveCategory,
 } from '@/lib/admin-actions';
 import type { Category } from '@/lib/queries';
 
@@ -98,6 +99,20 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
         router.refresh();
       } catch (err: any) {
         setError(err.message ?? 'No pudimos cambiar el estado.');
+      } finally {
+        setBusyId(null);
+      }
+    });
+  };
+
+  const onMove = (cat: Category, dir: -1 | 1) => {
+    setBusyId(cat.id);
+    startTransition(async () => {
+      try {
+        await moveCategory(cat.id, dir);
+        router.refresh();
+      } catch (err: any) {
+        setError(err.message ?? 'No pudimos reordenar.');
       } finally {
         setBusyId(null);
       }
@@ -202,6 +217,7 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-carbon-line text-bone/50 font-body text-[10px] uppercase tracking-ultra">
+              <th className="w-12 p-3"></th>
               <th className="p-3">Slug</th>
               <th className="p-3">Nombre</th>
               <th className="p-3">Orden</th>
@@ -210,7 +226,7 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((c) => {
+            {sorted.map((c, i) => {
               const isEditing = editing === c.id;
               return isEditing ? (
                 <EditRow
@@ -229,6 +245,22 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
                     !c.is_active ? 'opacity-60' : '',
                   ].join(' ')}
                 >
+                  <td className="p-3">
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        onClick={() => onMove(c, -1)}
+                        disabled={i === 0}
+                        className="text-bone/50 hover:text-gold disabled:opacity-30"
+                        aria-label="Subir"
+                      >▲</button>
+                      <button
+                        onClick={() => onMove(c, 1)}
+                        disabled={i === sorted.length - 1}
+                        className="text-bone/50 hover:text-gold disabled:opacity-30"
+                        aria-label="Bajar"
+                      >▼</button>
+                    </div>
+                  </td>
                   <td className="p-3 font-body text-sm text-bone/70">{c.id}</td>
                   <td className="p-3 font-display text-base text-bone">{c.label}</td>
                   <td className="p-3 font-body text-sm text-bone/70">{c.sort_order}</td>
@@ -266,7 +298,7 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-bone/50 font-body text-sm">
+                <td colSpan={6} className="p-8 text-center text-bone/50 font-body text-sm">
                   No hay categorías todavía.
                 </td>
               </tr>

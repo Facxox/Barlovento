@@ -97,6 +97,18 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
     sort_order: Number(input.sort_order),
   };
 
+  // Si es un producto nuevo, lo ubicamos al final de la lista. El admin
+  // lo reordena después con las flechas ▲▼ de la tabla.
+  if (!input.id) {
+    const { data: lastRow } = await supabase
+      .from('products')
+      .select('sort_order')
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    input.sort_order = lastRow?.sort_order ? Number(lastRow.sort_order) + 1 : 1;
+  }
+
   const { data, error } = await supabase
     .from('products')
     .upsert(payload)
@@ -104,11 +116,6 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
     .single();
 
   if (error) throw new Error(`upsertProduct: ${error.message}`);
-
-  // Si cambió el orden, reacomodamos los hermanos para que el rango 1..N
-  // siga siendo único y compacto. Hacemos un renumber denso para evitar
-  // duplicados que romperían el orden visual.
-  if (data) await densifySortOrder('products', data.id, data.sort_order);
 
   // Limpia la imagen vieja si fue reemplazada.
   if (imageFile && imageFile.size > 0 && input.image && input.image !== imageUrl) {
@@ -167,46 +174,110 @@ export async function reorderProducts(orderedIds: string[]): Promise<void> {
   revalidatePath('/admin/productos');
 }
 
-// ----------------------------------------------------------------
-// Sort-order densifier — usado por upsertProduct / cloneProductToWholesale
-// ----------------------------------------------------------------
 /**
- * Reacomodación densa del sort_order. Garantiza que después de un cambio:
- *  - El producto objetivo queda en `targetOrder` (1-based).
- *  - El resto queda en un orden compacto 1..N sin huecos ni duplicados.
- *  - El orden relativo de los demás productos se preserva lo más posible.
- *
- * Algoritmo: leemos todos los productos ordenados por sort_order asc,
- * descartamos el objetivo, lo reinsertamos en la posición targetOrder
- * (1-based) y persistimos sort_order = posición resultante.
+ * Mueve un producto una posición arriba o abajo en el listado. Intercambia
+ * sort_order con su vecino inmediato. No-op si está en un extremo.
  */
-async function densifySortOrder(
-  table: 'products' | 'wholesale_products',
-  pivotId: string,
-  targetOrder: number
+export async function moveProduct(
+  id: string,
+  dir: -1 | 1
+): Promise<void> {
+  await swapAdjacent('products', 'id', id, dir);
+  revalidatePath('/');
+  revalidatePath('/admin/productos');
+}
+
+export async function moveWholesaleProduct(
+  id: string,
+  dir: -1 | 1
+): Promise<void> {
+  await swapAdjacent('wholesale_products', 'id', id, dir);
+  revalidatePath('/admin/productos');
+}
+
+/**
+ * Swap genérico entre dos filas adyacentes ordenadas por sort_order.
+ * Usado por las acciones `move*` de cada tabla.
+ *
+ * Estrategia: movemos ambos registros a valores temporales negativos para
+ * evitar pisar el sort_order del otro durante la transacción, y luego
+ * asignamos los valores definitivos.
+ */
+async function swapAdjacent(
+  table: 'products' | 'wholesale_products' | 'categories' | 'gallery_items' | 'events',
+  pkCol: string,
+  id: string | number,
+  dir: -1 | 1
 ): Promise<void> {
   const supabase = await requireAdmin();
-  const { data: rows, error } = await supabase
+
+  const { data: source, error: srcErr } = await supabase
     .from(table)
-    .select('id, sort_order')
-    .order('sort_order', { ascending: true });
-  if (error || !rows) return;
+    .select(`${pkCol}, sort_order`)
+    .eq(pkCol, id)
+    .maybeSingle();
+  if (srcErr || !source) return;
 
-  const others = rows.filter((r) => r.id !== pivotId);
-  const target = Math.max(1, Math.min(targetOrder, others.length + 1));
+  // Hallamos el vecino inmediato: row con sort_order menor (dir=-1) o
+  // mayor (dir=1) que el source, ordenando de modo que el primero sea el
+  // más cercano.
+  let neighborQuery = supabase
+    .from(table)
+    .select(`${pkCol}, sort_order`)
+    .order('sort_order', { ascending: dir === 1 })
+    .limit(1);
+  neighborQuery =
+    dir === -1 ? neighborQuery.lt('sort_order', source.sort_order)
+              : neighborQuery.gt('sort_order', source.sort_order);
 
-  // Reordenamos: primero los `target-1` primeros "others", luego el pivot,
-  // luego el resto.
-  const before = others.slice(0, target - 1);
-  const after = others.slice(target - 1);
-  const finalOrder = [...before.map((r) => r.id), pivotId, ...after.map((r) => r.id)];
+  const { data: nb, error: nbErr } = await neighborQuery.maybeSingle();
+  if (nbErr || !nb) return;
 
-  const updates = finalOrder.map((id, idx) =>
-    supabase.from(table).update({ sort_order: idx + 1 }).eq('id', id)
-  );
-  const results = await Promise.all(updates);
-  const failed = results.find((r) => r.error);
-  if (failed?.error) throw new Error(`densifySortOrder: ${failed.error.message}`);
+  // Valores temporales únicos negativos para evitar conflictos durante
+  // la transacción.
+  const tempA = -source.sort_order - 1;
+  const tempB = -nb.sort_order - 1;
+
+  const upd = async (colVal: string | number, sortTemp: number) => {
+    const { error } = await supabase
+      .from(table)
+      .update({ sort_order: sortTemp })
+      .eq(pkCol, colVal);
+    if (error) throw new Error(`swapAdjacent[${table}]: ${error.message}`);
+  };
+
+  await upd(source[pkCol], tempA);
+  await upd(nb[pkCol], tempB);
+  await upd(source[pkCol], nb.sort_order);
+  await upd(nb[pkCol], source.sort_order);
+}
+
+export async function moveCategory(
+  id: string,
+  dir: -1 | 1
+): Promise<void> {
+  await swapAdjacent('categories', 'id', id, dir);
+  revalidatePath('/');
+  revalidatePath('/admin/categorias');
+  revalidatePath('/admin/productos');
+}
+
+export async function moveGalleryItem(
+  id: number,
+  dir: -1 | 1
+): Promise<void> {
+  await swapAdjacent('gallery_items', 'id', id, dir);
+  revalidatePath('/');
+  revalidatePath('/admin/galeria');
+}
+
+export async function moveEvent(
+  id: number,
+  dir: -1 | 1
+): Promise<void> {
+  await swapAdjacent('events', 'id', id, dir);
+  revalidatePath('/');
+  revalidatePath('/admin/eventos');
 }
 
 // ----------------------------------------------------------------
@@ -260,8 +331,6 @@ export async function upsertWholesaleProduct(
     .select()
     .single();
   if (error) throw new Error(`upsertWholesaleProduct: ${error.message}`);
-
-  if (data) await densifySortOrder('wholesale_products', data.id, data.sort_order);
 
   if (imageFile && imageFile.size > 0 && input.image && input.image !== imageUrl) {
     await deleteImageByUrl(input.image);
@@ -371,8 +440,6 @@ export async function cloneProductToWholesale(
     .upsert(payload);
   if (insertError)
     throw new Error(`cloneProductToWholesale: ${insertError.message}`);
-
-  if (newId) await densifySortOrder('wholesale_products', newId, nextSort);
 
   revalidatePath('/admin/productos');
   return newId;
