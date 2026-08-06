@@ -49,11 +49,18 @@ export default function Navbar() {
     };
   }, [pathname]);
 
+  // En rutas fuera de la home la primera sección es clara (cream), así que el
+  // header no puede arrancar transparente: forzamos el fondo carbon apenas el
+  // usuario sale del landing. En la home seguimos respetando el scroll para
+  // mantener la superposición sobre el Hero oscuro.
+  const forceSolid = pathname?.startsWith('/productos') ?? false;
+  const solid = forceSolid || scrolled;
+
   return (
     <header
       className={[
         'fixed inset-x-0 top-0 z-40 transition-colors duration-500',
-        scrolled
+        solid
           ? 'bg-carbon/90 border-b border-carbon-line'
           : 'bg-transparent',
       ].join(' ')}
