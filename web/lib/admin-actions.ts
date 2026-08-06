@@ -811,9 +811,12 @@ function slugify(s: string): string {
  * Parsea el campo `nutrition_json` que llega por FormData. Devuelve NULL si:
  *   - el string está vacío
  *   - el JSON es inválido
- *   - el shape no tiene rows o todas las filas están vacías
- * Esto permite que el admin "deshabilite" la tabla nutricional enviando
- * un string vacío.
+ *   - el shape no tiene rows ni ningún campo del bloque extendido
+ *
+ * Soporta dos shapes:
+ *   - Bloque viejo: `{ portion, servings_per_package, rows[] }`.
+ *   - Bloque extendido: `{ ..., kcal, kj, carbs_g, ..., warning_labels[] }`.
+ * Si alguno de los dos bloques trae datos, lo incluye en el resultado.
  */
 function parseNutritionField(raw: string | null): Nutrition | null {
   if (!raw) return null;
@@ -825,10 +828,13 @@ function parseNutritionField(raw: string | null): Nutrition | null {
   }
   if (!parsed || typeof parsed !== 'object') return null;
   const obj = parsed as Record<string, unknown>;
+
   const portion = typeof obj.portion === 'string' ? obj.portion.trim() : '';
   const sp = obj.servings_per_package;
   const servings_per_package =
     typeof sp === 'number' && Number.isFinite(sp) ? sp : null;
+
+  // Bloque viejo: rows[]
   const rowsIn = Array.isArray(obj.rows) ? obj.rows : [];
   const rows = rowsIn
     .map((r) => {
@@ -841,6 +847,38 @@ function parseNutritionField(raw: string | null): Nutrition | null {
       return { nutrient, amount, dv };
     })
     .filter((r): r is { nutrient: string; amount: string; dv: string } => r !== null);
-  if (!portion && rows.length === 0) return null;
-  return { portion, servings_per_package, rows };
+
+  // Bloque extendido: campos planos opcionales
+  const num = (k: string) => {
+    const v = obj[k];
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  };
+  const warning_labels = Array.isArray(obj.warning_labels)
+    ? obj.warning_labels.filter((s): s is string => typeof s === 'string')
+    : null;
+  const extended = {
+    kcal: num('kcal'),
+    kj: num('kj'),
+    carbs_g: num('carbs_g'),
+    protein_g: num('protein_g'),
+    fat_g: num('fat_g'),
+    saturated_g: num('saturated_g'),
+    fiber_g: num('fiber_g'),
+    sodium_mg: num('sodium_mg'),
+    trans_g: num('trans_g'),
+    warning_labels,
+  };
+  const hasExtended = Object.entries(extended).some(([k, v]) => {
+    if (k === 'warning_labels') return v != null && (v as string[]).length > 0;
+    return v !== null;
+  });
+
+  if (!portion && rows.length === 0 && !hasExtended) return null;
+
+  return {
+    portion,
+    servings_per_package,
+    rows,
+    ...(hasExtended ? extended : {}),
+  };
 }

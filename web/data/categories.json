@@ -1,5 +1,6 @@
 [
   { "id": "clasicos",   "label": "Clásicos",   "sort_order": 1, "is_active": true },
   { "id": "chocolate",  "label": "Chocolate",  "sort_order": 2, "is_active": true },
-  { "id": "especiales", "label": "Especiales", "sort_order": 3, "is_active": true }
+  { "id": "especiales", "label": "Especiales", "sort_order": 3, "is_active": true },
+  { "id": "saludable",  "label": "Saludable",  "sort_order": 4, "is_active": true }
 ]

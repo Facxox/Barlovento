@@ -32,15 +32,35 @@ export type Product = {
 export type WholesaleProduct = Product;
 
 /**
- * Información nutricional tipo packaging. La cantidad de filas puede
- * variar entre productos — algunos alfajores declaran 4 nutrientes,
- * otros 10. `amount` y `dv` son strings para mantener el formato libre
- * ("22 g", "9 %", "180 kcal").
+ * Información nutricional tipo packaging.
+ *
+ * Soporta dos shapes compatibles:
+ *  - Bloque viejo (`rows[]`): el admin lo carga fila por fila.
+ *  - Bloque nuevo (campos planos): usado por los alfajores con tabla
+ *    nutricional estilo packaging. Si está presente y completo, el
+ *    `NutritionTable` lo renderiza con macros, valor energético y
+ *    octógonos de rotulado.
+ *
+ * Los campos del bloque nuevo son todos opcionales; si ninguno tiene
+ * valor, el producto no muestra tabla nutricional.
  */
 export type Nutrition = {
   portion: string;
   servings_per_package: number | null;
   rows: { nutrient: string; amount: string; dv: string }[];
+
+  // Bloque extendido (opcional)
+  kcal?: number | null;
+  kj?: number | null;
+  carbs_g?: number | null;
+  protein_g?: number | null;
+  fat_g?: number | null;
+  saturated_g?: number | null;
+  fiber_g?: number | null;
+  sodium_mg?: number | null;
+  trans_g?: number | null;
+  /** Etiquetas de octógonos (ej. "Exceso Azúcar"). Lista vacía = sin advertencias. */
+  warning_labels?: string[] | null;
 };
 
 export type Category = {
