@@ -1,6 +1,7 @@
 import Hero from '@/components/Hero';
 import Historia from '@/components/Historia';
 import MisionVision from '@/components/MisionVision';
+import Valores from '@/components/Valores';
 import ProductosHero from '@/components/ProductosHero';
 import TiendaServer from '@/components/TiendaServer';
 import Eventos from '@/components/Eventos';
@@ -13,6 +14,7 @@ export default function Home() {
       <Hero />
       <Historia />
       <MisionVision />
+      <Valores />
       <ProductosHero />
       <TiendaServer />
       <Eventos />

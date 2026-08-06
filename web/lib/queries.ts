@@ -57,6 +57,11 @@ export type SiteContent = {
   };
   mision: { eyebrow: string; headline: string; body: string };
   vision:  { eyebrow: string; headline: string; body: string };
+  valores: {
+    eyebrow: string;
+    headline: string;
+    items: { title: string; body: string }[];
+  };
   contacto: {
     whatsapp: string;
     email: string;
@@ -154,6 +159,7 @@ export async function getSiteContent(): Promise<SiteContent> {
       historia: map.historia ?? fallback.historia,
       mision:   map.mision   ?? fallback.mision,
       vision:   map.vision   ?? fallback.vision,
+      valores:  map.valores  ?? fallback.valores,
       contacto: map.contacto ?? fallback.contacto,
     };
   } catch {

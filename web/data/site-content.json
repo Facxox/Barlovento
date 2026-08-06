@@ -3,21 +3,50 @@
     "eyebrow": "Nuestra historia",
     "headline": "De una receta familiar a un oficio compartido",
     "body": [
-      "Barlovento nació en una cocina de Trinidad, donde una receta familiar se hizo primero famosa entre los vecinos y, después, entre los que cruzaban el departamento para probarla.",
-      "Hoy seguimos trabajando como el primer día: masa a mano, reposos largos, dulce de leche en paila. Cada alfajor pasa por cuatro personas antes de llegar a tu mesa."
+      "Barlovento nació en junio de 2021 con un sueño: crear un emprendimiento familiar que nos permitiera trabajar juntos y disfrutar más tiempo en familia. Ese año tomamos una decisión que cambiaría nuestras vidas. Nos mudamos a Trinidad, departamento de Flores, tierra natal de Carolina, y comenzamos a construir este proyecto desde cero.",
+      "Carolina, pastelera profesional, ya tenía una trayectoria elaborando tortas y postres. Entre todas sus creaciones había un producto que siempre se destacaba: sus alfajores artesanales. Cada vez que los preparaba para amigos, familiares o eventos, el resultado era el mismo: se terminaban enseguida y todos preguntaban dónde podían comprarlos. Fue entonces cuando vimos una oportunidad.",
+      "Comenzamos ofreciendo nuestros alfajores en pequeños almacenes y comercios de la zona. Con mucho trabajo, dedicación y el apoyo de nuestros clientes, el proyecto empezó a crecer. Llegaron nuevos sabores, mejoramos nuestros procesos, incorporamos tecnología, sumamos personas a nuestro equipo y ampliamos nuestra presencia en distintos puntos del país.",
+      "Hoy, en 2026, miramos hacia atrás con enorme orgullo. Lo que comenzó como un sueño familiar se convirtió en una empresa consolidada, reconocida por elaborar alfajores artesanales de excelente calidad, con recetas propias, ingredientes cuidadosamente seleccionados y opciones para todos los gustos. Cada alfajor que sale de nuestro taller lleva la misma pasión del primer día, porque creemos que los mejores momentos siempre empiezan compartiendo algo rico.",
+      "Bienvenidos a Barlovento. Gracias por ser parte de nuestra historia."
     ],
     "image": "/Assets/historia-obrador.png",
     "image_caption": "Obrador en Trinidad, Flores"
   },
   "mision": {
     "eyebrow": "Misión",
-    "headline": "Devolverle al alfajor su carácter artesanal",
-    "body": "Producir alfajores en pequeñas series, con materia prima local y procesos honestos. Que cada unidad que sale del obrador pueda llevar nuestro nombre sin reservas."
+    "headline": "Alfajores artesanales con ingredientes cuidadosamente seleccionados",
+    "body": "Elaborar alfajores artesanales y dulces de alta calidad, utilizando ingredientes cuidadosamente seleccionados y procesos que combinan la tradición con la innovación. Trabajamos cada día para ofrecer productos que sorprendan por su sabor, generen momentos especiales y lleguen a cada rincón del país, manteniendo siempre el compromiso, la cercanía y la pasión que nos caracteriza como empresa familiar."
   },
   "vision": {
     "eyebrow": "Visión",
-    "headline": "Trinidad como capital del alfajor artesanal",
-    "body": "Convertir a nuestro departamento en un punto de referencia del alfajor hecho a mano, tanto para Uruguay como para quien lo descubra de paso."
+    "headline": "Ser una marca referente de alfajores artesanales en Uruguay",
+    "body": "Ser una marca referente de alfajores artesanales en Uruguay y expandir nuestra presencia a nuevos mercados, distinguiéndonos por la calidad de nuestros productos, la innovación constante, el desarrollo de nuevos sabores y el compromiso con nuestros clientes. Aspiramos a seguir creciendo de forma sostenible, generando oportunidades de trabajo y manteniendo la esencia familiar que dio origen a Barlovento."
+  },
+  "valores": {
+    "eyebrow": "Nuestros valores",
+    "headline": "Lo que nos define como empresa",
+    "items": [
+      {
+        "title": "Pasión por lo que hacemos",
+        "body": "Cada alfajor es elaborado con dedicación y el mismo entusiasmo con el que comenzó este proyecto familiar."
+      },
+      {
+        "title": "Calidad",
+        "body": "Seleccionamos cuidadosamente nuestros ingredientes y cuidamos cada etapa del proceso para ofrecer un producto excelente."
+      },
+      {
+        "title": "Innovación",
+        "body": "Nos apasiona crear nuevos sabores, desarrollar productos diferentes y sorprender constantemente a quienes eligen Barlovento."
+      },
+      {
+        "title": "Espíritu Familiar",
+        "body": "Crecimos como una empresa familiar y seguimos trabajando con los valores que nos dieron origen: cercanía, honestidad y trabajo en equipo."
+      },
+      {
+        "title": "Crecimiento Sostenible",
+        "body": "Buscamos crecer de manera responsable, generando empleo, fortaleciendo nuestra producción y contribuyendo al desarrollo de nuestra comunidad."
+      }
+    ]
   },
   "contacto": {
     "whatsapp": "+59899366522",
