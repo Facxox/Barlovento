@@ -81,7 +81,7 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* Badge de medalla abajo a la derecha */}
+        {/* Badge de medalla arriba a la derecha */}
         <div
           className={[
             'absolute right-6 top-32 hidden lg:block transition-all duration-1000 delay-[1500ms]',
@@ -89,18 +89,18 @@ export default function Hero() {
           ].join(' ')}
         >
           <div className="flex items-center gap-3 rounded-full border border-gold/40 bg-carbon/70 px-4 py-2 animate-soft-pulse">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-gold">
-              <path
-                d="M12 2l2.6 5.6 6.4.9-4.6 4.5 1.1 6.3L12 16.9 6.5 19.3l1.1-6.3L3 8.5l6.4-.9L12 2z"
-                fill="currentColor"
-                stroke="currentColor"
-                strokeWidth="0.5"
-              />
-            </svg>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/Assets/premio-pyme-oro-2024.png"
+              alt="Medalla de Oro — Campeonato Mundial del Alfajor 2024"
+              className="h-9 w-9 shrink-0 rounded-full object-cover"
+              width={36}
+              height={36}
+            />
             <div className="font-body text-[11px] uppercase tracking-ultra text-bone">
               Medalla de Oro
               <span className="block text-gold/80 normal-case tracking-normal mt-0.5">
-                Mejor Alfajor Pyme · Trinidad
+                Mejor Alfajor Pyme · Trinidad · 2024
               </span>
             </div>
           </div>
