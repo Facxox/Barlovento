@@ -24,7 +24,7 @@ export default function LoginForm() {
       return;
     }
     setLoading(true);
-    const { error: err } = await supabase.auth.signInWithPassword({
+    const { data, error: err } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -33,8 +33,11 @@ export default function LoginForm() {
       setError('Email o contraseña incorrectos.');
       return;
     }
-    router.push(next);
-    router.refresh();
+    if (!data.session) {
+      setError('La sesión no pudo iniciarse. Revisá la configuración de Supabase.');
+      return;
+    }
+    window.location.assign(next);
   };
 
   return (
