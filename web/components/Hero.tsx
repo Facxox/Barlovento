@@ -44,9 +44,7 @@ export default function Hero() {
               inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6',
             ].join(' ')}
           >
-            Irresistibles.
-            <br />
-            <span className="italic text-gold font-light">Hechos a mano.</span>
+            Irresistibles
           </h1>
 
           <p
@@ -55,8 +53,9 @@ export default function Hero() {
               inView ? 'opacity-100' : 'opacity-0',
             ].join(' ')}
           >
-            Cada alfajor Barlovento pasa por cuatro manos antes de llegar a la tuya.
-            Reposo largo, materia prima local y un baño de chocolate que termina el trabajo.
+            Elaboramos alfajores artesanales premium desde Trinidad, Uruguay,
+            con ingredientes seleccionados y recetas que transforman cada
+            bocado en una experiencia inolvidable.
           </p>
 
           <div
