@@ -128,11 +128,13 @@ function ProductCard({
 }) {
   return (
     <Reveal delay={delay}>
-      <Link
-        href={`/productos/${product.id}`}
-        className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded-sm"
-      >
-        <article>
+      <article className="group relative">
+        <Link
+          href={`/productos/${product.id}`}
+          aria-label={product.name}
+          className="absolute inset-0 z-0 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+        />
+        <div className="relative z-10 pointer-events-none">
           <div className="relative aspect-square overflow-hidden bg-ink/5 hover-zoom">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -164,11 +166,10 @@ function ProductCard({
           <div className="mt-5 flex gap-2">
             <button
               onClick={(e) => {
-                e.preventDefault();
                 e.stopPropagation();
                 onAdd();
               }}
-              className="flex-1 rounded-full bg-ink px-4 py-3 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon"
+              className="relative z-20 flex-1 rounded-full bg-ink px-4 py-3 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon"
             >
               Agregar
             </button>
@@ -178,8 +179,7 @@ function ProductCard({
               )}`}
               target="_blank"
               rel="noopener"
-              onClick={(e) => e.stopPropagation()}
-              className="grid place-items-center rounded-full border border-ink/30 px-4 text-ink/80 hover:border-ink hover:text-ink transition"
+              className="relative z-20 grid place-items-center rounded-full border border-ink/30 px-4 text-ink/80 hover:border-ink hover:text-ink transition"
               aria-label="Consultar por WhatsApp"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -187,8 +187,8 @@ function ProductCard({
               </svg>
             </a>
           </div>
-        </article>
-      </Link>
+        </div>
+      </article>
     </Reveal>
   );
 }
