@@ -16,14 +16,5 @@
     "description": "Catering de alfajores parainauguración del stand de productores del interior.",
     "image": "/Assets/Catering.png",
     "kind": "upcoming"
-  },
-  {
-    "id": 3,
-    "title": "Premio Pyme — Medalla de Oro",
-    "date": "2025-11-22",
-    "location": "Cámara Empresarial de Trinidad",
-    "description": "Reconocimiento como Mejor Alfajor Pyme en el departamento de Flores.",
-    "image": "/Assets/Premiación medalla.png",
-    "kind": "past"
   }
 ]
