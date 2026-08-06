@@ -6,7 +6,7 @@ import {
   upsertProduct,
   upsertWholesaleProduct,
 } from '@/lib/admin-actions';
-import type { Product, WholesaleProduct } from '@/lib/queries';
+import type { Product, WholesaleProduct, Category } from '@/lib/queries';
 import ImageDropzone from './ImageDropzone';
 
 type Mode = 'create' | 'edit';
@@ -16,10 +16,14 @@ export default function ProductoForm({
   mode,
   initial,
   variant = 'retail',
+  categories,
+  totalProducts,
 }: {
   mode: Mode;
   initial?: Product | WholesaleProduct;
   variant?: Variant;
+  categories: Category[];
+  totalProducts: number;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -29,13 +33,19 @@ export default function ProductoForm({
   const [description, setDescription] = useState(initial?.description ?? '');
   const [price, setPrice] = useState(initial?.price.toString() ?? '');
   const [currency, setCurrency] = useState(initial?.currency ?? 'UYU');
-  const [category, setCategory] = useState(initial?.category ?? 'clasicos');
+  const [category, setCategory] = useState(initial?.category ?? categories[0]?.id ?? '');
   const [existingImage, setExistingImage] = useState<string>(
     initial?.image ?? '/Assets/placeholder.png'
   );
   const [badge, setBadge] = useState(initial?.badge ?? '');
   const [isActive, setIsActive] = useState(initial?.is_active ?? true);
-  const [sortOrder, setSortOrder] = useState(initial?.sort_order?.toString() ?? '99');
+  // Orden: 1..N (N = total de productos en la tabla). Si estoy editando, el
+  // conteo incluye al producto actual; si estoy creando, se posiciona al final
+  // (N+1) por defecto.
+  const maxPosition = mode === 'edit' ? Math.max(1, totalProducts) : Math.max(1, totalProducts + 1);
+  const [sortOrder, setSortOrder] = useState(
+    initial?.sort_order?.toString() ?? String(maxPosition)
+  );
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -150,12 +160,17 @@ export default function ProductoForm({
               </select>
             </Field>
             <Field label="Orden">
-              <input
-                type="number"
+              <select
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value)}
                 className={inputCls}
-              />
+              >
+                {Array.from({ length: maxPosition }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n} de {maxPosition}
+                  </option>
+                ))}
+              </select>
             </Field>
           </div>
 
@@ -165,9 +180,18 @@ export default function ProductoForm({
               onChange={(e) => setCategory(e.target.value)}
               className={inputCls}
             >
-              <option value="clasicos">Clásicos</option>
-              <option value="chocolate">Chocolate</option>
-              <option value="especiales">Especiales</option>
+              {categories.length === 0 && <option value="">— sin categorías —</option>}
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                  {c.is_active ? '' : ' (inactiva)'}
+                </option>
+              ))}
+              {/* Si el producto actual tiene una categoría que ya no existe
+                  (borrada de la lista), la mantenemos visible para no perderla. */}
+              {initial && !categories.some((c) => c.id === initial.category) && (
+                <option value={initial.category}>{initial.category} (huérfana)</option>
+              )}
             </select>
           </Field>
 

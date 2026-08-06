@@ -4,17 +4,42 @@ import { useMemo, useState } from 'react';
 import { useCart } from './CartContext';
 import { Reveal } from './Reveal';
 import GoldDivider from './GoldDivider';
-import type { Product } from '@/lib/queries';
+import type { Product, Category } from '@/lib/queries';
 
 const formatUY = (n: number) =>
   new Intl.NumberFormat('es-UY', { style: 'currency', currency: 'UYU', maximumFractionDigits: 0 }).format(n);
 
-export default function Tienda({ products }: { products: Product[] }) {
+export default function Tienda({
+  products,
+  categories: allCategories,
+}: {
+  products: Product[];
+  categories: Category[];
+}) {
   const { add } = useCart();
-  const categories = useMemo(
-    () => ['todos', ...Array.from(new Set(products.map((p) => p.category)))],
+  // Solo categorías activas que tienen al menos un producto activo. Si el
+  // admin borró una categoría, los productos quedan con su slug en products
+  // pero no aparece como filtro (mantiene el storefront limpio).
+  const usedSlugs = useMemo(
+    () => Array.from(new Set(products.filter((p) => p.is_active).map((p) => p.category))),
     [products]
   );
+  const labelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of allCategories) m.set(c.id, c.label);
+    return m;
+  }, [allCategories]);
+  const filterOptions = useMemo(() => {
+    const visible = allCategories
+      .filter((c) => c.is_active && usedSlugs.includes(c.id))
+      .sort((a, b) => a.sort_order - b.sort_order);
+    // Huérfanas: productos con category que no está en la tabla de categorías
+    // (ej: admin la borró). Las mostramos al final para que el cliente no
+    // pierda acceso al producto.
+    const orphanSlugs = usedSlugs.filter((s) => !labelById.has(s));
+    const orphanChips = orphanSlugs.map((s) => ({ id: s, label: s }));
+    return [{ id: 'todos', label: 'Todos' }, ...visible, ...orphanChips];
+  }, [allCategories, usedSlugs, labelById]);
   const [filter, setFilter] = useState<string>('todos');
 
   const filtered = useMemo(
@@ -46,18 +71,18 @@ export default function Tienda({ products }: { products: Product[] }) {
 
             {/* Filtros */}
             <div className="flex flex-wrap gap-2">
-              {categories.map((c) => (
+              {filterOptions.map((c) => (
                 <button
-                  key={c}
-                  onClick={() => setFilter(c)}
+                  key={c.id}
+                  onClick={() => setFilter(c.id)}
                   className={[
                     'rounded-full border px-4 py-2 font-body text-xs uppercase tracking-ultra transition',
-                    filter === c
+                    filter === c.id
                       ? 'border-ink bg-ink text-cream'
                       : 'border-ink/20 text-ink/70 hover:border-ink hover:text-ink',
                   ].join(' ')}
                 >
-                  {c}
+                  {c.label}
                 </button>
               ))}
             </div>
@@ -69,6 +94,7 @@ export default function Tienda({ products }: { products: Product[] }) {
             <ProductCard
               key={p.id}
               product={p}
+              labelById={labelById}
               delay={i * 100}
               onAdd={() =>
                 add({
@@ -89,10 +115,12 @@ export default function Tienda({ products }: { products: Product[] }) {
 
 function ProductCard({
   product,
+  labelById,
   delay,
   onAdd,
 }: {
   product: Product;
+  labelById: Map<string, string>;
   delay: number;
   onAdd: () => void;
 }) {
@@ -116,7 +144,7 @@ function ProductCard({
         <div className="mt-5 flex items-start justify-between gap-4">
           <div>
             <p className="font-body text-[10px] uppercase tracking-ultra text-ink/50">
-              {product.category}
+              {labelById.get(product.category) ?? product.category}
             </p>
             <h3 className="mt-1 font-display text-2xl text-ink leading-tight">
               {product.name}

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase-server';
 import ProductoForm from '@/components/admin/ProductoForm';
 import productsJson from '@/data/products.json';
+import { getCategories } from '@/lib/queries';
 import type { Product, WholesaleProduct } from '@/lib/queries';
 
 async function getProduct(
@@ -37,11 +38,26 @@ export default async function AdminProductoEditPage({
     isWholesale ? 'wholesale_products' : 'products'
   );
   if (!product) notFound();
+  const categories = await getCategories();
+
+  let total = 0;
+  if (supabase) {
+    const table = isWholesale ? 'wholesale_products' : 'products';
+    const { count } = await supabase
+      .from(table)
+      .select('id', { count: 'exact', head: true });
+    total = count ?? 0;
+  } else {
+    total = productsJson.length;
+  }
+
   return (
     <ProductoForm
       mode="edit"
       initial={product}
       variant={isWholesale ? 'wholesale' : 'retail'}
+      categories={categories}
+      totalProducts={total}
     />
   );
 }

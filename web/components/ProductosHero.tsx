@@ -1,10 +1,14 @@
-import { getProducts } from '@/lib/queries';
+import { getProducts, getCategories } from '@/lib/queries';
 import GoldDivider from './GoldDivider';
 import { Reveal } from './Reveal';
 
 export default async function ProductosHero() {
-  const products = await getProducts();
+  const [products, categories] = await Promise.all([
+    getProducts(),
+    getCategories(),
+  ]);
   const featured = products.slice(0, 3);
+  const labelById = new Map(categories.map((c) => [c.id, c.label]));
 
   return (
     <section id="productos" className="bg-carbon py-28 lg:py-40">
@@ -43,7 +47,7 @@ export default async function ProductosHero() {
                 </div>
                 <div className="mt-6">
                   <p className="font-body text-[11px] uppercase tracking-ultra text-gold/80">
-                    {p.category}
+                    {labelById.get(p.category) ?? p.category}
                   </p>
                   <h3 className="mt-2 font-display text-2xl text-bone leading-tight">
                     {p.name}

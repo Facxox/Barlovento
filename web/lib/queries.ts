@@ -4,6 +4,7 @@ import productsJson from '@/data/products.json';
 import galleryJson from '@/data/gallery.json';
 import eventsJson from '@/data/events.json';
 import siteContentJson from '@/data/site-content.json';
+import categoriesJson from '@/data/categories.json';
 
 // ----------------------------------------------------------------
 // Tipos — alineados 1:1 al esquema SQL en supabase/migrations/0001_init.sql
@@ -28,6 +29,13 @@ export type Product = {
  * público no la consume — solo el panel admin.
  */
 export type WholesaleProduct = Product;
+
+export type Category = {
+  id: string;            // slug — se guarda en products.category / wholesale_products.category
+  label: string;         // nombre legible
+  sort_order: number;
+  is_active: boolean;
+};
 
 export type GalleryItem = {
   id: number;
@@ -143,6 +151,22 @@ export async function getWholesaleProducts(): Promise<WholesaleProduct[]> {
     'wholesale_products',
     'sort_order',
     []
+  );
+}
+
+/**
+ * Lista administrable de categorías de alfajores. La fuente de verdad es la
+ * tabla `categories`; si Supabase no está configurado o la tabla no existe,
+ * cae al JSON local para que el dev local siga andando.
+ */
+export async function getCategories(): Promise<Category[]> {
+  const fallback = [...categoriesJson].sort(
+    (a, b) => a.sort_order - b.sort_order
+  ) as Category[];
+  return fromSupabase<Category[]>(
+    'categories',
+    'sort_order',
+    fallback
   );
 }
 

@@ -105,6 +105,11 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
 
   if (error) throw new Error(`upsertProduct: ${error.message}`);
 
+  // Si cambió el orden, reacomodamos los hermanos para que el rango 1..N
+  // siga siendo único y compacto. Hacemos un renumber denso para evitar
+  // duplicados que romperían el orden visual.
+  if (data) await densifySortOrder('products', data.id, data.sort_order);
+
   // Limpia la imagen vieja si fue reemplazada.
   if (imageFile && imageFile.size > 0 && input.image && input.image !== imageUrl) {
     await deleteImageByUrl(input.image);
@@ -163,6 +168,48 @@ export async function reorderProducts(orderedIds: string[]): Promise<void> {
 }
 
 // ----------------------------------------------------------------
+// Sort-order densifier — usado por upsertProduct / cloneProductToWholesale
+// ----------------------------------------------------------------
+/**
+ * Reacomodación densa del sort_order. Garantiza que después de un cambio:
+ *  - El producto objetivo queda en `targetOrder` (1-based).
+ *  - El resto queda en un orden compacto 1..N sin huecos ni duplicados.
+ *  - El orden relativo de los demás productos se preserva lo más posible.
+ *
+ * Algoritmo: leemos todos los productos ordenados por sort_order asc,
+ * descartamos el objetivo, lo reinsertamos en la posición targetOrder
+ * (1-based) y persistimos sort_order = posición resultante.
+ */
+async function densifySortOrder(
+  table: 'products' | 'wholesale_products',
+  pivotId: string,
+  targetOrder: number
+): Promise<void> {
+  const supabase = await requireAdmin();
+  const { data: rows, error } = await supabase
+    .from(table)
+    .select('id, sort_order')
+    .order('sort_order', { ascending: true });
+  if (error || !rows) return;
+
+  const others = rows.filter((r) => r.id !== pivotId);
+  const target = Math.max(1, Math.min(targetOrder, others.length + 1));
+
+  // Reordenamos: primero los `target-1` primeros "others", luego el pivot,
+  // luego el resto.
+  const before = others.slice(0, target - 1);
+  const after = others.slice(target - 1);
+  const finalOrder = [...before.map((r) => r.id), pivotId, ...after.map((r) => r.id)];
+
+  const updates = finalOrder.map((id, idx) =>
+    supabase.from(table).update({ sort_order: idx + 1 }).eq('id', id)
+  );
+  const results = await Promise.all(updates);
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw new Error(`densifySortOrder: ${failed.error.message}`);
+}
+
+// ----------------------------------------------------------------
 // Wholesale products
 // ----------------------------------------------------------------
 /**
@@ -213,6 +260,8 @@ export async function upsertWholesaleProduct(
     .select()
     .single();
   if (error) throw new Error(`upsertWholesaleProduct: ${error.message}`);
+
+  if (data) await densifySortOrder('wholesale_products', data.id, data.sort_order);
 
   if (imageFile && imageFile.size > 0 && input.image && input.image !== imageUrl) {
     await deleteImageByUrl(input.image);
@@ -322,6 +371,8 @@ export async function cloneProductToWholesale(
     .upsert(payload);
   if (insertError)
     throw new Error(`cloneProductToWholesale: ${insertError.message}`);
+
+  if (newId) await densifySortOrder('wholesale_products', newId, nextSort);
 
   revalidatePath('/admin/productos');
   return newId;
@@ -451,6 +502,78 @@ export async function deleteEvent(id: number): Promise<void> {
   if (error) throw new Error(`deleteEvent: ${error.message}`);
   revalidatePath('/');
   revalidatePath('/admin/eventos');
+}
+
+// ----------------------------------------------------------------
+// Categories
+// ----------------------------------------------------------------
+/**
+ * Crea o actualiza una categoría. `id` es el slug y la PK — el admin lo
+ * genera a partir del label. La función valida unicidad y caracteres.
+ */
+export async function upsertCategory(formData: FormData): Promise<void> {
+  const supabase = await requireAdmin();
+
+  const id = ((formData.get('id') as string) ?? '').trim();
+  const label = ((formData.get('label') as string) ?? '').trim();
+  if (!id) throw new Error('Falta el slug de la categoría.');
+  if (!label) throw new Error('Falta el nombre visible.');
+  if (!/^[a-z0-9-]+$/.test(id)) {
+    throw new Error('El slug solo puede tener minúsculas, números y guiones.');
+  }
+
+  const sort_order = Number(formData.get('sort_order') ?? 0);
+  const is_active = formData.get('is_active') === 'true';
+
+  const { error } = await supabase
+    .from('categories')
+    .upsert({ id, label, sort_order, is_active, updated_at: now() });
+  if (error) throw new Error(`upsertCategory: ${error.message}`);
+  revalidatePath('/');
+  revalidatePath('/admin/categorias');
+  revalidatePath('/admin/productos');
+}
+
+/**
+ * Borra una categoría por slug. Falla si hay productos (retail o mayorista)
+ * usándola — el admin tiene que reasignarlos primero.
+ */
+export async function deleteCategory(id: string): Promise<void> {
+  const supabase = await requireAdmin();
+
+  const [{ count: retailCount }, { count: wsCount }] = await Promise.all([
+    supabase.from('products').select('id', { count: 'exact', head: true }).eq('category', id),
+    supabase.from('wholesale_products').select('id', { count: 'exact', head: true }).eq('category', id),
+  ]);
+
+  const total = (retailCount ?? 0) + (wsCount ?? 0);
+  if (total > 0) {
+    throw new Error(
+      `No se puede borrar: hay ${total} producto(s) con esta categoría. Reasignálos primero.`
+    );
+  }
+
+  const { error } = await supabase.from('categories').delete().eq('id', id);
+  if (error) throw new Error(`deleteCategory: ${error.message}`);
+  revalidatePath('/');
+  revalidatePath('/admin/categorias');
+  revalidatePath('/admin/productos');
+}
+
+export async function toggleCategoryActive(id: string, isActive: boolean): Promise<void> {
+  const supabase = await requireAdmin();
+  const { error } = await supabase
+    .from('categories')
+    .update({ is_active: isActive, updated_at: now() })
+    .eq('id', id);
+  if (error) throw new Error(`toggleCategoryActive: ${error.message}`);
+  revalidatePath('/');
+  revalidatePath('/admin/categorias');
+}
+
+/** Helper para no importar Date en cada lugar. */
+function now() {
+  return new Date().toISOString();
 }
 
 // ----------------------------------------------------------------
