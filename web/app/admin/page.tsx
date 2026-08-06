@@ -12,22 +12,29 @@ export default async function AdminDashboard() {
   const orders = await listOrders();
   const recentOrders = orders.slice(0, 5);
 
-  const quickLinks = [
-    { href: '/admin/productos', label: 'Productos' },
-    { href: '/admin/categorias', label: 'Categorías' },
-    { href: '/admin/galeria', label: 'Galería' },
-    { href: '/admin/eventos', label: 'Eventos' },
-    { href: '/admin/textos', label: 'Textos de marca' },
-    { href: '/admin/pedidos', label: 'Pedidos' },
-    { href: '/admin/usuarios', label: 'Usuarios' },
-  ];
+  // Tarjetas del dashboard. Cada una con el mismo formato visual que la
+  // card de Productos: eyebrow, número grande, hint, y "Gestionar →".
+  // Las tarjetas que no tienen una métrica dinámica (Categorías, Textos,
+  // Usuarios) muestran un guion y un hint neutro.
+  type Card = {
+    href: string;
+    label: string;
+    value: string | number;
+    hint: string;
+  };
 
-  const cards: Array<{ href: string; label: string; value: string | number; hint: string }> = [
+  const cards: Card[] = [
     {
       href: '/admin/productos',
       label: 'Productos',
       value: products.filter((p) => p.is_active).length,
       hint: `${products.length} en total · ${products.filter((p) => !p.is_active).length} inactivos`,
+    },
+    {
+      href: '/admin/categorias',
+      label: 'Categorías',
+      value: '—',
+      hint: 'Administrá las categorías del catálogo',
     },
     {
       href: '/admin/galeria',
@@ -42,10 +49,22 @@ export default async function AdminDashboard() {
       hint: `${events.filter((e) => e.kind === 'past').length} en archivo`,
     },
     {
+      href: '/admin/textos',
+      label: 'Textos de marca',
+      value: '—',
+      hint: 'Historia, misión, visión, valores y más',
+    },
+    {
       href: '/admin/pedidos',
       label: 'Pedidos pendientes',
       value: pending,
       hint: pending === 0 ? 'Al día' : 'Por revisar',
+    },
+    {
+      href: '/admin/usuarios',
+      label: 'Usuarios',
+      value: '—',
+      hint: 'Roles y mayoristas',
     },
   ];
 
@@ -77,35 +96,6 @@ export default async function AdminDashboard() {
           </Link>
         ))}
       </div>
-
-      {/* Accesos directos a todas las funcionalidades */}
-      <section className="mt-12">
-        <div className="flex items-end justify-between">
-          <div>
-            <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
-              Accesos directos
-            </p>
-            <h2 className="mt-2 font-display text-2xl text-bone">
-              Todas las funcionalidades
-            </h2>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {quickLinks.map((q) => (
-            <Link
-              key={q.href}
-              href={q.href}
-              className="group flex items-center justify-between border border-carbon-line bg-carbon px-5 py-4 transition hover:border-gold/60"
-            >
-              <span className="font-body text-sm text-bone">{q.label}</span>
-              <span className="font-body text-xs uppercase tracking-ultra text-bone/40 group-hover:text-gold">
-                Abrir →
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
 
       <section className="mt-12">
         <div className="flex items-end justify-between">
