@@ -1,5 +1,6 @@
 import 'server-only';
 import { getServerSupabase } from './supabase-server';
+import { getServiceSupabase } from './supabase-admin';
 import type { OrderRow } from './orders';
 
 export type AdminProfile = {
@@ -108,6 +109,16 @@ export async function listUsersWithStats(): Promise<ListUsersResult> {
   return { users, stats };
 }
 
+export async function countUsers(): Promise<number> {
+  const supabase = getServiceSupabase();
+  if (!supabase) return 0;
+
+  const { count, error } = await supabase
+    .from('profiles')
+    .select('user_id', { count: 'exact', head: true });
+
+  return error ? 0 : count ?? 0;
+}
 /**
  * Devuelve los pedidos asociados al email de un cliente (case-insensitive).
  * Solo accesible por admin (la auth la verifica el endpoint que la llama).

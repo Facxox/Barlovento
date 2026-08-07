@@ -1,28 +1,17 @@
 import Link from 'next/link';
 import { getProducts, getGallery, getEvents, getCategories } from '@/lib/queries';
 import { listOrders, countPendingOrders } from '@/lib/orders';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { countUsers } from '@/lib/admin-queries';
 
 export default async function AdminDashboard() {
-  const [products, gallery, events, categories, pending] = await Promise.all([
+  const [products, gallery, events, categories, pending, userCount] = await Promise.all([
     getProducts(),
     getGallery(),
     getEvents(),
     getCategories(),
     countPendingOrders(),
+    countUsers(),
   ]);
-
-  // Usuarios: leemos directo desde Supabase (la tabla `profiles`) sin pasar
-  // por `listUsersWithStats` para evitar traer todos los pedidos. Si no
-  // hay conexión a Supabase, devolvemos 0.
-  let userCount = 0;
-  const supabase = await getServerSupabase();
-  if (supabase) {
-    const { count } = await supabase
-      .from('profiles')
-      .select('user_id', { count: 'exact', head: true });
-    userCount = count ?? 0;
-  }
 
   const orders = await listOrders();
   const recentOrders = orders.slice(0, 5);
