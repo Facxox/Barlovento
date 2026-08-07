@@ -841,7 +841,7 @@ export async function uploadHeroImage(formData: FormData): Promise<string> {
 // ----------------------------------------------------------------
 // Usuarios (customer_type: retail / wholesale)
 // ----------------------------------------------------------------
-async function requireAdminStrict() {
+export async function requireAdminStrict() {
   // Sesión del visitante (cliente autenticado, respeta RLS) para
   // validar que hay un usuario logueado.
   const authed = await getServerSupabase();

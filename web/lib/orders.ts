@@ -46,3 +46,129 @@ export async function countPendingOrders(): Promise<number> {
   if (error) return 0;
   return count ?? 0;
 }
+
+export type OrderDailyPoint = {
+  date: string;
+  revenueByCurrency: Record<string, number>;
+  ordersCount: number;
+  paidCount: number;
+  fulfilledCount: number;
+  cancelledCount: number;
+  pendingCount: number;
+};
+
+export type OrderMetrics = {
+  revenueByCurrency: Record<string, number>;
+  todayRevenueByCurrency: Record<string, number>;
+  last30RevenueByCurrency: Record<string, number>;
+  paidCount: number;
+  pendingCount: number;
+  fulfilledCount: number;
+  cancelledCount: number;
+  totalCount: number;
+  /** Serie de los últimos 30 días. */
+  daily: OrderDailyPoint[];
+};
+
+/**
+ * Resumen de pedidos para el panel admin: ingresos por moneda,
+ * desglose por estado y desglose por período (hoy, últimos 30 días).
+ * Sólo cuenta como ingreso los pedidos en `paid` o `fulfilled`.
+ *
+ * Agrega en JS sobre las últimas 100 filas. Suficiente para el
+ * volumen actual; si crece, pasar a SQL aggregation.
+ */
+export async function getOrderMetrics(): Promise<OrderMetrics> {
+  const empty: OrderMetrics = {
+    revenueByCurrency: {},
+    todayRevenueByCurrency: {},
+    last30RevenueByCurrency: {},
+    paidCount: 0,
+    pendingCount: 0,
+    fulfilledCount: 0,
+    cancelledCount: 0,
+    totalCount: 0,
+    daily: [],
+  };
+
+  const supabase = await getServerSupabase();
+  if (!supabase) return empty;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return empty;
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('total,currency,status,created_at')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error || !data) return empty;
+
+  const now = new Date();
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+  const startOf30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const isRevenue = (s: string) => s === 'paid' || s === 'fulfilled';
+
+  const add = (acc: Record<string, number>, cur: string, val: number) => {
+    acc[cur] = (acc[cur] ?? 0) + val;
+  };
+
+  const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+
+  // Sembramos 30 días vacíos para que la serie no tenga huecos.
+  const dailyMap = new Map<string, OrderDailyPoint>();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const key = isoDay(d);
+    dailyMap.set(key, {
+      date: key,
+      revenueByCurrency: {},
+      ordersCount: 0,
+      paidCount: 0,
+      fulfilledCount: 0,
+      cancelledCount: 0,
+      pendingCount: 0,
+    });
+  }
+
+  for (const row of data as Array<{
+    total: number | string;
+    currency: string;
+    status: string;
+    created_at: string;
+  }>) {
+    const total = Number(row.total) || 0;
+    const cur = row.currency || 'UYU';
+    const ts = new Date(row.created_at);
+
+    if (row.status === 'pending') empty.pendingCount += 1;
+    else if (row.status === 'paid') empty.paidCount += 1;
+    else if (row.status === 'fulfilled') empty.fulfilledCount += 1;
+    else if (row.status === 'cancelled') empty.cancelledCount += 1;
+    empty.totalCount += 1;
+
+    if (isRevenue(row.status)) {
+      add(empty.revenueByCurrency, cur, total);
+      if (ts >= startOf30d) add(empty.last30RevenueByCurrency, cur, total);
+      if (ts >= startOfToday) add(empty.todayRevenueByCurrency, cur, total);
+    }
+
+    const day = isoDay(ts);
+    const bucket = dailyMap.get(day);
+    if (bucket) {
+      bucket.ordersCount += 1;
+      if (row.status === 'pending') bucket.pendingCount += 1;
+      else if (row.status === 'paid') bucket.paidCount += 1;
+      else if (row.status === 'fulfilled') bucket.fulfilledCount += 1;
+      else if (row.status === 'cancelled') bucket.cancelledCount += 1;
+      if (isRevenue(row.status)) add(bucket.revenueByCurrency, cur, total);
+    }
+  }
+
+  empty.daily = Array.from(dailyMap.values());
+  return empty;
+}

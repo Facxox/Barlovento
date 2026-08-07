@@ -68,6 +68,12 @@ export default async function AdminDashboard() {
       hint: 'Cuentas registradas',
     },
     {
+      href: '/admin/analiticas',
+      label: 'Analíticas',
+      value: '—',
+      hint: 'Visitas y ventas',
+    },
+    {
       href: '/admin/textos',
       label: 'Textos de marca',
       value: '—',

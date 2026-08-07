@@ -14,6 +14,7 @@ const tabs = [
   { href: '/admin/textos', label: 'Textos' },
   { href: '/admin/pedidos', label: 'Pedidos' },
   { href: '/admin/usuarios', label: 'Usuarios' },
+  { href: '/admin/analiticas', label: 'Analíticas' },
 ];
 
 export default function AdminNav() {
