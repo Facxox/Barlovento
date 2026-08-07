@@ -45,7 +45,17 @@ export default async function Eventos() {
                 <Reveal key={e.id} delay={i * 100}>
                   <li className="grid gap-6 border-t border-carbon-line pt-8 md:grid-cols-12 md:items-center">
                     <div className="md:col-span-3">
-                      <p className="font-display text-3xl text-bone leading-tight">
+                      {e.image && (
+                        <div className="relative aspect-[16/10] overflow-hidden bg-carbon-raised hover-zoom">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={e.image}
+                            alt={e.title}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <p className="mt-4 font-display text-3xl text-bone leading-tight">
                         {formatDate(e.date)}
                       </p>
                     </div>
