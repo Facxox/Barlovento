@@ -44,23 +44,25 @@ export default async function Eventos() {
               {upcoming.map((e, i) => (
                 <Reveal key={e.id} delay={i * 100}>
                   <li className="grid gap-10 md:grid-cols-12 md:items-start">
-                    {/* Imagen a la izquierda, más chica */}
-                    <div className="md:col-span-5">
-                      {e.image ? (
-                        <img
-                          src={e.image}
-                          alt={e.title}
-                          className="block w-full h-auto"
-                        />
-                      ) : (
-                        <div className="grid aspect-[16/10] place-items-center bg-carbon-raised text-bone/40 font-body text-xs uppercase tracking-ultra">
-                          Próximamente
-                        </div>
-                      )}
+                    {/* Imagen a la izquierda, compacta */}
+                    <div className="md:col-span-4">
+                      <div className="max-w-sm">
+                        {e.image ? (
+                          <img
+                            src={e.image}
+                            alt={e.title}
+                            className="block w-full h-auto"
+                          />
+                        ) : (
+                          <div className="grid aspect-[16/10] place-items-center bg-carbon-raised text-bone/40 font-body text-xs uppercase tracking-ultra">
+                            Próximamente
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Texto a la derecha, columna más ancha */}
-                    <div className="md:col-span-7">
+                    {/* Texto a la derecha, columna ancha */}
+                    <div className="md:col-span-8">
                       <p className="font-body text-xs uppercase tracking-ultra text-bone/50">
                         {formatDate(e.date)}
                       </p>
