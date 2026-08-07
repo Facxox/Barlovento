@@ -44,8 +44,8 @@ export default async function Eventos() {
               {upcoming.map((e, i) => (
                 <Reveal key={e.id} delay={i * 100}>
                   <li className="grid gap-10 md:grid-cols-12 md:items-start">
-                    {/* Imagen a la izquierda, protagonista */}
-                    <div className="md:col-span-7">
+                    {/* Imagen a la izquierda, más chica */}
+                    <div className="md:col-span-5">
                       {e.image ? (
                         <img
                           src={e.image}
@@ -59,8 +59,8 @@ export default async function Eventos() {
                       )}
                     </div>
 
-                    {/* Texto a la derecha, sin fondo ni gradientes */}
-                    <div className="md:col-span-5">
+                    {/* Texto a la derecha, columna más ancha */}
+                    <div className="md:col-span-7">
                       <p className="font-body text-xs uppercase tracking-ultra text-bone/50">
                         {formatDate(e.date)}
                       </p>
