@@ -110,7 +110,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
         subtotal,
         add: (item, qty = 1) => {
           dispatch({ type: 'add', item, qty });
-          setIsOpen(true);
+          // No abrimos el drawer automáticamente. El visitante puede
+          // agregar varios productos antes de revisar el carrito. En
+          // su lugar, disparamos un toast fugaz.
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('barlovento:cart-added', {
+                detail: {
+                  id: item.id,
+                  name: item.name,
+                  image: item.image,
+                },
+              })
+            );
+          }
         },
         remove: (id) => dispatch({ type: 'remove', id }),
         setQty: (id, qty) => dispatch({ type: 'qty', id, qty }),

@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import WhatsAppFloat from '@/components/WhatsAppFloat';
 import CartDrawer from '@/components/CartDrawer';
+import CartToast from '@/components/CartToast';
 import { CartProvider } from '@/components/CartContext';
 import { getSiteContent } from '@/lib/queries';
 
@@ -71,6 +72,7 @@ export default async function RootLayout({
             <Footer />
             <WhatsAppFloat whatsapp={contacto.whatsapp} />
             <CartDrawer whatsapp={contacto.whatsapp} />
+            <CartToast />
           </CartProvider>
         )}
         {isAdmin && <main>{children}</main>}
