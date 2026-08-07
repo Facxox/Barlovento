@@ -5,18 +5,34 @@ import { getCategories } from '@/lib/queries';
 import productsJson from '@/data/products.json';
 import type { Product } from '@/lib/queries';
 
-async function getProductById(id: string): Promise<Product | null> {
+type ProductLookup = { product: Product; variant: 'retail' | 'wholesale' };
+
+async function getProductById(id: string): Promise<ProductLookup | null> {
   const supabase = await getServerSupabase();
   if (!supabase) {
-    return (productsJson as Product[]).find((p) => p.id === id) ?? null;
+    const fromJson = (productsJson as Product[]).find((p) => p.id === id);
+    if (!fromJson) return null;
+    return { product: fromJson, variant: 'retail' };
   }
-  const { data, error } = await supabase
+
+  // Buscamos primero en el catálogo retail. Si no está, probamos en
+  // mayorista. Así un cliente mayorista puede abrir el detalle del
+  // producto clonado (id terminado en `-ws`) sin 404.
+  const { data: retail, error: retailError } = await supabase
     .from('products')
     .select('*')
     .eq('id', id)
     .maybeSingle();
-  if (error || !data) return null;
-  return data as Product;
+  if (retailError) return null;
+  if (retail) return { product: retail as Product, variant: 'retail' };
+
+  const { data: wholesale, error: wholesaleError } = await supabase
+    .from('wholesale_products')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (wholesaleError || !wholesale) return null;
+  return { product: wholesale as Product, variant: 'wholesale' };
 }
 
 export async function generateMetadata({
@@ -24,11 +40,11 @@ export async function generateMetadata({
 }: {
   params: { id: string };
 }) {
-  const product = await getProductById(params.id);
-  if (!product) return { title: 'Producto · Barlovento' };
+  const lookup = await getProductById(params.id);
+  if (!lookup) return { title: 'Producto · Barlovento' };
   return {
-    title: `${product.name} · Barlovento`,
-    description: product.description,
+    title: `${lookup.product.name} · Barlovento`,
+    description: lookup.product.description,
   };
 }
 
@@ -37,8 +53,14 @@ export default async function ProductoPage({
 }: {
   params: { id: string };
 }) {
-  const product = await getProductById(params.id);
-  if (!product) notFound();
+  const lookup = await getProductById(params.id);
+  if (!lookup) notFound();
   const categories = await getCategories();
-  return <ProductoDetalle product={product} categories={categories} />;
+  return (
+    <ProductoDetalle
+      product={lookup.product}
+      categories={categories}
+      isWholesale={lookup.variant === 'wholesale'}
+    />
+  );
 }

@@ -14,9 +14,11 @@ const formatUY = (n: number) =>
 export default function ProductoDetalle({
   product,
   categories,
+  isWholesale = false,
 }: {
   product: Product;
   categories: Category[];
+  isWholesale?: boolean;
 }) {
   const { add } = useCart();
   const [added, setAdded] = useState(false);
@@ -88,7 +90,13 @@ export default function ProductoDetalle({
                   onClick={onAdd}
                   className="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-3.5 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon"
                 >
-                  {added ? 'Agregado ✓' : 'Agregar al carrito'}
+                  {added
+                  ? isWholesale
+                    ? 'Consulta enviada ✓'
+                    : 'Agregado ✓'
+                  : isWholesale
+                    ? 'Consultar por mayor'
+                    : 'Agregar al carrito'}
                   {!added && (
                     <span className="transition-transform group-hover:translate-x-1">→</span>
                   )}
@@ -107,7 +115,9 @@ export default function ProductoDetalle({
 
               {added && (
                 <p className="mt-3 font-body text-xs text-emerald-700">
-                  Producto agregado al carrito.
+                  {isWholesale
+                    ? 'Te derivaremos a WhatsApp para coordinar el pedido mayorista.'
+                    : 'Producto agregado al carrito.'}
                 </p>
               )}
             </div>
