@@ -46,7 +46,8 @@ export default async function RootLayout({
   // mostrar el chrome público (Navbar/Footer/Float/Cart). Mantenerlos
   // rompía los anchors del navbar (#eventos, #galeria, etc.) que
   // navegaban a /admin#eventos en vez de a la home.
-  const isAdmin = headers().get('x-pathname')?.startsWith('/admin') ?? false;
+  const pathname = headers().get('x-pathname') ?? '';
+  const isAdmin = pathname === '/admin' || pathname.startsWith('/admin/');
 
   return (
     <html lang="es">
@@ -63,13 +64,16 @@ export default async function RootLayout({
         />
       </head>
       <body>
-        <CartProvider>
-          {!isAdmin && <Navbar />}
-          <main>{children}</main>
-          {!isAdmin && <Footer />}
-          {!isAdmin && <WhatsAppFloat whatsapp={contacto.whatsapp} />}
-          {!isAdmin && <CartDrawer whatsapp={contacto.whatsapp} />}
-        </CartProvider>
+        {!isAdmin && (
+          <CartProvider>
+            <Navbar />
+            <main>{children}</main>
+            <Footer />
+            <WhatsAppFloat whatsapp={contacto.whatsapp} />
+            <CartDrawer whatsapp={contacto.whatsapp} />
+          </CartProvider>
+        )}
+        {isAdmin && <main>{children}</main>}
       </body>
     </html>
   );

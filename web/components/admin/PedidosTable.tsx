@@ -43,7 +43,7 @@ export default function PedidosTable({ orders }: { orders: OrderRow[] }) {
         </div>
       </header>
 
-      <div className="border border-carbon-line bg-carbon">
+      <div className="overflow-x-auto border border-carbon-line bg-carbon">
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-carbon-line text-bone/50 font-body text-[10px] uppercase tracking-ultra">

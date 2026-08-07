@@ -118,7 +118,7 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
 
       <form
         onSubmit={onSubmit}
-        className="mb-10 space-y-4 border border-carbon-line bg-carbon p-6"
+        className="mb-10 space-y-4 border border-carbon-line bg-carbon p-4 sm:p-6"
       >
         <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
           {editing ? 'Editar evento' : 'Nuevo evento'}
@@ -194,7 +194,7 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
         {error && <p className="font-body text-sm text-red-400">{error}</p>}
       </form>
 
-      <div className="border border-carbon-line bg-carbon">
+      <div className="overflow-x-auto border border-carbon-line bg-carbon">
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-carbon-line text-bone/50 font-body text-[10px] uppercase tracking-ultra">

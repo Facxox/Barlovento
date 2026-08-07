@@ -1,28 +1,18 @@
 import Link from 'next/link';
-import { getProducts, getGallery, getEvents, getCategories } from '@/lib/queries';
+import { getProducts, getGallery, getGalleryCategories, getEvents, getCategories } from '@/lib/queries';
 import { listOrders, countPendingOrders } from '@/lib/orders';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { countUsers } from '@/lib/admin-queries';
 
 export default async function AdminDashboard() {
-  const [products, gallery, events, categories, pending] = await Promise.all([
+  const [products, gallery, galleryCategories, events, categories, pending, userCount] = await Promise.all([
     getProducts(),
     getGallery(),
+    getGalleryCategories(),
     getEvents(),
     getCategories(),
     countPendingOrders(),
+    countUsers(),
   ]);
-
-  // Usuarios: leemos directo desde Supabase (la tabla `profiles`) sin pasar
-  // por `listUsersWithStats` para evitar traer todos los pedidos. Si no
-  // hay conexión a Supabase, devolvemos 0.
-  let userCount = 0;
-  const supabase = await getServerSupabase();
-  if (supabase) {
-    const { count } = await supabase
-      .from('profiles')
-      .select('user_id', { count: 'exact', head: true });
-    userCount = count ?? 0;
-  }
 
   const orders = await listOrders();
   const recentOrders = orders.slice(0, 5);
@@ -48,6 +38,12 @@ export default async function AdminDashboard() {
       hint: `${categories.filter((c) => c.is_active).length} activas`,
     },
     {
+      href: '/admin/categorias-galeria',
+      label: 'Cat. galería',
+      value: galleryCategories.length,
+      hint: 'Categorías de la galería',
+    },
+    {
       href: '/admin/galeria',
       label: 'Galería',
       value: gallery.length,
@@ -68,7 +64,7 @@ export default async function AdminDashboard() {
     {
       href: '/admin/usuarios',
       label: 'Usuarios',
-      value: userCount,
+      value: userCount ?? '—',
       hint: 'Cuentas registradas',
     },
     {
@@ -119,7 +115,7 @@ export default async function AdminDashboard() {
           </Link>
         </div>
 
-        <div className="mt-6 border border-carbon-line bg-carbon">
+        <div className="mt-6 overflow-x-auto border border-carbon-line bg-carbon">
           {recentOrders.length === 0 ? (
             <p className="p-8 text-center font-body text-sm text-bone/50">
               Todavía no hay pedidos.
