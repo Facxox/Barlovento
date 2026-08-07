@@ -19,7 +19,7 @@ export default async function PuntosVenta() {
 
         <div className="lg:col-span-7">
           <Reveal delay={150}>
-            <ul className="grid grid-cols-2 gap-px bg-ink/10 sm:grid-cols-3 lg:grid-cols-5">
+            <ul className="grid grid-cols-2 gap-px bg-ink/10 sm:grid-cols-3 lg:grid-cols-4">
               {pv.departamentos.map((d, i) => (
                 <li
                   key={d}
@@ -33,7 +33,7 @@ export default async function PuntosVenta() {
                   <span className="font-body text-[11px] uppercase tracking-ultra text-gold-deep">
                     {String(i + 1).padStart(2, '0')}
                   </span>
-                  <span className="font-display text-xl text-ink md:text-2xl font-light">
+                  <span className="font-display text-lg text-ink md:text-xl font-light whitespace-nowrap">
                     {d}
                   </span>
                   <span
