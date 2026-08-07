@@ -45,7 +45,7 @@ export default function Contacto({
           <div>
             <p className="text-eyebrow">Contacto</p>
             <h2 className="mt-5 h-section">
-              Escribinos, o pasá por el obrador.
+              Tenés alguna consulta? Estamos para ayudarte. Escribinos y responderemos tu mensaje a la brevedad.
             </h2>
             <p className="mt-6 prose-editorial max-w-md">
               Respondemos a la mayor brevedad. Para pedidos grandes

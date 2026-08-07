@@ -19,8 +19,7 @@ export default async function Footer() {
               </div>
             </div>
             <p className="mt-6 max-w-sm prose-editorial text-bone/70">
-              Alfajores artesanales elaborados en Trinidad, Flores, Uruguay. Cada unidad,
-              hecha a mano con materia prima local.
+              Alfajores artesanales elaborados en Trinidad, Flores, Uruguay.
             </p>
           </div>
 

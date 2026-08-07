@@ -45,7 +45,12 @@ export default function Galeria({
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div className="max-w-xl">
               <p className="text-eyebrow text-gold-deep">Galería</p>
-              <h2 className="mt-5 h-section text-ink">El oficio, en imágenes.</h2>
+              <h2 className="mt-5 h-section text-ink">
+                Más que alfajores, momentos para recordar.
+              </h2>
+              <p className="mt-6 font-body text-base text-ink/70 max-w-md">
+                Explorá nuestra galería y conocé la esencia de Barlovento.
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               {tabs.map((t) => (
