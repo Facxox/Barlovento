@@ -9,17 +9,22 @@ import type { Product, WholesaleProduct, GalleryItem, BarloventoEvent, SiteConte
 // ----------------------------------------------------------------
 // Auth helper
 // ----------------------------------------------------------------
+/**
+ * Resuelve el usuario autenticado y verifica que sea admin.
+ * Devuelve el cliente service-role para que las mutaciones de las
+ * acciones administrativas no queden atrapadas por RLS (en particular
+ * la policy `wholesale_products admin write` exige EXISTS contra
+ * profiles y devuelve false si la sesión se invalida parcialmente).
+ */
 async function requireAdmin() {
-  // Cliente autenticado (respeta RLS) para validar la sesión del usuario.
-  const supabase = await getServerSupabase();
-  if (!supabase) throw new Error('Supabase no configurado.');
-  const { data: { user } } = await supabase.auth.getUser();
+  // Cliente autenticado para validar la sesión del usuario.
+  const authed = await getServerSupabase();
+  if (!authed) throw new Error('Supabase no configurado.');
+  const { data: { user } } = await authed.auth.getUser();
   if (!user) throw new Error('No autenticado.');
 
   // Verificamos is_admin con el cliente service-role para evitar que
-  // RLS de `profiles` oculte la fila propia del admin (en particular
-  // cuando la policy depende de is_admin(uid) y la sesión se invalida
-  // parcialmente entre middleware y server action). El middleware ya
+  // RLS de `profiles` oculte la fila del admin. El middleware ya
   // bloquea el acceso; este chequeo es defensa en profundidad.
   const service = getServiceSupabase();
   if (service) {
@@ -33,7 +38,10 @@ async function requireAdmin() {
     }
   }
 
-  return supabase;
+  // Si por algún motivo no hay service-role disponible, caemos al
+  // cliente autenticado. Las mutaciones pueden fallar por RLS en
+  // algunos casos, pero sólo en entornos sin la key configurada.
+  return service ?? authed;
 }
 
 // ----------------------------------------------------------------
