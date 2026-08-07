@@ -113,7 +113,7 @@ export default function HeroAnimated({ hero }: { hero: HeroContent }) {
             <div className="font-body text-[11px] uppercase tracking-ultra text-bone">
               Medalla de Oro
               <span className="block text-gold/80 normal-case tracking-normal mt-0.5">
-                Mejor Alfajor Pyme · Trinidad · 2024
+                Mejor Alfajor Pyme · Mundial del Alfajor Argentina 2024
               </span>
             </div>
           </button>
