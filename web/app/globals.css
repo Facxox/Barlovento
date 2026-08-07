@@ -19,6 +19,30 @@
     background-color: #D4AF37;
     color: #0B0B0B;
   }
+  /* Forzar tema oscuro en los <select> nativos para que el panel
+     desplegable y las opciones se vean sobre fondo negro, con texto
+     blanco y bordes dorados. Cubre admin (ProductoForm, GaleriaGrid,
+     EventosTable) y cualquier <select> del sitio. */
+  select,
+  select option,
+  select optgroup {
+    color-scheme: dark;
+    background-color: #0B0B0B;
+    color: #FFFFFF;
+  }
+  select {
+    background-image: linear-gradient(45deg, transparent 50%, #D4AF37 50%),
+                      linear-gradient(135deg, #D4AF37 50%, transparent 50%);
+    background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  select:focus {
+    outline: 1px solid #D4AF37;
+    outline-offset: 1px;
+  }
   /* Reduce motion gracefully */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

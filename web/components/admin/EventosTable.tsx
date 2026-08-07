@@ -150,7 +150,7 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
             onChange={(e) =>
               setDraft({ ...draft, kind: e.target.value as 'upcoming' | 'past' })
             }
-            className="border-b border-carbon-line bg-transparent px-2 py-2 font-body text-bone focus:border-gold outline-none"
+            className="border-b border-carbon-line bg-carbon px-2 py-2 font-body text-bone focus:border-gold outline-none"
           >
             <option value="upcoming">Próximo</option>
             <option value="past">Archivo</option>

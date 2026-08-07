@@ -427,7 +427,7 @@ export default function ProductoForm({
 }
 
 const inputCls =
-  'w-full border-b border-carbon-line bg-transparent px-3 py-3 font-body text-bone placeholder-bone/40 focus:border-gold focus:bg-carbon-raised/30 outline-none transition';
+  'w-full border-b border-carbon-line bg-carbon px-3 py-3 font-body text-bone placeholder-bone/40 focus:border-gold focus:bg-carbon-raised/30 outline-none transition';
 
 function Field({
   label,

@@ -122,7 +122,7 @@ export default function GaleriaGrid({
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="mt-2 w-full border-b border-carbon-line bg-transparent px-2 py-2 font-body text-bone focus:border-gold outline-none"
+            className="mt-2 w-full border-b border-carbon-line bg-carbon px-2 py-2 font-body text-bone focus:border-gold outline-none"
           >
             {categories
               .filter((c) => c.is_active)
