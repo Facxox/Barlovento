@@ -1,12 +1,13 @@
 import Link from 'next/link';
-import { getProducts, getGallery, getEvents, getCategories } from '@/lib/queries';
+import { getProducts, getGallery, getGalleryCategories, getEvents, getCategories } from '@/lib/queries';
 import { listOrders, countPendingOrders } from '@/lib/orders';
 import { countUsers } from '@/lib/admin-queries';
 
 export default async function AdminDashboard() {
-  const [products, gallery, events, categories, pending, userCount] = await Promise.all([
+  const [products, gallery, galleryCategories, events, categories, pending, userCount] = await Promise.all([
     getProducts(),
     getGallery(),
+    getGalleryCategories(),
     getEvents(),
     getCategories(),
     countPendingOrders(),
@@ -39,7 +40,7 @@ export default async function AdminDashboard() {
     {
       href: '/admin/categorias-galeria',
       label: 'Cat. galería',
-      value: '—',
+      value: galleryCategories.length,
       hint: 'Categorías de la galería',
     },
     {
