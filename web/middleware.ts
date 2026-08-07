@@ -1,7 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
-import { createHash } from 'crypto';
 
 /**
  * Refresca la cookie de sesión de Supabase en cada request y protege /admin/*.
@@ -81,6 +80,8 @@ export async function middleware(request: NextRequest) {
   // Tracking de pageviews (fire-and-forget).
   // Sólo registramos rutas de la tienda pública. Saltamos /admin/*,
   // /api/*, y el resto ya queda cubierto por el matcher de abajo.
+  // Importante: este código corre en Edge Runtime, así que usamos
+  // Web Crypto (subtle.digest) en vez de `node:crypto` (no disponible).
   // ----------------------------------------------------------------
   if (
     !isAdminRoute &&
@@ -93,16 +94,21 @@ export async function middleware(request: NextRequest) {
       request.headers.get('cf-connecting-ip') ||
       null;
     const userAgent = request.headers.get('user-agent')?.slice(0, 255) ?? null;
-    const visitorHash = createHash('sha256')
-      .update(`${ip ?? ''}|${userAgent ?? ''}`)
-      .digest('hex');
 
     // Fire-and-forget: la promesa se ejecuta en background, no
-    // bloquea la respuesta al usuario. (Next 14.2.5 no expone
-    // `waitUntil` en NextResponse; lo que importa es no awaitear.)
+    // bloquea la respuesta al usuario.
     void (async () => {
       try {
-        const service = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+        const data = new TextEncoder().encode(`${ip ?? ''}|${userAgent ?? ''}`);
+        const digest = await crypto.subtle.digest('SHA-256', data);
+        const visitorHash = Array.from(new Uint8Array(digest))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!serviceKey) return;
+
+        const service = createClient(url, serviceKey, {
           auth: { persistSession: false, autoRefreshToken: false },
         });
         await service.from('visitas').insert({
