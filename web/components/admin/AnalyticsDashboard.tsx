@@ -152,7 +152,7 @@ export default function AnalyticsDashboard() {
               data={traffic.timeSeries}
               lines={[
                 { key: 'visitors', label: 'Visitors', color: '#E8C766' },
-                { key: 'pageViews', label: 'Page Views', color: '#D4AF37' },
+                { key: 'pageViews', label: 'Page Views', color: '#8C9BAF' },
               ]}
               valueFormat={formatNumber}
               emptyHint="Sin tráfico todavía."
@@ -359,12 +359,15 @@ function Chart({
             />
           ))}
 
-          {lines.map((l) => {
+          {lines.map((l, i) => {
             const path = buildPath(l.key);
             const areaPath = `${path} L ${xFor(data.length - 1)} ${PAD_Y + innerH} L ${PAD_X} ${PAD_Y + innerH} Z`;
             return (
               <g key={l.key}>
-                <path d={areaPath} fill="url(#areaGold)" />
+                {/* Sólo la primera línea (Visitors) lleva relleno de área. */}
+                {i === 0 && (
+                  <path d={areaPath} fill="url(#areaGold)" />
+                )}
                 <path
                   d={path}
                   fill="none"
