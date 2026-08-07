@@ -19,6 +19,18 @@ export default function Contacto({
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.name.trim() || !form.message.trim()) return;
+    const lines = [
+      `Hola Barlovento!`,
+      ``,
+      `Mi nombre es ${form.name.trim()}.`,
+      form.email.trim() ? `Email: ${form.email.trim()}` : null,
+      ``,
+      `${form.message.trim()}`,
+    ].filter((l): l is string => l !== null);
+    const text = encodeURIComponent(lines.join('\n'));
+    const phone = c.whatsapp.replace(/\D/g, '');
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank', 'noopener');
     setSent(true);
     setForm({ name: '', email: '', message: '' });
     setTimeout(() => setSent(false), 3500);
