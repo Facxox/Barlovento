@@ -162,6 +162,7 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
               previewUrl={draft.image || undefined}
               label="Imagen del evento"
               aspect="video"
+              hint="Tamaño recomendado: 800 × 600 px (4:3). Se muestra en Próximos a 4/12 columnas con un tope de 384 px de ancho."
             />
           </div>
           <textarea

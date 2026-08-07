@@ -44,17 +44,20 @@ export default async function Eventos() {
               {upcoming.map((e, i) => (
                 <Reveal key={e.id} delay={i * 100}>
                   <li className="grid gap-10 md:grid-cols-12 md:items-start">
-                    {/* Imagen a la izquierda, compacta */}
+                    {/* Imagen a la izquierda, compacta (4:3 reservado) */}
                     <div className="md:col-span-4">
                       <div className="max-w-sm">
                         {e.image ? (
-                          <img
-                            src={e.image}
-                            alt={e.title}
-                            className="block w-full h-auto"
-                          />
+                          <div className="aspect-[4/3] overflow-hidden bg-carbon-raised">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={e.image}
+                              alt={e.title}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
                         ) : (
-                          <div className="grid aspect-[16/10] place-items-center bg-carbon-raised text-bone/40 font-body text-xs uppercase tracking-ultra">
+                          <div className="grid aspect-[4/3] place-items-center bg-carbon-raised text-bone/40 font-body text-xs uppercase tracking-ultra">
                             Próximamente
                           </div>
                         )}

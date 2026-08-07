@@ -10,6 +10,9 @@ type Props = {
   label?: string;
   aspect?: 'square' | 'video' | 'auto';
   maxSizeMB?: number;
+  /** Nota visible sobre el tamaño/formato recomendado para el front (ej.
+   *  "Tamaño recomendado: 800 × 600 px (4:3)"). */
+  hint?: string;
 };
 
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/avif,image/gif,image/svg+xml';
@@ -28,6 +31,7 @@ export default function ImageDropzone({
   label = 'Imagen',
   aspect = 'square',
   maxSizeMB = 8,
+  hint,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -162,6 +166,11 @@ export default function ImageDropzone({
       </div>
 
       {error && <p className="mt-2 font-body text-xs text-red-400">{error}</p>}
+      {hint && !error && (
+        <p className="mt-2 font-body text-[11px] uppercase tracking-ultra text-gold/70">
+          {hint}
+        </p>
+      )}
       {file && !error && (
         <p className="mt-2 font-body text-[11px] text-bone/60">
           Nueva imagen: <span className="text-gold">{file.name}</span> ·{' '}
