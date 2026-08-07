@@ -19,17 +19,28 @@ export default async function PuntosVenta() {
 
         <div className="lg:col-span-7">
           <Reveal delay={150}>
-            <ul className="grid grid-cols-2 gap-x-8 gap-y-px bg-ink/10 sm:grid-cols-3">
+            <ul className="grid grid-cols-2 gap-px bg-ink/10 sm:grid-cols-3 lg:grid-cols-5">
               {pv.departamentos.map((d, i) => (
                 <li
                   key={d}
-                  className="flex items-center gap-4 bg-cream px-5 py-7"
+                  className={[
+                    'group relative flex items-center gap-4 bg-cream px-5 py-7 transition',
+                    'hover:bg-bone/70',
+                    'before:pointer-events-none before:absolute before:left-0 before:top-0 before:h-full before:w-[2px] before:bg-gold-deep/0 before:transition before:duration-500',
+                    'hover:before:bg-gold-deep/70',
+                  ].join(' ')}
                 >
                   <span className="font-body text-[11px] uppercase tracking-ultra text-gold-deep">
                     {String(i + 1).padStart(2, '0')}
                   </span>
                   <span className="font-display text-xl text-ink md:text-2xl font-light">
                     {d}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="ml-auto -translate-x-1 opacity-0 text-gold-deep transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"
+                  >
+                    →
                   </span>
                 </li>
               ))}

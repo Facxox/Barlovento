@@ -14,17 +14,28 @@ export default async function Valores() {
           <h2 className="mt-5 h-section max-w-3xl">{va.headline}</h2>
         </Reveal>
 
-        <div className="mt-16 grid gap-px bg-ink/10 md:grid-cols-2 lg:mt-20 lg:grid-cols-3">
+        <div className="mt-16 grid auto-rows-fr gap-px bg-ink/10 md:grid-cols-2 lg:mt-20 lg:grid-cols-3">
           {va.items.map((item, i) => (
             <Reveal key={item.title} delay={i * 120}>
-              <article className="group h-full bg-cream p-10 transition hover:bg-bone/60">
+              <article
+                className={[
+                  'group relative flex h-full flex-col bg-cream p-10 transition',
+                  'hover:bg-bone/70',
+                  'before:pointer-events-none before:absolute before:left-0 before:top-0 before:h-full before:w-[2px] before:bg-gold-deep/0 before:transition before:duration-500',
+                  'hover:before:bg-gold-deep/70',
+                ].join(' ')}
+              >
                 <span className="font-body text-[11px] uppercase tracking-ultra text-gold-deep">
                   0{i + 1}
                 </span>
                 <h3 className="mt-6 font-display text-2xl leading-tight text-ink md:text-3xl font-light">
                   {item.title}
                 </h3>
-                <p className="mt-5 prose-editorial-light max-w-md">{item.body}</p>
+                <span
+                  aria-hidden
+                  className="mt-5 mb-6 block h-px w-12 bg-gold-deep/60 transition-all duration-500 group-hover:w-20 group-hover:bg-gold"
+                />
+                <p className="prose-editorial-light max-w-md">{item.body}</p>
               </article>
             </Reveal>
           ))}
