@@ -251,12 +251,11 @@ export async function getGallery(): Promise<GalleryItem[]> {
 }
 
 export async function getEvents(): Promise<BarloventoEvent[]> {
-  const fallback = [...eventsJson] as BarloventoEvent[];
-  // upcoming primero, luego past; dentro de cada grupo, por fecha.
-  return fallback.sort((a, b) => {
+  const fallback = [...eventsJson].sort((a, b) => {
     if (a.kind !== b.kind) return a.kind === 'upcoming' ? -1 : 1;
     return a.date.localeCompare(b.date);
-  });
+  }) as BarloventoEvent[];
+  return fromSupabase<BarloventoEvent[]>('events', 'date', fallback);
 }
 
 export async function getSiteContent(): Promise<SiteContent> {
