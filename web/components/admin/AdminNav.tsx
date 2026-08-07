@@ -26,8 +26,9 @@ export default function AdminNav() {
 
   return (
     <header className="border-b border-carbon-line bg-carbon">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-10">
-        <div className="flex items-center gap-3">
+      <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-4 lg:px-10">
+        {/* Logo + título: ancho fijo, no se encoge ni se superpone con la nav. */}
+        <div className="flex shrink-0 items-center gap-3">
           <img
             src="/Logo.jpg"
             alt="Barlovento"
@@ -41,7 +42,10 @@ export default function AdminNav() {
           </div>
         </div>
 
-        <nav className="hidden gap-1 md:flex">
+        {/* Nav central: ocupa el espacio sobrante y se centra. Sin flex-1
+            la nav pelea con el logo y los botones de la derecha y se
+            superpone con ellos en anchos intermedios. */}
+        <nav className="hidden flex-1 justify-center gap-1 md:flex">
           {tabs.map((t) => {
             const active = pathname === t.href ||
               (t.href !== '/admin' && pathname.startsWith(t.href));
@@ -50,7 +54,7 @@ export default function AdminNav() {
                 key={t.href}
                 href={t.href}
                 className={[
-                  'rounded-full px-4 py-2 font-body text-xs uppercase tracking-ultra transition',
+                  'shrink-0 rounded-full px-4 py-2 font-body text-xs uppercase tracking-ultra transition',
                   active
                     ? 'bg-gold text-carbon'
                     : 'text-bone/70 hover:text-bone',
@@ -62,7 +66,8 @@ export default function AdminNav() {
           })}
         </nav>
 
-        <div className="flex items-center gap-3">
+        {/* Acciones derecha: ancho fijo, no se encoge. */}
+        <div className="flex shrink-0 items-center gap-3">
           <Link
             href="/"
             target="_blank"
