@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useCart } from './CartContext';
 import { Reveal } from './Reveal';
@@ -12,9 +13,11 @@ const formatUY = (n: number) =>
 export default function Tienda({
   products,
   categories: allCategories,
+  isWholesale = false,
 }: {
   products: Product[];
   categories: Category[];
+  isWholesale?: boolean;
 }) {
   const { add } = useCart();
   // Solo categorías activas que tienen al menos un producto activo. Si el
@@ -59,14 +62,18 @@ export default function Tienda({
         <Reveal>
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div className="max-w-xl">
-              <p className="text-eyebrow text-gold-deep">Tienda online</p>
+              <p className="text-eyebrow text-gold-deep">
+                {isWholesale ? 'Tienda mayorista' : 'Tienda online'}
+              </p>
               <h2 className="mt-5 h-section text-ink">
-                Pedí online o por WhatsApp.
+                {isWholesale
+                  ? 'Coordiná tu pedido mayorista por WhatsApp.'
+                  : 'Pedí online o por WhatsApp.'}
               </h2>
               <p className="mt-4 text-ink/70 font-body leading-relaxed">
-                Hacemos envíos a todo el país por encomienda, a cargo del
-                cliente. Coordinamos el despacho apenas confirmamos el pago:
-                el envío se abona cuando te llega.
+                {isWholesale
+                  ? 'Mostramos los precios y productos disponibles para tu cuenta mayorista. Coordinamos el pedido y la entrega directamente por WhatsApp.'
+                  : 'Hacemos envíos a todo el país por encomienda, a cargo del cliente. Coordinamos el despacho apenas confirmamos el pago: el envío se abona cuando te llega.'}
               </p>
             </div>
 
@@ -97,6 +104,7 @@ export default function Tienda({
               product={p}
               labelById={labelById}
               delay={i * 100}
+              isWholesale={isWholesale}
               onAdd={() =>
                 add({
                   id: p.id,
@@ -119,28 +127,36 @@ function ProductCard({
   labelById,
   delay,
   onAdd,
+  isWholesale,
 }: {
   product: Product;
   labelById: Map<string, string>;
   delay: number;
   onAdd: () => void;
+  isWholesale: boolean;
 }) {
   return (
     <Reveal delay={delay}>
       <article className="group">
-        <div className="relative aspect-[4/5] overflow-hidden bg-ink/5 hover-zoom">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={product.image}
-            alt={product.name}
-            className="block h-full w-full object-cover"
-          />
-          {product.badge && (
-            <span className="absolute left-4 top-4 inline-flex items-center rounded-full border border-gold/70 bg-cream/90 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-ink">
-              {product.badge}
-            </span>
-          )}
-        </div>
+        <Link
+          href={`/productos/${product.id}`}
+          className="block"
+          aria-label={`Ver detalle de ${product.name}`}
+        >
+          <div className="relative aspect-[4/5] overflow-hidden bg-ink/5 hover-zoom">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={product.image}
+              alt={product.name}
+              className="block h-full w-full object-cover"
+            />
+            {product.badge && (
+              <span className="absolute left-4 top-4 inline-flex items-center rounded-full border border-gold/70 bg-cream/90 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-ink">
+                {product.badge}
+              </span>
+            )}
+          </div>
+        </Link>
 
         <div className="mt-5 flex items-start justify-between gap-4">
           <div>
@@ -161,7 +177,7 @@ function ProductCard({
             onClick={onAdd}
             className="flex-1 rounded-full bg-ink px-4 py-3 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon"
           >
-            Agregar
+            {isWholesale ? 'Consultar' : 'Agregar'}
           </button>
           <a
             href={`https://wa.me/59899366522?text=${encodeURIComponent(
