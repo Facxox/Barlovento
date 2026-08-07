@@ -14,13 +14,33 @@ export default async function Valores() {
           <h2 className="mt-5 h-section max-w-3xl">{va.headline}</h2>
         </Reveal>
 
-        <div className="mt-16 grid auto-rows-fr gap-px bg-ink/10 md:grid-cols-2 lg:mt-20 lg:grid-cols-3">
+        {/*
+          Grilla con flexbox wrap en lugar de CSS Grid. Esto evita el
+          "cuadrado vacío" que aparece en grillas de 3 columnas cuando
+          hay 5 items (la grilla reserva el espacio de la 6ta card).
+          En flex, las cards se acomodan en filas según el ancho
+          disponible sin dejar huecos. El border-bottom + border-right
+          reproduce el hairline de la grilla de columnas sin usar
+          gap-px sobre un fondo.
+
+          Breakpoints:
+          - mobile: 1 columna, bordes solo abajo
+          - md: 2 columnas, border-right interno entre cards
+          - lg: 3 columnas (5 cards → 3 + 2, sin hueco)
+        */}
+        <div className="mt-16 flex flex-wrap border-t border-ink/10 lg:mt-20">
           {va.items.map((item, i) => (
-            <Reveal key={item.title} delay={i * 120}>
+            <Reveal key={item.title} delay={i * 120} className="w-full md:w-1/2 lg:w-1/3">
               <article
                 className={[
                   'group relative flex h-full flex-col bg-cream p-10 transition',
+                  // Hairlines: bottom siempre, left solo cuando no es la primera columna de su fila
+                  'border-b border-ink/10',
+                  'md:even:border-l md:even:border-ink/10 md:[&:nth-child(2n)]:border-l md:[&:nth-child(2n)]:border-ink/10',
+                  'lg:border-b-0 lg:[&:not(:nth-child(3n+1))]:border-l lg:[&:not(:nth-child(3n+1))]:border-ink/10',
+                  // Hover state
                   'hover:bg-bone/70',
+                  // Borde dorado lateral en hover
                   'before:pointer-events-none before:absolute before:left-0 before:top-0 before:h-full before:w-[2px] before:bg-gold-deep/0 before:transition before:duration-500',
                   'hover:before:bg-gold-deep/70',
                 ].join(' ')}
