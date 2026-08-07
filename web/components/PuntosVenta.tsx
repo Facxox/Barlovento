@@ -13,7 +13,7 @@ export default async function PuntosVenta() {
           <Reveal>
             <p className="text-eyebrow text-gold-deep">{pv.eyebrow}</p>
             <h2 className="mt-5 h-section">{pv.headline}</h2>
-            <p className="mt-6 prose-editorial max-w-md">{pv.intro}</p>
+            <p className="mt-6 prose-editorial-light max-w-md">{pv.intro}</p>
           </Reveal>
         </div>
 

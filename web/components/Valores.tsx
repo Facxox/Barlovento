@@ -24,7 +24,7 @@ export default async function Valores() {
                 <h3 className="mt-6 font-display text-2xl leading-tight text-ink md:text-3xl font-light">
                   {item.title}
                 </h3>
-                <p className="mt-5 prose-editorial max-w-md">{item.body}</p>
+                <p className="mt-5 prose-editorial-light max-w-md">{item.body}</p>
               </article>
             </Reveal>
           ))}

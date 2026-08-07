@@ -49,19 +49,23 @@ export default function Galeria({ items }: { items: GalleryItem[] }) {
           </div>
         </Reveal>
 
-        <div className="mt-16 columns-1 gap-4 sm:columns-2 lg:columns-3">
+        {/* Mural: CSS multi-column masonry respeta el aspect ratio original
+            de cada foto. `break-inside-avoid` evita que una imagen se corte
+            entre columnas y `object-contain` muestra la foto completa sin
+            recortar ni deformar. */}
+        <div className="mt-16 columns-1 gap-4 sm:columns-2 lg:columns-3 [column-fill:_balance]">
           {filtered.map((g, i) => (
             <Reveal key={g.id} delay={(i % 6) * 80}>
               <button
                 onClick={() => setLightbox(g.image)}
-                className="group mb-4 block w-full overflow-hidden bg-ink/5 hover-zoom"
+                className="group mb-4 block w-full break-inside-avoid overflow-hidden bg-ink/5 hover-zoom"
                 aria-label={`Ver ${g.title}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={g.image}
                   alt={g.title}
-                  className="w-full object-cover"
+                  className="block w-full h-auto object-contain"
                 />
               </button>
             </Reveal>

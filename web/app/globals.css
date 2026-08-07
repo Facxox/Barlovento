@@ -91,8 +91,16 @@
   .h-section {
     @apply font-display text-4xl md:text-5xl lg:text-6xl leading-tight font-light;
   }
+  /* Tipografía editorial para secciones oscuras (default): color claro.
+     Usar en contenedores `bg-carbon` / `bg-gold-deep` / `bg-ink`. */
   .prose-editorial {
     @apply font-body text-base md:text-lg leading-[1.85] text-bone/85;
+  }
+
+  /* Variante para secciones claras (bg-cream / bg-bone): hereda
+     text-ink del contenedor. Solo tamaño y ritmo. */
+  .prose-editorial-light {
+    @apply font-body text-base md:text-lg leading-[1.85];
   }
 
   /* Reveal on scroll — set initial state, classes flip when in view */
