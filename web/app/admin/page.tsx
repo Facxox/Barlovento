@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getProducts, getGallery, getGalleryCategories, getEvents, getCategories } from '@/lib/queries';
 import { listOrders, countPendingOrders } from '@/lib/orders';
 import { countUsers } from '@/lib/admin-queries';
+import { getServiceSupabase } from '@/lib/supabase-admin';
 
 export default async function AdminDashboard() {
   const [products, gallery, galleryCategories, events, categories, pending, userCount] = await Promise.all([
@@ -13,6 +14,19 @@ export default async function AdminDashboard() {
     countPendingOrders(),
     countUsers(),
   ]);
+
+  // Pageviews de hoy (UTC). Es una sola fila agregada por el middleware.
+  const service = getServiceSupabase();
+  let todayViews = 0;
+  if (service) {
+    const startOfToday = new Date();
+    startOfToday.setUTCHours(0, 0, 0, 0);
+    const { count } = await service
+      .from('visitas')
+      .select('*', { count: 'exact', head: true })
+      .gte('fecha_hora', startOfToday.toISOString());
+    todayViews = count ?? 0;
+  }
 
   const orders = await listOrders();
   const recentOrders = orders.slice(0, 5);
@@ -69,9 +83,9 @@ export default async function AdminDashboard() {
     },
     {
       href: '/admin/analiticas',
-      label: 'Analíticas',
-      value: '—',
-      hint: 'Visitas y ventas',
+      label: 'Visitas hoy',
+      value: todayViews,
+      hint: 'Pageviews de hoy',
     },
     {
       href: '/admin/textos',
