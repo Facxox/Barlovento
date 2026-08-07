@@ -45,7 +45,10 @@ export async function listUsersWithStats(): Promise<ListUsersResult> {
     stats: { total: 0, wholesale: 0, retail: 0, admins: 0 },
   };
 
-  const supabase = await getServerSupabase();
+  // Lee perfiles con el cliente service-role para evitar que RLS de
+  // `profiles` los oculte (la policy admin depende de is_admin(uid) y
+  // devuelve 404 cuando la sesión no pasa esa policy).
+  const supabase = getServiceSupabase();
   if (!supabase) return empty;
 
   const { data: profiles, error } = await supabase
@@ -58,10 +61,19 @@ export async function listUsersWithStats(): Promise<ListUsersResult> {
 
   if (error || !profiles) return empty;
 
-  const { data: orders, error: ordersError } = await supabase
-    .from('orders')
-    .select('customer_email, total, status')
-    .limit(2000);
+  // Los pedidos también se leen con service-role para mantener
+  // consistencia (el conteo se calcula en JS).
+  const orderClient = getServiceSupabase() ?? (await getServerSupabase());
+  let orders: { customer_email: string | null; total: number | string; status: string }[] = [];
+  let ordersError: unknown = null;
+  if (orderClient) {
+    const res = await orderClient
+      .from('orders')
+      .select('customer_email, total, status')
+      .limit(2000);
+    orders = (res.data ?? []) as typeof orders;
+    ordersError = res.error;
+  }
 
   const statsByEmail = new Map<
     string,
