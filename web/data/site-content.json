@@ -10,7 +10,18 @@
       "Bienvenidos a Barlovento. Gracias por ser parte de nuestra historia."
     ],
     "image": "/Assets/historia-obrador.png",
-    "image_caption": "Obrador en Trinidad, Flores"
+    "image_caption": "Obrador en Trinidad, Flores",
+    "images": [
+      { "url": "/Assets/historia-obrador.png", "caption": "Obrador en Trinidad, Flores" }
+    ]
+  },
+  "hero": {
+    "eyebrow": "Alfajores artesanales · Trinidad, Uruguay",
+    "headline": "Irresistibles",
+    "intro": "Elaboramos alfajores artesanales premium desde Trinidad, Uruguay, con ingredientes seleccionados y recetas que transforman cada bocado en una experiencia inolvidable.",
+    "cta_label": "Ver tienda",
+    "cta_href": "#tienda",
+    "background_image": "/Assets/Foto hero editorial.png"
   },
   "mision": {
     "eyebrow": "Misión",

@@ -95,6 +95,17 @@ export type SiteContent = {
     body: string[];
     image: string;
     image_caption: string | null;
+    /** Múltiples imágenes para la sección Historia. La primera es la
+     *  principal. Las imágenes se suben desde el admin (TextosEditor). */
+    images: { url: string; caption: string | null }[];
+  };
+  hero: {
+    eyebrow: string;
+    headline: string;
+    intro: string;
+    cta_label: string;
+    cta_href: string;
+    background_image: string;
   };
   mision: { eyebrow: string; headline: string; body: string };
   vision:  { eyebrow: string; headline: string; body: string };
@@ -232,8 +243,15 @@ export async function getSiteContent(): Promise<SiteContent> {
     for (const row of data) map[row.key] = row.value;
     // Solo sobreescribimos si la fila existe en Supabase. Si está vacío,
     // mantenemos el JSON como base.
+    const dbHistoria = map.historia as
+      | (Partial<SiteContent['historia']> & { images?: SiteContent['historia']['images'] })
+      | undefined;
+    const mergedHistoria: SiteContent['historia'] = dbHistoria
+      ? { ...fallback.historia, ...dbHistoria, images: dbHistoria.images ?? fallback.historia.images }
+      : fallback.historia;
     return {
-      historia: map.historia ?? fallback.historia,
+      historia: mergedHistoria,
+      hero: (map.hero as SiteContent['hero']) ?? fallback.hero,
       mision:   map.mision   ?? fallback.mision,
       vision:   map.vision   ?? fallback.vision,
       valores:  map.valores  ?? fallback.valores,

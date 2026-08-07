@@ -1,8 +1,8 @@
-'use client';
-
+import { getSiteContent } from '@/lib/queries';
 import { useInView } from './useInView';
 
-export default function Hero() {
+export default async function Hero() {
+  const { hero: h } = await getSiteContent();
   const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.1 });
 
   return (
@@ -11,17 +11,15 @@ export default function Hero() {
       ref={ref}
       className="relative min-h-screen overflow-hidden bg-carbon"
     >
-      {/* Imagen de fondo full-bleed, una sola, nítida. El "corte" del alfajor
-          lo marca una línea dorada centrada, no dos mitades reescaladas. */}
+      {/* Imagen de fondo full-bleed (editable desde el admin). */}
       <div className="absolute inset-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/Assets/Foto hero editorial.png"
+          src={h.background_image}
           alt="Detalle de alfajor Barlovento"
           className="h-full w-full object-cover"
         />
 
-        {/* Línea dorada eliminada */}
         {/* Overlay sutil para legibilidad del texto */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-carbon/40 via-carbon/30 to-carbon/85" />
       </div>
@@ -35,7 +33,7 @@ export default function Hero() {
               inView ? 'opacity-100' : 'opacity-0',
             ].join(' ')}
           >
-            Alfajores artesanales · Trinidad, Uruguay
+            {h.eyebrow}
           </p>
 
           <h1
@@ -44,7 +42,7 @@ export default function Hero() {
               inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6',
             ].join(' ')}
           >
-            Irresistibles
+            {h.headline}
           </h1>
 
           <p
@@ -53,9 +51,7 @@ export default function Hero() {
               inView ? 'opacity-100' : 'opacity-0',
             ].join(' ')}
           >
-            Elaboramos alfajores artesanales premium desde Trinidad, Uruguay,
-            con ingredientes seleccionados y recetas que transforman cada
-            bocado en una experiencia inolvidable.
+            {h.intro}
           </p>
 
           <div
@@ -65,10 +61,10 @@ export default function Hero() {
             ].join(' ')}
           >
             <a
-              href="#tienda"
+              href={h.cta_href}
               className="group inline-flex items-center gap-3 rounded-full bg-gold px-7 py-3.5 font-body text-sm font-medium text-carbon transition hover:bg-gold-light"
             >
-              Ver tienda
+              {h.cta_label}
               <span className="transition-transform group-hover:translate-x-1">→</span>
             </a>
             <a
@@ -80,7 +76,7 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* Badge de medalla arriba a la derecha */}
+        {/* Badge de medalla (identidad fija, no editable) */}
         <div
           className={[
             'absolute right-6 top-32 hidden lg:block transition-all duration-1000 delay-[1500ms]',

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { upsertSiteContent, uploadHistoryImage } from '@/lib/admin-actions';
+import { upsertSiteContent, uploadHistoryImage, uploadHeroImage } from '@/lib/admin-actions';
 import type { SiteContent } from '@/lib/queries';
 import ImageDropzone from './ImageDropzone';
 
@@ -14,6 +14,7 @@ export default function TextosEditor({ initial }: { initial: SiteContent }) {
   const [busy, setBusy] = useState<Key | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [historyFile, setHistoryFile] = useState<File | null>(null);
+  const [heroFile, setHeroFile] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   const onPickHistoryImage = (f: File | null) => {
@@ -28,13 +29,46 @@ export default function TextosEditor({ initial }: { initial: SiteContent }) {
           const url = await uploadHistoryImage(fd);
           setTextos((prev) => ({
             ...prev,
-            historia: { ...prev.historia, image: url },
+            historia: {
+              ...prev.historia,
+              image: url,
+              // Mantener sincronizada la primera imagen del array
+              images: prev.historia.images.length > 0
+                ? prev.historia.images.map((img, i) =>
+                    i === 0 ? { ...img, url } : img
+                  )
+                : [{ url, caption: prev.historia.image_caption }],
+            },
           }));
         } catch (err: any) {
           setError(err.message ?? 'Error al subir la imagen.');
         } finally {
           setUploadingImage(false);
           setHistoryFile(null);
+        }
+      });
+    }
+  };
+
+  const onPickHeroImage = (f: File | null) => {
+    setHeroFile(f);
+    if (f) {
+      setUploadingImage(true);
+      setError(null);
+      startTransition(async () => {
+        try {
+          const fd = new FormData();
+          fd.append('imageFile', f);
+          const url = await uploadHeroImage(fd);
+          setTextos((prev) => ({
+            ...prev,
+            hero: { ...prev.hero, background_image: url },
+          }));
+        } catch (err: any) {
+          setError(err.message ?? 'Error al subir la imagen del hero.');
+        } finally {
+          setUploadingImage(false);
+          setHeroFile(null);
         }
       });
     }
@@ -71,6 +105,64 @@ export default function TextosEditor({ initial }: { initial: SiteContent }) {
 
       <div className="space-y-10">
         <Section
+          title="Hero (portada del sitio)"
+          k="hero"
+          saved={saved === 'hero'}
+          busy={busy === 'hero'}
+          onSave={() => save('hero')}
+        >
+          <Input
+            label="Eyebrow (texto chico arriba del título)"
+            value={textos.hero.eyebrow}
+            onChange={(v) =>
+              setTextos({ ...textos, hero: { ...textos.hero, eyebrow: v } })
+            }
+          />
+          <Input
+            label="Titular grande"
+            value={textos.hero.headline}
+            onChange={(v) =>
+              setTextos({ ...textos, hero: { ...textos.hero, headline: v } })
+            }
+          />
+          <Textarea
+            label="Introducción"
+            rows={3}
+            value={textos.hero.intro}
+            onChange={(v) =>
+              setTextos({ ...textos, hero: { ...textos.hero, intro: v } })
+            }
+          />
+          <Input
+            label="Texto del botón principal"
+            value={textos.hero.cta_label}
+            onChange={(v) =>
+              setTextos({ ...textos, hero: { ...textos.hero, cta_label: v } })
+            }
+          />
+          <Input
+            label="Link del botón (ej: #tienda o /productos)"
+            value={textos.hero.cta_href}
+            onChange={(v) =>
+              setTextos({ ...textos, hero: { ...textos.hero, cta_href: v } })
+            }
+          />
+          <ImageDropzone
+            file={heroFile}
+            onFile={onPickHeroImage}
+            previewUrl={textos.hero.background_image || undefined}
+            label="Imagen de fondo del Hero"
+            aspect="video"
+          />
+          {uploadingImage && (
+            <p className="font-body text-[11px] text-bone/50">Subiendo imagen…</p>
+          )}
+          <p className="font-body text-[10px] text-bone/40">
+            El badge "Medalla de Oro" arriba a la derecha no se edita — es identidad de marca.
+          </p>
+        </Section>
+
+        <Section
           title="Historia"
           k="historia"
           saved={saved === 'historia'}
@@ -105,26 +197,17 @@ export default function TextosEditor({ initial }: { initial: SiteContent }) {
               })
             }
           />
-          <ImageDropzone
-            file={historyFile}
-            onFile={onPickHistoryImage}
-            previewUrl={textos.historia.image || undefined}
-            label="Imagen"
-            aspect="video"
+          <ImageListEditor
+            items={textos.historia.images}
+            onChange={(images) =>
+              setTextos({ ...textos, historia: { ...textos.historia, images } })
+            }
+            onError={setError}
+            onBusyChange={setUploadingImage}
           />
           {uploadingImage && (
             <p className="font-body text-[11px] text-bone/50">Subiendo imagen…</p>
           )}
-          <Input
-            label="Caption de la imagen"
-            value={textos.historia.image_caption ?? ''}
-            onChange={(v) =>
-              setTextos({
-                ...textos,
-                historia: { ...textos.historia, image_caption: v || null },
-              })
-            }
-          />
         </Section>
 
         <Section
@@ -576,6 +659,150 @@ function ListEditor({
           className="font-body text-[10px] uppercase tracking-ultra text-gold hover:text-gold-light"
         >
           + Agregar item
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Editor de lista de imágenes para la sección Historia. Cada slot tiene:
+ * - ImageDropzone con preview de la imagen guardada.
+ * - Input de caption individual.
+ * - Botones ▲▼ para reordenar y Quitar.
+ * - "+ Agregar imagen" al final (abre un slot vacío nuevo).
+ *
+ * El upload usa `uploadHistoryImage` server action; mientras sube
+ * marca `onBusyChange(true)` para mostrar el mensaje global.
+ */
+function ImageListEditor({
+  items,
+  onChange,
+  onError,
+  onBusyChange,
+}: {
+  items: { url: string; caption: string | null }[];
+  onChange: (items: { url: string; caption: string | null }[]) => void;
+  onError: (msg: string | null) => void;
+  onBusyChange: (busy: boolean) => void;
+}) {
+  const [, startTransition] = useTransition();
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingIndex, setPendingIndex] = useState<number | null>(null);
+
+  const handleUpload = (file: File, index: number) => {
+    setPendingFile(file);
+    setPendingIndex(index);
+    onError(null);
+    onBusyChange(true);
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.append('imageFile', file);
+        const url = await uploadHistoryImage(fd);
+        onChange(
+          items.map((img, i) => (i === index ? { ...img, url } : img))
+        );
+      } catch (err: any) {
+        onError(err.message ?? 'Error al subir la imagen.');
+      } finally {
+        onBusyChange(false);
+        setPendingFile(null);
+        setPendingIndex(null);
+      }
+    });
+  };
+
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
+
+  const addEmpty = () =>
+    onChange([...items, { url: '', caption: null }]);
+
+  const updateCaption = (i: number, caption: string) =>
+    onChange(items.map((img, idx) => (idx === i ? { ...img, caption: caption || null } : img)));
+
+  return (
+    <div>
+      <p className="font-body text-[10px] uppercase tracking-ultra text-bone/50">
+        Imágenes (la primera es la principal — collage asimétrico en la landing)
+      </p>
+      <div className="mt-3 space-y-5">
+        {items.map((img, i) => (
+          <div
+            key={i}
+            className="rounded-md border border-carbon-line bg-carbon-raised/30 p-4 space-y-3"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-body text-[10px] uppercase tracking-ultra text-bone/50">
+                Imagen {String(i + 1).padStart(2, '0')}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  className="font-body text-xs uppercase tracking-ultra text-bone/60 hover:text-bone disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label={`Mover imagen ${i + 1} arriba`}
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={i === items.length - 1}
+                  className="font-body text-xs uppercase tracking-ultra text-bone/60 hover:text-bone disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label={`Mover imagen ${i + 1} abajo`}
+                >
+                  ▼
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  className="font-body text-[10px] uppercase tracking-ultra text-bone/40 hover:text-red-400"
+                  aria-label={`Quitar imagen ${i + 1}`}
+                >
+                  Quitar
+                </button>
+              </div>
+            </div>
+
+            <ImageDropzone
+              file={pendingIndex === i ? pendingFile : null}
+              onFile={(f) => {
+                if (f) handleUpload(f, i);
+              }}
+              previewUrl={img.url || undefined}
+              label={img.url ? 'Reemplazar imagen' : 'Subir imagen'}
+              aspect="video"
+            />
+
+            <label className="block">
+              <span className="font-body text-[10px] uppercase tracking-ultra text-bone/50">
+                Caption (opcional)
+              </span>
+              <input
+                value={img.caption ?? ''}
+                onChange={(e) => updateCaption(i, e.target.value)}
+                className="mt-1 w-full border-b border-carbon-line bg-transparent px-2 py-2 font-body text-bone focus:border-gold outline-none"
+              />
+            </label>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={addEmpty}
+          className="font-body text-[10px] uppercase tracking-ultra text-gold hover:text-gold-light"
+        >
+          + Agregar imagen
         </button>
       </div>
     </div>

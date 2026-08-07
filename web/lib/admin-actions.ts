@@ -719,6 +719,22 @@ export async function uploadHistoryImage(formData: FormData): Promise<string> {
   return url;
 }
 
+/**
+ * Sube la imagen de fondo del Hero. Misma firma que `uploadHistoryImage`
+ * pero guarda en `site/hero` para mantener las URLs separadas por sección.
+ */
+export async function uploadHeroImage(formData: FormData): Promise<string> {
+  await requireAdmin();
+  const file = formData.get('imageFile') as File | null;
+  if (!file || file.size === 0) {
+    throw new Error('No se recibió ninguna imagen.');
+  }
+  const url = await uploadImage(file, 'site/hero');
+  revalidatePath('/');
+  revalidatePath('/admin/textos');
+  return url;
+}
+
 // ----------------------------------------------------------------
 // Usuarios (customer_type: retail / wholesale)
 // ----------------------------------------------------------------
