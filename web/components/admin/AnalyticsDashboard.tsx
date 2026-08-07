@@ -136,56 +136,90 @@ export default function AnalyticsDashboard() {
             title="Tráfico"
             description="Visitas a la tienda pública."
           >
-            <div className="grid gap-4 md:grid-cols-2">
-              <KpiCard
-                label="Visitors"
-                value={formatNumber(traffic.totals.visitors)}
-                delta={traffic.deltas.visitors}
+            <SubSection title="Visitors">
+              <div className="grid gap-4 md:grid-cols-2">
+                <KpiCard
+                  label="Visitors"
+                  value={formatNumber(traffic.totals.visitors)}
+                  delta={traffic.deltas.visitors}
+                />
+              </div>
+              <Chart
+                data={traffic.timeSeries}
+                lines={[
+                  { key: 'visitors', label: 'Visitors', color: '#E8C766' },
+                ]}
+                valueFormat={formatNumber}
+                emptyHint="Sin tráfico todavía."
               />
-              <KpiCard
-                label="Page Views"
-                value={formatNumber(traffic.totals.pageViews)}
-                delta={traffic.deltas.pageViews}
+            </SubSection>
+
+            <SubSection title="Page Views">
+              <div className="grid gap-4 md:grid-cols-2">
+                <KpiCard
+                  label="Page Views"
+                  value={formatNumber(traffic.totals.pageViews)}
+                  delta={traffic.deltas.pageViews}
+                />
+              </div>
+              <Chart
+                data={traffic.timeSeries}
+                lines={[
+                  { key: 'pageViews', label: 'Page Views', color: '#8C9BAF' },
+                ]}
+                valueFormat={formatNumber}
+                emptyHint="Sin tráfico todavía."
               />
-            </div>
-            <Chart
-              data={traffic.timeSeries}
-              lines={[
-                { key: 'visitors', label: 'Visitors', color: '#E8C766' },
-                { key: 'pageViews', label: 'Page Views', color: '#8C9BAF' },
-              ]}
-              valueFormat={formatNumber}
-              emptyHint="Sin tráfico todavía."
-            />
+            </SubSection>
           </Section>
 
           <Section
             title="Ventas"
             description="Ingresos y pedidos del período."
           >
-            <div className="grid gap-4 md:grid-cols-2">
-              <KpiCard
-                label="Ingresos"
-                value={formatSalesTotal(sales)}
-                delta={sales.deltas.revenue}
+            <SubSection title="Ingresos">
+              <div className="grid gap-4 md:grid-cols-2">
+                <KpiCard
+                  label="Ingresos"
+                  value={formatSalesTotal(sales)}
+                  delta={sales.deltas.revenue}
+                />
+              </div>
+              <Chart
+                data={sales.timeSeries}
+                lines={[
+                  {
+                    key: 'visitors',
+                    label: 'Ingresos (UYU)',
+                    color: '#E8C766',
+                    accessor: (d) => d.revenueByCurrency?.UYU ?? 0,
+                  },
+                ]}
+                valueFormat={(n) => formatCurrency(n, 'UYU')}
+                emptyHint="Sin ingresos todavía."
               />
-              <KpiCard
-                label="Pedidos"
-                value={formatNumber(sales.totals.ordersCount)}
-                delta={sales.deltas.ordersCount}
+            </SubSection>
+
+            <SubSection title="Pedidos">
+              <div className="grid gap-4 md:grid-cols-2">
+                <KpiCard
+                  label="Pedidos"
+                  value={formatNumber(sales.totals.ordersCount)}
+                  delta={sales.deltas.ordersCount}
+                />
+              </div>
+              <Chart
+                data={sales.timeSeries.map((d) => ({
+                  ...d,
+                  visitors: d.ordersCount ?? 0,
+                }))}
+                lines={[
+                  { key: 'visitors', label: 'Pedidos', color: '#8C9BAF' },
+                ]}
+                valueFormat={formatNumber}
+                emptyHint="Sin pedidos todavía."
               />
-            </div>
-            <Chart
-              data={sales.timeSeries.map((d) => ({
-                ...d,
-                visitors: d.ordersCount ?? 0,
-              }))}
-              lines={[
-                { key: 'visitors', label: 'Pedidos', color: '#E8C766' },
-              ]}
-              valueFormat={formatNumber}
-              emptyHint="Sin pedidos todavía."
-            />
+            </SubSection>
           </Section>
         </>
       )}
@@ -220,6 +254,23 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+function SubSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-8">
+      <p className="mb-3 font-body text-[10px] uppercase tracking-ultra text-bone/40">
+        {title}
+      </p>
+      {children}
+    </div>
   );
 }
 
@@ -273,13 +324,23 @@ function Chart({
   emptyHint,
 }: {
   data: DailyPoint[];
-  lines: { key: string; label: string; color: string }[];
+  lines: {
+    key: string;
+    label: string;
+    color: string;
+    accessor?: (d: DailyPoint) => number;
+  }[];
   valueFormat: (n: number) => string;
   emptyHint: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
 
-  const hasData = data.some((d) => lines.some((l) => (d as any)[l.key] > 0));
+  const valueAt = (d: DailyPoint, l: (typeof lines)[number]) => {
+    if (l.accessor) return l.accessor(d) || 0;
+    return Number((d as any)[l.key]) || 0;
+  };
+
+  const hasData = data.some((d) => lines.some((l) => valueAt(d, l) > 0));
   if (!hasData) {
     return (
       <div className="mt-4 grid h-48 place-items-center border border-carbon-line bg-carbon text-bone/40 font-body text-xs uppercase tracking-ultra">
@@ -297,19 +358,17 @@ function Chart({
 
   const maxY = Math.max(
     1,
-    ...data.map((d) =>
-      Math.max(...lines.map((l) => Number((d as any)[l.key]) || 0))
-    )
+    ...data.map((d) => Math.max(...lines.map((l) => valueAt(d, l))))
   );
 
   const xStep = data.length > 1 ? innerW / (data.length - 1) : 0;
   const yFor = (v: number) => PAD_Y + innerH - (v / maxY) * innerH;
   const xFor = (i: number) => PAD_X + i * xStep;
 
-  const buildPath = (key: string) => {
+  const buildPath = (l: (typeof lines)[number]) => {
     return data
       .map((d, i) => {
-        const v = Number((d as any)[key]) || 0;
+        const v = valueAt(d, l);
         return `${i === 0 ? 'M' : 'L'} ${xFor(i)} ${yFor(v)}`;
       })
       .join(' ');
@@ -360,11 +419,11 @@ function Chart({
           ))}
 
           {lines.map((l, i) => {
-            const path = buildPath(l.key);
+            const path = buildPath(l);
             const areaPath = `${path} L ${xFor(data.length - 1)} ${PAD_Y + innerH} L ${PAD_X} ${PAD_Y + innerH} Z`;
             return (
               <g key={l.key}>
-                {/* Sólo la primera línea (Visitors) lleva relleno de área. */}
+                {/* Sólo la primera línea lleva relleno de área. */}
                 {i === 0 && (
                   <path d={areaPath} fill="url(#areaGold)" />
                 )}
@@ -428,7 +487,7 @@ function Chart({
           {/* Punto destacado cuando hay hover */}
           {hover !== null &&
             lines.map((l) => {
-              const v = Number((data[hover] as any)[l.key]) || 0;
+              const v = valueAt(data[hover], l);
               return (
                 <circle
                   key={l.key}
@@ -462,7 +521,7 @@ function Chart({
                 />
                 <span className="text-bone/70">{l.label}:</span>
                 <span className="text-bone">
-                  {valueFormat(Number((data[hover] as any)[l.key]) || 0)}
+                  {valueFormat(valueAt(data[hover], l))}
                 </span>
               </p>
             ))}
