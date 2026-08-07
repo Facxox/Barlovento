@@ -1,0 +1,191 @@
+BARLOVENTO — MANUAL DEL PANEL DE ADMINISTRACIÓN
+==============================================
+
+Guía de uso del panel de admin y descripción del recorrido del cliente en
+la tienda online. Pensada para que los dueños de la empresa entiendan qué
+se puede hacer desde el panel y cómo lo vive el visitante.
+
+
+1. ACCESO AL PANEL
+------------------
+
+El panel vive en /admin. Sólo pueden entrar cuentas marcadas como
+administradoras en la base de datos de Supabase. Si el visitante no es
+admin, el sistema lo redirige a /admin/login.
+
+  - Inicio de sesión: /admin/login con email y contraseña.
+  - Cierre de sesión: botón "Salir" en la parte superior derecha.
+  - La sesión se mantiene aunque se cierre la pestaña (cookie de larga
+    duración).
+  - Si un usuario no admin intenta entrar, se muestra el error
+    "no autorizado".
+
+
+2. RESUMEN
+----------
+
+La pantalla de inicio muestra el estado del sitio en una sola vista. Las
+tarjetas son accesos rápidos a cada sección.
+
+  Productos         - Cantidad de productos activos y total, con el número
+                      de inactivos.
+  Categorías        - Cantidad de categorías con su total de activas.
+  Cat. galería      - Cantidad de categorías de la galería.
+  Galería           - Cantidad de imágenes publicadas.
+  Eventos           - Próximos y en archivo.
+  Pedidos pendientes - Pedidos sin revisar.
+  Usuarios          - Cuentas registradas en Supabase.
+  Textos de marca   - Acceso al editor de textos del sitio.
+
+Debajo de las tarjetas hay una tabla con los últimos 5 pedidos para
+tener visibilidad rápida del movimiento.
+
+
+3. PRODUCTOS
+------------
+
+Dos pestañas: Minoristas y Mayoristas. Todo lo que se edita acá impacta
+directo en la tienda pública y en el detalle del producto.
+
+  - Crear: botón "+ Nuevo producto" o "+ Nuevo mayorista".
+  - Reordenar: flechas ▲▼ de cada fila. Cambia el orden visual y guarda
+    sort_order en la base.
+  - Activar / desactivar: cambia is_active. Los inactivos no se muestran
+    en la tienda.
+  - Editar: abre el formulario con todos los campos, incluida la
+    información nutricional.
+  - Borrar: elimina el producto (con confirmación).
+  - Clonar a mayorista: crea un clon en wholesale_products con id "X-ws"
+    y precio 0 para editar después. Útil para armar la lista mayorista
+    a partir de los productos minoristas.
+
+Información nutricional
+- El editor soporta dos bloques: el clásico (porción + filas de
+  nutrientes) y el extendido tipo packaging (kcal, kj, carbohidratos,
+  proteínas, grasas, sodio, octógonos de advertencia).
+- Si el toggle está activo, se renderiza en la página de detalle del
+  producto.
+
+
+4. CATEGORÍAS
+-------------
+
+Lista administrable de categorías de alfajores. Cada categoría tiene id
+(slug), label visible, sort_order y un flag is_active.
+
+  - Crear / editar / borrar con la misma mecánica que productos.
+  - Ordenar con flechas ▲▼.
+  - Activar / desactivar: si se desactiva, la categoría no aparece como
+    filtro en la tienda.
+
+Cat. galería
+- Misma idea que categorías pero para agrupar imágenes de la galería.
+- Sirve para que la página pública filtre "elaboración / producto /
+  ferias" o lo que se defina.
+
+
+5. GALERÍA
+----------
+
+Editor visual de la galería pública. Cada imagen se sube desde el admin
+y se asocia a una categoría de galería.
+
+  - Subir imagen con título y categoría.
+  - Reordenar con flechas ▲▼.
+  - Borrar imagen (se elimina del storage y de la base).
+
+
+6. EVENTOS
+----------
+
+Listado de eventos próximos y en archivo. Se muestran en la sección
+Eventos de la home.
+
+  - Crear evento con título, fecha, lugar, descripción, imagen y tipo
+    (próximo / archivo).
+  - Reordenar con flechas ▲▼.
+  - Borrar con confirmación.
+
+
+7. PEDIDOS
+----------
+
+Listado de pedidos generados desde la tienda. Cada pedido tiene canal
+(mercadopago o whatsapp), total, estado, fecha y datos de contacto del
+cliente.
+
+  - Los pedidos por WhatsApp se crean automáticamente cuando el cliente
+    hace clic en "Comprar por WhatsApp" desde el carrito.
+  - Los pedidos por Mercado Pago se crean cuando se confirma el pago
+    en el checkout.
+
+
+8. USUARIOS
+-----------
+
+Listado de cuentas registradas. Por cada usuario se ve email, nombre,
+teléfono, ciudad, tipo (minorista o mayorista), cantidad de pedidos,
+total gastado y fecha de registro.
+
+  - Pasar de minorista a mayorista y viceversa con un click. Esto
+    controla qué catálogo ve el cliente en la home.
+  - Promover / quitar admin. La cuenta logueada no puede quitarse su
+    propio rol admin para evitar lockouts.
+  - Ver pedidos: abre un panel lateral con todos los pedidos de ese
+    cliente.
+
+
+9. TEXTOS DE MARCA
+-------------------
+
+Editor de los textos de la home: historia, hero, misión, visión,
+valores, puntos de venta, regalos empresariales, mayoristas y contacto.
+Permite editar todo el copy de la página sin tocar código. Los cambios
+se guardan al instante en Supabase.
+
+
+RECORRIDO DEL CLIENTE EN LA TIENDA
+==================================
+
+La página pública cambia su comportamiento según el tipo de cliente que
+la visita. A continuación se describe qué ve cada perfil.
+
+
+VISITANTE MINORISTA (no logueado o customer_type = retail)
+-----------------------------------------------------------
+
+  - Ve el catálogo minorista de la tabla products.
+  - Filtros por categoría, badge "Medalla de Oro" en el hero.
+  - Página de detalle con descripción e información nutricional.
+  - Botón "Agregar" en cada producto; al agregarlo, ve un toast fugaz
+    confirmando.
+  - El drawer del carrito no se abre automáticamente. Sólo se abre
+    cuando hace click en el icono del carrito en el navbar.
+  - Checkout con Mercado Pago disponible.
+  - También puede pedir por WhatsApp.
+
+
+CLIENTE MAYORISTA (logueado, customer_type = wholesale)
+--------------------------------------------------------
+
+  - Ve el catálogo mayorista de wholesale_products con precios
+    especiales.
+  - Botón "Agregar" igual que minorista; el toast confirma la adición.
+  - El copy del hero de la tienda cambia a "Tienda mayorista" /
+    "Coordiná tu pedido por WhatsApp".
+  - No ve el botón de Mercado Pago. Sólo puede pedir por WhatsApp.
+  - Pedido mínimo: 6 unidades por producto. Si no llega al mínimo, el
+    botón "Comprar por WhatsApp" se deshabilita y aparece un cartel
+    ámbar con los productos que faltan.
+  - El drawer del carrito muestra un mensaje explícito del mínimo y
+    sólo se cierra el pedido cuando se cumple.
+
+
+PRIVACIDAD Y PERMISOS
+----------------------
+
+  - El navbar y el footer públicos no se muestran en /admin.
+  - Los pedidos por WhatsApp quedan guardados en la tabla orders con
+    status pending y se pueden revisar desde la sección Pedidos.
+  - El cliente mayorista sigue siendo atendido por WhatsApp, no por
+    Mercado Pago.

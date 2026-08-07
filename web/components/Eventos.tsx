@@ -29,7 +29,7 @@ export default async function Eventos() {
               Donde nos encontramos.
             </h2>
             <p className="mt-5 prose-editorial max-w-xl">
-              Probad nuestra línea en persona. Estos son los próximos encuentros
+              Proba nuestra línea en persona. Estos son los próximos encuentros
               y los que ya quedaron en la memoria.
             </p>
           </div>
