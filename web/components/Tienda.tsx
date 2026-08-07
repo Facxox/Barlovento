@@ -128,12 +128,12 @@ function ProductCard({
   return (
     <Reveal delay={delay}>
       <article className="group">
-        <div className="relative overflow-hidden bg-ink/5 hover-zoom">
+        <div className="relative aspect-[4/5] overflow-hidden bg-ink/5 hover-zoom">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={product.image}
             alt={product.name}
-            className="block w-full h-auto"
+            className="block h-full w-full object-cover"
           />
           {product.badge && (
             <span className="absolute left-4 top-4 inline-flex items-center rounded-full border border-gold/70 bg-cream/90 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-ink">
