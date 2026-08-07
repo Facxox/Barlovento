@@ -1,10 +1,13 @@
 import { getServerSupabase } from '@/lib/supabase-server';
+import { getServiceSupabase } from '@/lib/supabase-admin';
 import ProductosTabs from '@/components/admin/ProductosTabs';
 import productsJson from '@/data/products.json';
 import type { Product, WholesaleProduct } from '@/lib/queries';
 
 async function listAllProducts(): Promise<Product[]> {
-  const supabase = await getServerSupabase();
+  // El panel admin lee con service-role para evitar que RLS oculte
+  // filas. Como fallback (sin env vars), seguimos leyendo del JSON local.
+  const supabase = getServiceSupabase();
   if (!supabase) {
     return (productsJson as Product[]).sort(
       (a, b) => a.sort_order - b.sort_order
@@ -19,7 +22,7 @@ async function listAllProducts(): Promise<Product[]> {
 }
 
 async function listAllWholesaleProducts(): Promise<WholesaleProduct[]> {
-  const supabase = await getServerSupabase();
+  const supabase = getServiceSupabase();
   if (!supabase) return [];
   const { data, error } = await supabase
     .from('wholesale_products')
