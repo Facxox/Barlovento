@@ -1,7 +1,10 @@
 import PedidosTable from '@/components/admin/PedidosTable';
-import { listOrders } from '@/lib/orders';
+import { listOrders, getOrderMetrics } from '@/lib/orders';
 
 export default async function AdminPedidosPage() {
-  const orders = await listOrders();
-  return <PedidosTable orders={orders} />;
+  const [orders, metrics] = await Promise.all([
+    listOrders(),
+    getOrderMetrics(),
+  ]);
+  return <PedidosTable orders={orders} metrics={metrics} />;
 }

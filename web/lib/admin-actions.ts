@@ -1036,3 +1036,45 @@ function parseNutritionField(raw: string | null): Nutrition | null {
     ...(hasExtended ? extended : {}),
   };
 }
+
+// ----------------------------------------------------------------
+// Orders (status manual override)
+// ----------------------------------------------------------------
+/**
+ * Cambia manualmente el estado de un pedido. Solo admin puede llamarlo.
+ *
+ * Casos de uso:
+ *  - Confirmar un pedido de WhatsApp que quedó en pending (estado por
+ *    defecto al crear el pedido desde el carrito).
+ *  - Destrabar un pedido de Mercado Pago cuyo webhook no llegó o
+ *    tardó demasiado.
+ *  - Cancelar un pedido manualmente.
+ *
+ * Seguridad:
+ *  - `requireAdminStrict` valida que el caller sea admin y devuelve el
+ *    cliente service-role. La tabla `orders` no tiene policy de UPDATE
+ *    para admins; sólo el service-role puede escribir.
+ *  - El status se valida contra un set cerrado en runtime (cualquier
+ *    valor fuera del set se rechaza).
+ *
+ * No se modifica el webhook de Mercado Pago. Si después de un override
+ * manual el webhook recibe la notificación, va a sobrescribir el
+ * estado — comportamiento deseado: el override es para destrabar, no
+ * para pelearse con el webhook.
+ */
+export async function setOrderStatus(
+  id: number,
+  status: 'paid' | 'fulfilled' | 'cancelled'
+): Promise<void> {
+  const admin = await requireAdminStrict();
+  const { error } = await admin
+    .from('orders')
+    .update({ status })
+    .eq('id', id);
+  if (error) {
+    console.error('[setOrderStatus] Supabase error:', error);
+    throw new Error(`setOrderStatus: ${error.message}`);
+  }
+  revalidatePath('/admin/pedidos');
+  revalidatePath('/admin');
+}
