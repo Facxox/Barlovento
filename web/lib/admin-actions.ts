@@ -842,17 +842,39 @@ export async function uploadHeroImage(formData: FormData): Promise<string> {
 // Usuarios (customer_type: retail / wholesale)
 // ----------------------------------------------------------------
 async function requireAdminStrict() {
-  const supabase = await requireAdmin();
+  // Sesión del visitante (cliente autenticado, respeta RLS) para
+  // validar que hay un usuario logueado.
+  const authed = await getServerSupabase();
+  if (!authed) {
+    throw new Error('Supabase no configurado.');
+  }
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
+  } = await authed.auth.getUser();
+  if (!user) throw new Error('No autenticado.');
+
+  // Validamos is_admin con el cliente service-role para que no
+  // dependa de RLS. Si la sesión está presente pero la policy
+  // "profiles admin read all" fallara (por ejemplo, porque la
+  // función is_admin(uid) depende de leer profiles recursivamente),
+  // tendríamos un falso negativo. Con service-role, si el caller es
+  // admin la fila aparece siempre.
+  const service = getServiceSupabase();
+  if (!service) {
+    throw new Error(
+      'Server misconfigurado: falta SUPABASE_SERVICE_ROLE_KEY para verificar admin.'
+    );
+  }
+  const { data: profile } = await service
     .from('profiles')
     .select('is_admin')
-    .eq('user_id', user!.id)
+    .eq('user_id', user.id)
     .maybeSingle();
   if (!profile?.is_admin) throw new Error('No autorizado (admin requerido).');
-  return supabase;
+
+  // Devolvemos el cliente service-role para que las mutaciones
+  // siguientes no queden atrapadas por RLS.
+  return service;
 }
 
 export type CustomerType = 'retail' | 'wholesale';
@@ -866,23 +888,20 @@ export async function updateCustomerType(
   userId: string,
   type: CustomerType
 ): Promise<void> {
-  // requireAdminStrict valida que el caller sea admin (sesión +
-  // service-role cross-check). La mutación la hacemos con el cliente
-  // service-role porque la policy self-update no incluye customer_type
-  // y un admin que intente modificar la fila de otro usuario sería
-  // bloqueado por RLS con el cliente autenticado.
-  await requireAdminStrict();
-  const admin = getServiceSupabase();
-  if (!admin) {
-    throw new Error(
-      'Server misconfigurado: falta SUPABASE_SERVICE_ROLE_KEY para cambiar tipos de cliente.'
-    );
-  }
+  // requireAdminStrict valida que el caller sea admin y devuelve el
+  // cliente service-role. La mutación corre con service-role porque
+  // la policy self-update no incluye customer_type y un admin que
+  // intente modificar la fila de otro usuario sería bloqueado por
+  // RLS con el cliente autenticado.
+  const admin = await requireAdminStrict();
   const { error } = await admin
     .from('profiles')
     .update({ customer_type: type })
     .eq('user_id', userId);
-  if (error) throw new Error(`updateCustomerType: ${error.message}`);
+  if (error) {
+    console.error('[updateCustomerType] Supabase error:', error);
+    throw new Error(`updateCustomerType: ${error.message}`);
+  }
   revalidatePath('/admin/usuarios');
   revalidatePath('/mi-cuenta');
 }
@@ -901,26 +920,31 @@ export async function setAdmin(
   userId: string,
   isAdmin: boolean
 ): Promise<void> {
-  const supabase = await requireAdminStrict();
-  const {
-    data: { user: caller },
-  } = await supabase.auth.getUser();
-  if (caller?.id === userId && !isAdmin) {
-    throw new Error(
-      'No podés quitarte el rol admin a vos mismo (quedaría el panel sin acceso).'
-    );
-  }
-  const admin = getServiceSupabase();
-  if (!admin) {
-    throw new Error(
-      'Server misconfigurado: falta SUPABASE_SERVICE_ROLE_KEY para cambiar roles.'
-    );
+  // requireAdminStrict devuelve el cliente service-role y valida que
+  // el caller sea admin. Para impedir que se desactive a sí mismo,
+  // necesitamos comparar el user_id del caller. Leemos la sesión por
+  // separado del cliente autenticado, ya que el service-role no
+  // expone la cookie del visitante.
+  const admin = await requireAdminStrict();
+  const authed = await getServerSupabase();
+  if (authed) {
+    const {
+      data: { user: caller },
+    } = await authed.auth.getUser();
+    if (caller?.id === userId && !isAdmin) {
+      throw new Error(
+        'No podés quitarte el rol admin a vos mismo (quedaría el panel sin acceso).'
+      );
+    }
   }
   const { error } = await admin
     .from('profiles')
     .update({ is_admin: isAdmin })
     .eq('user_id', userId);
-  if (error) throw new Error(`setAdmin: ${error.message}`);
+  if (error) {
+    console.error('[setAdmin] Supabase error:', error);
+    throw new Error(`setAdmin: ${error.message}`);
+  }
   revalidatePath('/admin/usuarios');
 }
 
