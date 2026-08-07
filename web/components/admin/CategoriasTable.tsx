@@ -2,12 +2,6 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  upsertCategory,
-  deleteCategory,
-  toggleCategoryActive,
-  moveCategory,
-} from '@/lib/admin-actions';
 import type { Category } from '@/lib/queries';
 
 function slugify(s: string): string {
@@ -20,7 +14,29 @@ function slugify(s: string): string {
     .slice(0, 60);
 }
 
-export default function CategoriasTable({ items }: { items: Category[] }) {
+/**
+ * Acciones CRUD inyectadas. La página que monta la tabla pasa el
+ * conjunto correspondiente a su dominio (categorías de producto o de
+ * galería). Esto evita duplicar la UI entre las dos páginas.
+ */
+export type CategoryActions = {
+  upsert: (formData: FormData) => Promise<void>;
+  remove: (id: string) => Promise<void>;
+  toggle: (id: string, isActive: boolean) => Promise<void>;
+  move: (id: string, dir: -1 | 1) => Promise<void>;
+};
+
+export default function CategoriasTable({
+  items,
+  title = 'Categorías',
+  emptyMessage = 'No hay categorías todavía.',
+  actions,
+}: {
+  items: Category[];
+  title?: string;
+  emptyMessage?: string;
+  actions: CategoryActions;
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -42,7 +58,7 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
     fd.append('is_active', String(draft.is_active));
     startTransition(async () => {
       try {
-        await upsertCategory(fd);
+        await actions.upsert(fd);
         setShowNew(false);
         setDraft({ id: '', label: '', sort_order: '0', is_active: true });
         router.refresh();
@@ -64,7 +80,7 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
     fd.append('is_active', String(active));
     startTransition(async () => {
       try {
-        await upsertCategory(fd);
+        await actions.upsert(fd);
         setEditing(null);
         router.refresh();
       } catch (err: any) {
@@ -76,12 +92,17 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
   };
 
   const onDelete = (id: string) => {
-    if (!confirm(`¿Eliminar la categoría "${id}"? Si hay productos con esta categoría, el borrado será bloqueado.`)) return;
+    if (
+      !confirm(
+        `¿Eliminar la categoría "${id}"? Si hay elementos con esta categoría, el borrado será bloqueado.`
+      )
+    )
+      return;
     setError(null);
     setBusyId(id);
     startTransition(async () => {
       try {
-        await deleteCategory(id);
+        await actions.remove(id);
         router.refresh();
       } catch (err: any) {
         setError(err.message ?? 'No pudimos borrar.');
@@ -95,7 +116,7 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
     setBusyId(cat.id);
     startTransition(async () => {
       try {
-        await toggleCategoryActive(cat.id, !cat.is_active);
+        await actions.toggle(cat.id, !cat.is_active);
         router.refresh();
       } catch (err: any) {
         setError(err.message ?? 'No pudimos cambiar el estado.');
@@ -109,7 +130,7 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
     setBusyId(cat.id);
     startTransition(async () => {
       try {
-        await moveCategory(cat.id, dir);
+        await actions.move(cat.id, dir);
         router.refresh();
       } catch (err: any) {
         setError(err.message ?? 'No pudimos reordenar.');
@@ -123,7 +144,7 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
     <div>
       <header className="mb-6 flex items-end justify-between">
         <div>
-          <h1 className="font-display text-3xl text-bone">Categorías</h1>
+          <h1 className="font-display text-3xl text-bone">{title}</h1>
           <p className="mt-1 font-body text-sm text-bone/60">
             {sorted.length} en total. Editá los nombres, el orden o el estado.
           </p>
@@ -299,7 +320,7 @@ export default function CategoriasTable({ items }: { items: Category[] }) {
             {sorted.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-8 text-center text-bone/50 font-body text-sm">
-                  No hay categorías todavía.
+                  {emptyMessage}
                 </td>
               </tr>
             )}

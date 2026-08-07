@@ -213,7 +213,7 @@ export async function moveWholesaleProduct(
  * distintos y supabase-js no acepta un union genérico en `.from()`.
  */
 async function swapAdjacent(
-  table: 'products' | 'wholesale_products' | 'categories' | 'gallery_items' | 'events',
+  table: 'products' | 'wholesale_products' | 'categories' | 'gallery_items' | 'gallery_categories' | 'events',
   pkCol: string,
   id: string | number,
   dir: -1 | 1
@@ -227,6 +227,8 @@ async function swapAdjacent(
       return swapAdjacentImpl('categories', pkCol, id as string, dir, 'id');
     case 'gallery_items':
       return swapAdjacentImpl('gallery_items', pkCol, id as number, dir, 'id');
+    case 'gallery_categories':
+      return swapAdjacentImpl('gallery_categories', pkCol, id as string, dir, 'id');
     case 'events':
       return swapAdjacentImpl('events', pkCol, id as number, dir, 'id');
   }
@@ -237,6 +239,7 @@ type TableName =
   | 'wholesale_products'
   | 'categories'
   | 'gallery_items'
+  | 'gallery_categories'
   | 'events';
 
 async function swapAdjacentImpl<T extends TableName>(
@@ -297,6 +300,80 @@ export async function moveCategory(
   revalidatePath('/');
   revalidatePath('/admin/categorias');
   revalidatePath('/admin/productos');
+}
+
+// ----------------------------------------------------------------
+// Gallery categories (separadas de las categorías de producto)
+// ----------------------------------------------------------------
+export async function upsertGalleryCategory(formData: FormData): Promise<void> {
+  const supabase = await requireAdmin();
+
+  const id = ((formData.get('id') as string) ?? '').trim();
+  const label = ((formData.get('label') as string) ?? '').trim();
+  if (!id) throw new Error('Falta el slug de la categoría.');
+  if (!label) throw new Error('Falta el nombre visible.');
+  if (!/^[a-z0-9-]+$/.test(id)) {
+    throw new Error('El slug solo puede tener minúsculas, números y guiones.');
+  }
+
+  const sort_order = Number(formData.get('sort_order') ?? 0);
+  const is_active = formData.get('is_active') === 'true';
+
+  const { error } = await supabase
+    .from('gallery_categories')
+    .upsert({ id, label, sort_order, is_active, updated_at: now() });
+  if (error) throw new Error(`upsertGalleryCategory: ${error.message}`);
+  revalidatePath('/');
+  revalidatePath('/admin/categorias-galeria');
+  revalidatePath('/admin/galeria');
+  revalidatePath('/admin/productos'); // la nav puede usar el mismo árbol
+}
+
+export async function deleteGalleryCategory(id: string): Promise<void> {
+  const supabase = await requireAdmin();
+
+  const { count } = await supabase
+    .from('gallery_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('category', id);
+  if ((count ?? 0) > 0) {
+    throw new Error(
+      `No se puede borrar: hay ${count} foto(s) con esta categoría. Reasignálos primero.`
+    );
+  }
+
+  const { error } = await supabase
+    .from('gallery_categories')
+    .delete()
+    .eq('id', id);
+  if (error) throw new Error(`deleteGalleryCategory: ${error.message}`);
+  revalidatePath('/');
+  revalidatePath('/admin/categorias-galeria');
+  revalidatePath('/admin/galeria');
+}
+
+export async function toggleGalleryCategoryActive(
+  id: string,
+  isActive: boolean
+): Promise<void> {
+  const supabase = await requireAdmin();
+  const { error } = await supabase
+    .from('gallery_categories')
+    .update({ is_active: isActive, updated_at: now() })
+    .eq('id', id);
+  if (error) throw new Error(`toggleGalleryCategoryActive: ${error.message}`);
+  revalidatePath('/');
+  revalidatePath('/admin/categorias-galeria');
+}
+
+export async function moveGalleryCategory(
+  id: string,
+  dir: -1 | 1
+): Promise<void> {
+  await swapAdjacent('gallery_categories', 'id', id, dir);
+  revalidatePath('/');
+  revalidatePath('/admin/categorias-galeria');
+  revalidatePath('/admin/galeria');
 }
 
 export async function moveGalleryItem(

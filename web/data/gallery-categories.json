@@ -1,0 +1,5 @@
+[
+  { "id": "elaboracion", "label": "Elaboración", "sort_order": 1, "is_active": true },
+  { "id": "producto",    "label": "Producto",    "sort_order": 2, "is_active": true },
+  { "id": "ferias",      "label": "Ferias",      "sort_order": 3, "is_active": true }
+]

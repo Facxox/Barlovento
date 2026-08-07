@@ -7,25 +7,31 @@ import {
   deleteGalleryItem,
   moveGalleryItem,
 } from '@/lib/admin-actions';
-import type { GalleryItem } from '@/lib/queries';
+import type { GalleryItem, GalleryCategory } from '@/lib/queries';
 import ImageDropzone from './ImageDropzone';
 
-const CATEGORIES: Array<GalleryItem['category']> = [
-  'elaboracion',
-  'producto',
-  'ferias',
-];
-
-export default function GaleriaGrid({ items }: { items: GalleryItem[] }) {
+export default function GaleriaGrid({
+  items,
+  categories,
+}: {
+  items: GalleryItem[];
+  categories: GalleryCategory[];
+}) {
   const router = useRouter();
   const [list, setList] = useState(items);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<GalleryItem['category']>('elaboracion');
+  const defaultCategory = categories[0]?.id ?? 'elaboracion';
+  const [category, setCategory] = useState<string>(defaultCategory);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // Lista de slugs activos para el <select>. Si un item existente tiene
+  // una categoría que ya no está en la lista (huérfana), la mostramos
+  // igual para no perder la asignación visible.
+  const activeIds = new Set(categories.filter((c) => c.is_active).map((c) => c.id));
 
   const onAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,14 +121,24 @@ export default function GaleriaGrid({ items }: { items: GalleryItem[] }) {
           </p>
           <select
             value={category}
-            onChange={(e) => setCategory(e.target.value as GalleryItem['category'])}
+            onChange={(e) => setCategory(e.target.value)}
             className="mt-2 w-full border-b border-carbon-line bg-transparent px-2 py-2 font-body text-bone focus:border-gold outline-none"
           >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
+            {categories
+              .filter((c) => c.is_active)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            {/* Orphan safekeeping: si la categoría actual del item no
+                está en la lista (la borraron del admin), la mostramos
+                igual para no perderla visualmente. */}
+            {category && !activeIds.has(category) && (
+              <option value={category}>
+                {category} (huérfana)
               </option>
-            ))}
+            )}
           </select>
         </div>
         <div className="flex items-end sm:col-span-2">
@@ -149,7 +165,7 @@ export default function GaleriaGrid({ items }: { items: GalleryItem[] }) {
             ].join(' ')}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={g.image} alt={g.title} className="aspect-[4/3] w-full object-cover" />
+            <img src={g.image} alt={g.title} className="block w-full h-auto" />
             <div className="flex items-center justify-between gap-2 p-3">
               <div>
                 <p className="font-body text-sm text-bone">{g.title}</p>

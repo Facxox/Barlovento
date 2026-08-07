@@ -8,6 +8,7 @@ const tabs = [
   { href: '/admin', label: 'Resumen' },
   { href: '/admin/productos', label: 'Productos' },
   { href: '/admin/categorias', label: 'Categorías' },
+  { href: '/admin/categorias-galeria', label: 'Cat. galería' },
   { href: '/admin/galeria', label: 'Galería' },
   { href: '/admin/eventos', label: 'Eventos' },
   { href: '/admin/textos', label: 'Textos' },

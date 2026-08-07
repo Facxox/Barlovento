@@ -2,6 +2,7 @@ import 'server-only';
 import { getServerSupabase } from './supabase-server';
 import productsJson from '@/data/products.json';
 import galleryJson from '@/data/gallery.json';
+import galleryCategoriesJson from '@/data/gallery-categories.json';
 import eventsJson from '@/data/events.json';
 import siteContentJson from '@/data/site-content.json';
 import categoriesJson from '@/data/categories.json';
@@ -66,6 +67,18 @@ export type Nutrition = {
 export type Category = {
   id: string;            // slug — se guarda en products.category / wholesale_products.category
   label: string;         // nombre legible
+  sort_order: number;
+  is_active: boolean;
+};
+
+/**
+ * Categorías de la galería. Misma forma que `Category`, pero vive en
+ * una tabla separada (`gallery_categories`) para no mezclarse con las
+ * categorías de producto. El slug se guarda en `gallery_items.category`.
+ */
+export type GalleryCategory = {
+  id: string;
+  label: string;
   sort_order: number;
   is_active: boolean;
 };
@@ -209,6 +222,22 @@ export async function getCategories(): Promise<Category[]> {
   ) as Category[];
   return fromSupabase<Category[]>(
     'categories',
+    'sort_order',
+    fallback
+  );
+}
+
+/**
+ * Categorías de la galería. Mismo patrón que `getCategories` pero sobre
+ * la tabla `gallery_categories`. El fallback (`gallery-categories.json`)
+ * mantiene las 3 categorías originales mientras no haya Supabase.
+ */
+export async function getGalleryCategories(): Promise<GalleryCategory[]> {
+  const fallback = [...galleryCategoriesJson].sort(
+    (a, b) => a.sort_order - b.sort_order
+  ) as GalleryCategory[];
+  return fromSupabase<GalleryCategory[]>(
+    'gallery_categories',
     'sort_order',
     fallback
   );

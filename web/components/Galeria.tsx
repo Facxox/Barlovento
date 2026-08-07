@@ -3,21 +3,38 @@
 import { useState, useMemo } from 'react';
 import { Reveal } from './Reveal';
 import GoldDivider from './GoldDivider';
-import type { GalleryItem } from '@/lib/queries';
+import type { GalleryItem, GalleryCategory } from '@/lib/queries';
 
-const tabs = ['todas', 'elaboracion', 'producto', 'ferias'] as const;
+const ALL = 'todas';
 
-export default function Galeria({ items }: { items: GalleryItem[] }) {
-  const [active, setActive] = useState<(typeof tabs)[number]>('todas');
-  const [lightbox, setLightbox] = useState<string | null>(null);
+export default function Galeria({
+  items,
+  categories,
+}: {
+  items: GalleryItem[];
+  categories: GalleryCategory[];
+}) {
+  const [active, setActive] = useState<string>(ALL);
+
+  const tabs = useMemo(
+    () => [
+      { id: ALL, label: 'Todas' },
+      ...categories
+        .filter((c) => c.is_active)
+        .map((c) => ({ id: c.id, label: c.label })),
+    ],
+    [categories]
+  );
 
   const filtered = useMemo(
     () =>
       items
-        .filter((g) => active === 'todas' || g.category === active)
+        .filter((g) => active === ALL || g.category === active)
         .sort((a, b) => a.sort_order - b.sort_order),
     [items, active]
   );
+
+  const [lightbox, setLightbox] = useState<string | null>(null);
 
   return (
     <section id="galeria" className="bg-cream text-ink py-28 lg:py-40">
@@ -33,26 +50,22 @@ export default function Galeria({ items }: { items: GalleryItem[] }) {
             <div className="flex flex-wrap gap-2">
               {tabs.map((t) => (
                 <button
-                  key={t}
-                  onClick={() => setActive(t)}
+                  key={t.id}
+                  onClick={() => setActive(t.id)}
                   className={[
                     'rounded-full border px-4 py-2 font-body text-xs uppercase tracking-ultra transition',
-                    active === t
+                    active === t.id
                       ? 'border-ink bg-ink text-cream'
                       : 'border-ink/20 text-ink/70 hover:border-ink hover:text-ink',
                   ].join(' ')}
                 >
-                  {t}
+                  {t.label}
                 </button>
               ))}
             </div>
           </div>
         </Reveal>
 
-        {/* Mural: CSS multi-column masonry respeta el aspect ratio original
-            de cada foto. `break-inside-avoid` evita que una imagen se corte
-            entre columnas y `object-contain` muestra la foto completa sin
-            recortar ni deformar. */}
         <div className="mt-16 columns-1 gap-4 sm:columns-2 lg:columns-3 [column-fill:_balance]">
           {filtered.map((g, i) => (
             <Reveal key={g.id} delay={(i % 6) * 80}>
@@ -65,7 +78,7 @@ export default function Galeria({ items }: { items: GalleryItem[] }) {
                 <img
                   src={g.image}
                   alt={g.title}
-                  className="block w-full h-auto object-contain"
+                  className="block w-full h-auto"
                 />
               </button>
             </Reveal>
