@@ -64,7 +64,7 @@ export default async function AdminDashboard() {
     {
       href: '/admin/usuarios',
       label: 'Usuarios',
-      value: userCount,
+      value: userCount ?? '—',
       hint: 'Cuentas registradas',
     },
     {

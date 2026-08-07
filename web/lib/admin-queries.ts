@@ -109,15 +109,32 @@ export async function listUsersWithStats(): Promise<ListUsersResult> {
   return { users, stats };
 }
 
-export async function countUsers(): Promise<number> {
+export async function countUsers(): Promise<number | null> {
   const supabase = getServiceSupabase();
-  if (!supabase) return 0;
+  if (!supabase) {
+    console.error(
+      '[countUsers] getServiceSupabase() devolvió null. Faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.'
+    );
+    return null;
+  }
 
   const { count, error } = await supabase
     .from('profiles')
     .select('user_id', { count: 'exact', head: true });
 
-  return error ? 0 : count ?? 0;
+  if (error) {
+    console.error('[countUsers] Error en la consulta a profiles:', error);
+    return null;
+  }
+
+  if (count === null || count === undefined) {
+    console.error(
+      '[countUsers] La consulta a profiles devolvió count=null. Posible problema de parsing o RLS.'
+    );
+    return null;
+  }
+
+  return count;
 }
 /**
  * Devuelve los pedidos asociados al email de un cliente (case-insensitive).
