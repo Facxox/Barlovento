@@ -211,7 +211,7 @@ function Field({
   required?: boolean;
 }) {
   const base =
-    'w-full border-b border-carbon-line px-3 py-3 font-body text-bone placeholder-bone/40 focus:border-gold focus:bg-carbon-raised/30 outline-none transition';
+    'w-full border-b border-carbon-line bg-transparent px-3 py-3 font-body text-bone placeholder-bone/40 focus:border-gold focus:bg-carbon-raised/30 outline-none transition [-webkit-text-fill-color:theme(colors.bone)] [-webkit-box-shadow:0_0_0_1000px_transparent_inset]';
 
   return (
     <label className="block">
