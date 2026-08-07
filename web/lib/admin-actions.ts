@@ -10,10 +10,29 @@ import type { Product, WholesaleProduct, GalleryItem, BarloventoEvent, SiteConte
 // Auth helper
 // ----------------------------------------------------------------
 async function requireAdmin() {
+  // Cliente autenticado (respeta RLS) para validar la sesión del usuario.
   const supabase = await getServerSupabase();
   if (!supabase) throw new Error('Supabase no configurado.');
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No autenticado.');
+
+  // Verificamos is_admin con el cliente service-role para evitar que
+  // RLS de `profiles` oculte la fila propia del admin (en particular
+  // cuando la policy depende de is_admin(uid) y la sesión se invalida
+  // parcialmente entre middleware y server action). El middleware ya
+  // bloquea el acceso; este chequeo es defensa en profundidad.
+  const service = getServiceSupabase();
+  if (service) {
+    const { data: profile } = await service
+      .from('profiles')
+      .select('is_admin')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (profile && profile.is_admin !== true) {
+      throw new Error('No autorizado.');
+    }
+  }
+
   return supabase;
 }
 
