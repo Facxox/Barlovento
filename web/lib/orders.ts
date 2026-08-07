@@ -99,8 +99,7 @@ export async function getOrderMetrics(): Promise<OrderMetrics> {
   const { data, error } = await supabase
     .from('orders')
     .select('total,currency,status,created_at')
-    .order('created_at', { ascending: false })
-    .limit(100);
+    .order('created_at', { ascending: false });
   if (error || !data) return empty;
 
   const now = new Date();

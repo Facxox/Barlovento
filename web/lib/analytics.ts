@@ -96,38 +96,67 @@ export async function getTrafficMetrics(
 
   const now = new Date();
   if (period === 'all') {
-    // Sólo series agrupadas por día (top 365 días para no traer todo).
-    const since = new Date(now);
-    since.setUTCDate(since.getUTCDate() - 365);
-
+    // "Todo el tiempo" = desde el primer hit guardado. Traemos todo
+    // el historial (sin tope de 365d). Si la cantidad de días es
+    // muy grande (>90), agrupamos en buckets semanales para no
+    // saturar el chart.
     const { data: rows } = await service
       .from('visitas')
-      .select('fecha_hora,visitor_hash')
-      .gte('fecha_hora', since.toISOString());
+      .select('fecha_hora,visitor_hash');
 
-    if (!rows) return empty;
+    if (!rows || rows.length === 0) {
+      return {
+        ...empty,
+        timeSeries: [],
+      };
+    }
 
-    const byDay = new Map<string, { v: Set<string>; p: number }>();
-    for (const r of rows as Array<{ fecha_hora: string; visitor_hash: string | null }>) {
-      const day = isoDay(new Date(r.fecha_hora));
-      const bucket = byDay.get(day) ?? { v: new Set(), p: 0 };
+    // 1) Encontrar el primer hit para conocer el rango real.
+    const firstHit = (rows as Array<{ fecha_hora: string }>)
+      .map((r) => new Date(r.fecha_hora))
+      .sort((a, b) => a.getTime() - b.getTime())[0];
+    const totalDays = Math.max(
+      1,
+      Math.ceil((now.getTime() - firstHit.getTime()) / (24 * 60 * 60 * 1000))
+    );
+
+    // 2) Si el rango > 90 días, agregamos por semana (lunes). Si no,
+    // por día.
+    const bucketWeek = totalDays > 90;
+    const bucketKey = (d: Date) => {
+      if (!bucketWeek) return isoDay(d);
+      // Semana alineada al lunes (UTC).
+      const day = d.getUTCDay(); // 0 = Sunday
+      const diff = (day + 6) % 7; // 0 = Monday
+      const monday = new Date(
+        Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - diff)
+      );
+      return isoDay(monday);
+    };
+
+    const byBucket = new Map<string, { v: Set<string>; p: number }>();
+    const allVisitors = new Set<string>();
+    let allPV = 0;
+    for (const r of rows as Array<{
+      fecha_hora: string;
+      visitor_hash: string | null;
+    }>) {
+      const t = new Date(r.fecha_hora);
+      const key = bucketKey(t);
+      const bucket = byBucket.get(key) ?? { v: new Set(), p: 0 };
       if (r.visitor_hash) bucket.v.add(r.visitor_hash);
       bucket.p += 1;
-      byDay.set(day, bucket);
+      byBucket.set(key, bucket);
+      if (r.visitor_hash) allVisitors.add(r.visitor_hash);
+      allPV += 1;
     }
-    const ts = Array.from(byDay.entries())
+    const ts = Array.from(byBucket.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, b]) => ({
         date,
         visitors: b.v.size,
         pageViews: b.p,
       }));
-    const allVisitors = new Set<string>();
-    let allPV = 0;
-    for (const b of byDay.values()) {
-      b.v.forEach((h) => allVisitors.add(h));
-      allPV += b.p;
-    }
     return {
       period,
       totals: {
