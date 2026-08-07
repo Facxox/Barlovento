@@ -266,8 +266,8 @@ export default function ProductoForm({
                   <p className="mb-2 font-body text-[10px] uppercase tracking-ultra text-bone/50">
                     Nutrientes
                   </p>
-                  <div className="grid gap-2">
-                    <div className="grid grid-cols-[1fr_140px_80px_40px] gap-2 font-body text-[10px] uppercase tracking-ultra text-bone/40">
+          <div className="grid gap-2 overflow-x-auto">
+                    <div className="grid min-w-[420px] grid-cols-[minmax(140px,1fr)_minmax(100px,140px)_minmax(55px,80px)_40px] gap-2 font-body text-[10px] uppercase tracking-ultra text-bone/40">
                       <span>Nombre</span>
                       <span>Cantidad</span>
                       <span>% VD</span>
@@ -276,7 +276,7 @@ export default function ProductoForm({
                     {nutrition.rows.map((row, i) => (
                       <div
                         key={i}
-                        className="grid grid-cols-[1fr_140px_80px_40px] gap-2"
+                        className="grid min-w-[420px] grid-cols-[minmax(140px,1fr)_minmax(100px,140px)_minmax(55px,80px)_40px] gap-2"
                       >
                         <input
                           value={row.nutrient}

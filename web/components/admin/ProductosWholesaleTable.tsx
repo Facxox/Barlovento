@@ -52,7 +52,7 @@ export default function ProductosWholesaleTable({
 
   return (
     <div>
-      <header className="mb-6 flex items-end justify-between">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl text-bone">
             Productos mayoristas
@@ -69,7 +69,7 @@ export default function ProductosWholesaleTable({
         </Link>
       </header>
 
-      <div className="border border-carbon-line bg-carbon">
+      <div className="overflow-x-auto border border-carbon-line bg-carbon">
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-carbon-line text-bone/50 font-body text-[10px] uppercase tracking-ultra">

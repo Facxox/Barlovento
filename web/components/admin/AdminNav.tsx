@@ -26,7 +26,7 @@ export default function AdminNav() {
 
   return (
     <header className="border-b border-carbon-line bg-carbon">
-      <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-4 lg:px-10">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:gap-6 sm:px-6 sm:py-4 lg:flex-nowrap lg:px-10">
         {/* Logo + título: ancho fijo, no se encoge ni se superpone con la nav. */}
         <div className="flex shrink-0 items-center gap-3">
           <img
@@ -45,7 +45,7 @@ export default function AdminNav() {
         {/* Nav central: ocupa el espacio sobrante y se centra. Sin flex-1
             la nav pelea con el logo y los botones de la derecha y se
             superpone con ellos en anchos intermedios. */}
-        <nav className="hidden flex-1 justify-center gap-1 md:flex">
+        <nav className="order-3 hidden min-w-0 flex-1 justify-center gap-1 overflow-x-auto md:order-none md:flex">
           {tabs.map((t) => {
             const active = pathname === t.href ||
               (t.href !== '/admin' && pathname.startsWith(t.href));
@@ -85,7 +85,7 @@ export default function AdminNav() {
       </div>
 
       {/* Mobile tabs */}
-      <nav className="flex gap-1 overflow-x-auto border-t border-carbon-line px-6 py-2 md:hidden">
+      <nav className="flex gap-1 overflow-x-auto border-t border-carbon-line px-4 py-2 sm:px-6 md:hidden">
         {tabs.map((t) => {
           const active = pathname === t.href ||
             (t.href !== '/admin' && pathname.startsWith(t.href));

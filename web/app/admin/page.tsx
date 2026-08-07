@@ -48,6 +48,12 @@ export default async function AdminDashboard() {
       hint: `${categories.filter((c) => c.is_active).length} activas`,
     },
     {
+      href: '/admin/categorias-galeria',
+      label: 'Cat. galería',
+      value: '—',
+      hint: 'Categorías de la galería',
+    },
+    {
       href: '/admin/galeria',
       label: 'Galería',
       value: gallery.length,
@@ -119,7 +125,7 @@ export default async function AdminDashboard() {
           </Link>
         </div>
 
-        <div className="mt-6 border border-carbon-line bg-carbon">
+        <div className="mt-6 overflow-x-auto border border-carbon-line bg-carbon">
           {recentOrders.length === 0 ? (
             <p className="p-8 text-center font-body text-sm text-bone/50">
               Todavía no hay pedidos.
