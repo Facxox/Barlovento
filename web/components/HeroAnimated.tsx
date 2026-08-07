@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useInView } from './useInView';
 
 type HeroContent = {
@@ -13,6 +14,7 @@ type HeroContent = {
 
 export default function HeroAnimated({ hero }: { hero: HeroContent }) {
   const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.1 });
+  const [medalOpen, setMedalOpen] = useState(false);
 
   return (
     <section
@@ -86,19 +88,25 @@ export default function HeroAnimated({ hero }: { hero: HeroContent }) {
           </div>
         </div>
 
-        {/* Badge de medalla (identidad fija, no editable) */}
+        {/* Badge de medalla (identidad fija, no editable). Click para
+            agrandar la foto en un lightbox. */}
         <div
           className={[
             'absolute right-6 top-32 hidden lg:block transition-all duration-1000 delay-[1500ms]',
             inView ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2',
           ].join(' ')}
         >
-          <div className="flex items-center gap-3 rounded-full border border-gold/40 bg-carbon/70 px-4 py-2 animate-soft-pulse">
+          <button
+            type="button"
+            onClick={() => setMedalOpen(true)}
+            aria-label="Ver medalla de oro en grande"
+            className="group flex items-center gap-3 rounded-full border border-gold/40 bg-carbon/70 px-4 py-2 animate-soft-pulse transition hover:border-gold hover:bg-carbon/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/Assets/premio-pyme-oro-2024.png"
               alt="Medalla de Oro — Campeonato Mundial del Alfajor 2024"
-              className="h-9 w-9 shrink-0 rounded-full object-cover"
+              className="h-9 w-9 shrink-0 rounded-full object-cover transition-transform duration-500 group-hover:scale-110"
               width={36}
               height={36}
             />
@@ -108,8 +116,33 @@ export default function HeroAnimated({ hero }: { hero: HeroContent }) {
                 Mejor Alfajor Pyme · Trinidad · 2024
               </span>
             </div>
-          </div>
+          </button>
         </div>
+
+        {/* Lightbox de la medalla */}
+        {medalOpen && (
+          <div
+            onClick={() => setMedalOpen(false)}
+            className="fixed inset-0 z-50 grid place-items-center bg-carbon/95 backdrop-blur-md p-6 cursor-zoom-out"
+            role="dialog"
+            aria-label="Medalla de Oro — Campeonato Mundial del Alfajor 2024"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/Assets/premio-pyme-oro-2024.png"
+              alt=""
+              className="max-h-[88vh] max-w-[92vw] object-contain shadow-2xl"
+            />
+            <button
+              type="button"
+              onClick={() => setMedalOpen(false)}
+              className="absolute top-6 right-6 grid h-10 w-10 place-items-center rounded-full border border-gold/40 text-bone hover:border-gold"
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Indicador de scroll */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
