@@ -177,7 +177,7 @@ function ProductCard({
             onClick={onAdd}
             className="flex-1 rounded-full bg-ink px-4 py-3 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon"
           >
-            {isWholesale ? 'Consultar' : 'Agregar'}
+            Agregar
           </button>
           <a
             href={`https://wa.me/59899366522?text=${encodeURIComponent(

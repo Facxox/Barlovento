@@ -92,10 +92,10 @@ export default function ProductoDetalle({
                 >
                   {added
                   ? isWholesale
-                    ? 'Consulta enviada ✓'
+                    ? 'Agregado ✓'
                     : 'Agregado ✓'
                   : isWholesale
-                    ? 'Consultar por mayor'
+                    ? 'Agregar al carrito'
                     : 'Agregar al carrito'}
                   {!added && (
                     <span className="transition-transform group-hover:translate-x-1">→</span>
