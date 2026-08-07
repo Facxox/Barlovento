@@ -7,7 +7,10 @@ type Body = {
   currency: string;
   customer_name?: string | null;
   customer_phone?: string | null;
+  customer_type?: 'retail' | 'wholesale' | string;
 };
+
+const WHOLESALE_MIN_QTY = 6;
 
 export async function POST(req: NextRequest) {
   let body: Body;
@@ -19,6 +22,22 @@ export async function POST(req: NextRequest) {
 
   if (!Array.isArray(body.items) || body.items.length === 0) {
     return NextResponse.json({ ok: false, error: 'empty_cart' }, { status: 400 });
+  }
+
+  // Mayoristas: pedido mínimo de 6 unidades por producto.
+  if (body.customer_type === 'wholesale') {
+    const below = body.items.filter((i) => !i.qty || i.qty < WHOLESALE_MIN_QTY);
+    if (below.length > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'wholesale_min_qty',
+          min: WHOLESALE_MIN_QTY,
+          below: below.map((i) => ({ name: i.name, qty: i.qty })),
+        },
+        { status: 400 }
+      );
+    }
   }
 
   const supabase = getServiceSupabase();

@@ -41,6 +41,13 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
   const isWholesale = customerType === 'wholesale';
   const showMercadoPago = !isWholesale;
 
+  // Mayoristas: pedido mínimo de 6 unidades por producto.
+  const WHOLESALE_MIN_QTY = 6;
+  const belowMin = isWholesale
+    ? items.filter((i) => i.qty < WHOLESALE_MIN_QTY)
+    : [];
+  const canCheckout = items.length > 0 && belowMin.length === 0;
+
   const buildWhatsAppLink = () => {
     const lines = items
       .map((i) => `· ${i.qty} x ${i.name} — ${formatUY(i.price * i.qty)}`)
@@ -67,6 +74,7 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
           })),
           total: subtotal,
           currency: items[0]?.currency ?? 'UYU',
+          customer_type: isWholesale ? 'wholesale' : 'retail',
         }),
       }).catch(() => {});
     } catch {}
@@ -170,14 +178,41 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
               </div>
 
               <a
-                href={buildWhatsAppLink()}
+                href={canCheckout ? buildWhatsAppLink() : undefined}
                 target="_blank"
                 rel="noopener"
-                onClick={captureWhatsAppOrder}
-                className="block w-full rounded-full bg-[#25D366] py-3 text-center font-body font-medium text-white hover:bg-[#1ebe57] transition"
+                onClick={(e) => {
+                  if (!canCheckout) {
+                    e.preventDefault();
+                    return;
+                  }
+                  captureWhatsAppOrder();
+                }}
+                aria-disabled={!canCheckout}
+                className={[
+                  'block w-full rounded-full py-3 text-center font-body font-medium transition',
+                  canCheckout
+                    ? 'bg-[#25D366] text-white hover:bg-[#1ebe57]'
+                    : 'cursor-not-allowed bg-[#25D366]/40 text-white/70',
+                ].join(' ')}
               >
                 Comprar por WhatsApp
               </a>
+
+              {isWholesale && belowMin.length > 0 && (
+                <div className="rounded-md border border-amber-400/40 bg-amber-400/10 px-3 py-2 font-body text-[11px] text-amber-200">
+                  <p className="mb-1 font-medium">
+                    Pedido mínimo: 6 unidades por producto.
+                  </p>
+                  <ul className="list-inside list-disc text-amber-200/90">
+                    {belowMin.map((i) => (
+                      <li key={i.id}>
+                        {i.name}: {i.qty} (faltan {6 - i.qty})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {isWholesale && (
                 <p className="text-center font-body text-[11px] text-bone/60">
