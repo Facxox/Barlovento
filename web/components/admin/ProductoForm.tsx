@@ -82,6 +82,18 @@ export default function ProductoForm({
                 portion: nutrition.portion.trim(),
                 servings_per_package: nutrition.servings_per_package,
                 rows: nutrition.rows,
+                // Bloque extendido (octógonos / packaging). Se reenvía tal
+                // cual desde initial para que un edit no pierda datos.
+                kcal: nutrition.kcal ?? null,
+                kj: nutrition.kj ?? null,
+                carbs_g: nutrition.carbs_g ?? null,
+                protein_g: nutrition.protein_g ?? null,
+                fat_g: nutrition.fat_g ?? null,
+                saturated_g: nutrition.saturated_g ?? null,
+                fiber_g: nutrition.fiber_g ?? null,
+                sodium_mg: nutrition.sodium_mg ?? null,
+                trans_g: nutrition.trans_g ?? null,
+                warning_labels: nutrition.warning_labels ?? [],
               })
             : ''
         );
