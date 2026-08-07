@@ -14,20 +14,6 @@
     @apply text-bone font-body antialiased;
     font-feature-settings: 'ss01', 'cv11';
     background-color: #0B0B0B;
-    background-image: url('/BG.png');
-    background-size: cover;
-    background-position: center center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-  }
-  /* Fallback para navegadores que no respetan background-attachment:fixed (mobile Safari) */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background: url('/BG.png') center/cover no-repeat;
-    pointer-events: none;
   }
   ::selection {
     background-color: #D4AF37;
