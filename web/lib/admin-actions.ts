@@ -866,8 +866,19 @@ export async function updateCustomerType(
   userId: string,
   type: CustomerType
 ): Promise<void> {
-  const supabase = await requireAdminStrict();
-  const { error } = await supabase
+  // requireAdminStrict valida que el caller sea admin (sesión +
+  // service-role cross-check). La mutación la hacemos con el cliente
+  // service-role porque la policy self-update no incluye customer_type
+  // y un admin que intente modificar la fila de otro usuario sería
+  // bloqueado por RLS con el cliente autenticado.
+  await requireAdminStrict();
+  const admin = getServiceSupabase();
+  if (!admin) {
+    throw new Error(
+      'Server misconfigurado: falta SUPABASE_SERVICE_ROLE_KEY para cambiar tipos de cliente.'
+    );
+  }
+  const { error } = await admin
     .from('profiles')
     .update({ customer_type: type })
     .eq('user_id', userId);

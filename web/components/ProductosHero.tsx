@@ -19,11 +19,12 @@ export default async function ProductosHero() {
           <div className="max-w-2xl">
             <p className="text-eyebrow">La línea</p>
             <h2 className="mt-5 h-section">
-              Tres formas de decir <em className="italic font-light text-gold">Barlovento</em>.
+              Nuestros Productos
             </h2>
             <p className="mt-6 prose-editorial max-w-xl">
-              Estos son los que mejor cuentan lo que hacemos: masa que se nota,
-              dulce de leche que se prueba, y un terminado que se recuerda.
+              Una selección de alfajores artesanales elaborados con dedicación,
+              ingredientes de calidad y el equilibrio perfecto entre tradición e
+              innovación. Porque cada sabor merece ser inolvidable.
             </p>
           </div>
         </Reveal>
