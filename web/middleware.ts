@@ -1,21 +1,17 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * Refresca la cookie de sesión de Supabase en cada request y protege /admin/*.
  *
- * Reglas:
- *  - /admin/* (excepto /admin/login) requiere user autenticado Y is_admin=true.
- *  - /admin/login: si ya hay user logueado → /admin.
- *  - si no configurado, deja pasar (modo dev).
- *
- * Además reenvía el pathname en `x-pathname` para que el root layout pueda
- * ocultar el chrome público (Navbar/Footer/Float/Cart) en /admin/*.
+ * Además registra pageviews en la tabla `visitas` (fire-and-forget vía
+ * `waitUntil` para no agregar latencia a la respuesta). Excluye
+ * /admin/*, /api/* y assets estáticos del registro. El visitor_hash se
+ * calcula como SHA-256(IP + UA) para distinguir Page Views de Visitors
+ * únicos sin guardar identificadores reales.
  */
 export async function middleware(request: NextRequest) {
-  // Reenviamos el pathname al layout para detectar rutas admin. Hay que
-  // crear la request "siguiente" antes de pasar por supabase, porque las
-  // cookies se setean contra `request` y `response` por separado.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', request.nextUrl.pathname);
   let response = NextResponse.next({
@@ -80,12 +76,60 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // ----------------------------------------------------------------
+  // Tracking de pageviews (fire-and-forget).
+  // Sólo registramos rutas de la tienda pública. Saltamos /admin/*,
+  // /api/*, y el resto ya queda cubierto por el matcher de abajo.
+  // Importante: este código corre en Edge Runtime, así que usamos
+  // Web Crypto (subtle.digest) en vez de `node:crypto` (no disponible).
+  // ----------------------------------------------------------------
+  if (
+    !isAdminRoute &&
+    !path.startsWith('/api/') &&
+    request.method === 'GET'
+  ) {
+    const ip =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      request.headers.get('cf-connecting-ip') ||
+      null;
+    const userAgent = request.headers.get('user-agent')?.slice(0, 255) ?? null;
+
+    // Fire-and-forget: la promesa se ejecuta en background, no
+    // bloquea la respuesta al usuario.
+    void (async () => {
+      try {
+        const data = new TextEncoder().encode(`${ip ?? ''}|${userAgent ?? ''}`);
+        const digest = await crypto.subtle.digest('SHA-256', data);
+        const visitorHash = Array.from(new Uint8Array(digest))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!serviceKey) return;
+
+        const service = createClient(url, serviceKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        await service.from('visitas').insert({
+          ruta: path.slice(0, 255),
+          ip,
+          user_agent: userAgent,
+          visitor_hash: visitorHash,
+        });
+      } catch {
+        // Si falla la inserción de analytics, no impactamos al usuario.
+      }
+    })();
+  }
+
   return response;
 }
 
 export const config = {
   matcher: [
-    // Todas las rutas (excepto _next y assets) para poder pasar x-pathname.
-    '/((?!_next/static|_next/image|favicon.ico|Logo.jpg|Assets/).*)',
+    // Todas las rutas (excepto _next, assets, favicon y api) para poder
+    // pasar x-pathname y registrar pageviews.
+    '/((?!_next/static|_next/image|favicon.ico|Logo.jpg|Assets/|api/).*)',
   ],
 };
