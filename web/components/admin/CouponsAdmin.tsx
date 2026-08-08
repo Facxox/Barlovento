@@ -22,6 +22,13 @@ const blankRule = (): RuleDraft => ({
   applies_to: { all: true },
 });
 
+// Estilos compartidos (carbon theme)
+const inputBase =
+  'w-full border-b border-carbon-line bg-transparent px-2 py-2 font-body text-bone focus:border-gold outline-none';
+const selectBase = inputBase + ' [&>option]:bg-carbon';
+const labelEyebrow =
+  'mb-1 block font-body text-[10px] uppercase tracking-ultra text-bone/50';
+
 export default function CouponsAdmin({ initialCoupons }: Props) {
   const router = useRouter();
   const [coupons, setCoupons] = useState<Coupon[]>(initialCoupons);
@@ -115,93 +122,155 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-display text-2xl text-ink">Cupones y promociones</h2>
-          <p className="text-sm text-ink/60 mt-1">
-            {coupons.length} cupón{coupons.length === 1 ? '' : 'es'} configurado{coupons.length === 1 ? '' : 's'}.
-          </p>
-        </div>
+    <div>
+      <header className="mb-6">
+        <h1 className="font-display text-3xl text-bone">Cupones</h1>
+        <p className="mt-1 font-body text-sm text-bone/60">
+          {coupons.length} cupón{coupons.length === 1 ? '' : 'es'} configurado{coupons.length === 1 ? '' : 's'}.
+        </p>
+      </header>
+
+      <div className="mb-10 flex items-center justify-between border border-carbon-line bg-carbon p-4 sm:p-6">
+        <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
+          {showForm ? 'Nuevo cupón' : 'Promociones'}
+        </p>
         <button
+          type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="px-4 py-2 bg-gold-deep text-cream rounded-md text-sm font-medium hover:bg-gold transition-colors"
+          className="rounded-full bg-gold px-6 py-2.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-gold-light"
         >
           {showForm ? 'Cancelar' : 'Nuevo cupón'}
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white border border-ink/10 rounded-lg p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Código">
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="VERANO20"
-                className="input"
-              />
-            </Field>
-            <Field label="Descripción">
-              <input
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="20% off en vinos"
-                className="input"
-              />
-            </Field>
-            <Field label="Mínimo de compra">
-              <input type="number" value={minSubtotal} onChange={(e) => setMinSubtotal(e.target.value)} className="input" />
-            </Field>
-            <Field label="Tope de descuento">
-              <input type="number" value={maxDiscount} onChange={(e) => setMaxDiscount(e.target.value)} className="input" />
-            </Field>
-            <Field label="Límite de usos global">
-              <input type="number" value={usageLimit} onChange={(e) => setUsageLimit(e.target.value)} className="input" />
-            </Field>
-            <Field label="Límite por usuario">
-              <input type="number" value={perUserLimit} onChange={(e) => setPerUserLimit(e.target.value)} className="input" />
-            </Field>
-            <Field label="Inicio">
-              <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="input" />
-            </Field>
-            <Field label="Fin">
-              <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="input" />
-            </Field>
-            <Field label="Tipo de cliente">
-              <select value={customerType} onChange={(e) => setCustomerType(e.target.value as any)} className="input">
-                <option value="">Todos</option>
-                <option value="retail">Solo minorista</option>
-                <option value="wholesale">Solo mayorista</option>
-              </select>
-            </Field>
-            <Field label="Combinable">
-              <label className="flex items-center gap-2 mt-2">
-                <input type="checkbox" checked={combinable} onChange={(e) => setCombinable(e.target.checked)} />
-                <span className="text-sm">Permite combinarse con otros cupones</span>
-              </label>
-            </Field>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleCreate();
+          }}
+          className="mb-10 space-y-6 border border-carbon-line bg-carbon p-4 sm:p-6"
+        >
+          <div>
+            <p className="mb-4 font-body text-[10px] uppercase tracking-ultra text-gold">
+              Datos básicos
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Código">
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  placeholder="VERANO20"
+                  required
+                  className={inputBase + ' font-mono'}
+                />
+              </Field>
+              <Field label="Descripción">
+                <input
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="20% off en vinos"
+                  className={inputBase}
+                />
+              </Field>
+              <Field label="Mínimo de compra">
+                <input
+                  type="number"
+                  value={minSubtotal}
+                  onChange={(e) => setMinSubtotal(e.target.value)}
+                  className={inputBase}
+                />
+              </Field>
+              <Field label="Tope de descuento">
+                <input
+                  type="number"
+                  value={maxDiscount}
+                  onChange={(e) => setMaxDiscount(e.target.value)}
+                  className={inputBase}
+                />
+              </Field>
+              <Field label="Límite de usos global">
+                <input
+                  type="number"
+                  value={usageLimit}
+                  onChange={(e) => setUsageLimit(e.target.value)}
+                  className={inputBase}
+                />
+              </Field>
+              <Field label="Límite por usuario">
+                <input
+                  type="number"
+                  value={perUserLimit}
+                  onChange={(e) => setPerUserLimit(e.target.value)}
+                  className={inputBase}
+                />
+              </Field>
+              <Field label="Inicio">
+                <input
+                  type="datetime-local"
+                  value={startsAt}
+                  onChange={(e) => setStartsAt(e.target.value)}
+                  className={inputBase}
+                />
+              </Field>
+              <Field label="Fin">
+                <input
+                  type="datetime-local"
+                  value={endsAt}
+                  onChange={(e) => setEndsAt(e.target.value)}
+                  className={inputBase}
+                />
+              </Field>
+              <Field label="Tipo de cliente">
+                <select
+                  value={customerType}
+                  onChange={(e) => setCustomerType(e.target.value as '' | 'retail' | 'wholesale')}
+                  className={selectBase}
+                >
+                  <option value="">Todos</option>
+                  <option value="retail">Solo minorista</option>
+                  <option value="wholesale">Solo mayorista</option>
+                </select>
+              </Field>
+              <Field label="Combinable">
+                <label className="mt-2 flex items-center gap-2 font-body text-sm text-bone/80">
+                  <input
+                    type="checkbox"
+                    checked={combinable}
+                    onChange={(e) => setCombinable(e.target.checked)}
+                    className="h-4 w-4 accent-gold"
+                  />
+                  Permite combinarse con otros cupones
+                </label>
+              </Field>
+            </div>
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium text-ink">Reglas del cupón</h3>
+            <div className="mb-4 flex items-center justify-between">
+              <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
+                Reglas del cupón
+              </p>
               <button
+                type="button"
                 onClick={() => setRules((prev) => [...prev, blankRule()])}
-                className="text-sm text-gold-deep hover:underline"
+                className="font-body text-[10px] uppercase tracking-ultra text-gold hover:underline"
               >
                 + Agregar regla
               </button>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {rules.map((r, i) => (
-                <div key={i} className="border border-ink/10 rounded-md p-4 bg-cream/50">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div
+                  key={i}
+                  className="border border-carbon-line bg-carbon-raised p-4"
+                >
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <Field label="Tipo">
                       <select
                         value={r.kind}
                         onChange={(e) => updateRule(i, { kind: e.target.value as CouponRule['kind'] })}
-                        className="input"
+                        className={selectBase}
                       >
                         {RULE_KINDS.map((k) => (
                           <option key={k} value={k}>{k}</option>
@@ -213,7 +282,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
                         type="number"
                         value={r.value ?? ''}
                         onChange={(e) => updateRule(i, { value: e.target.value === '' ? null : Number(e.target.value) })}
-                        className="input"
+                        className={inputBase}
                         disabled={r.kind === 'free_shipping' || r.kind === 'gift_product'}
                       />
                     </Field>
@@ -225,7 +294,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
                             ? { all: true }
                             : { categories: [] },
                         })}
-                        className="input"
+                        className={selectBase}
                       >
                         <option value="all">Todo el carrito</option>
                         <option value="cats">Por categoría</option>
@@ -233,15 +302,14 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
                     </Field>
                   </div>
 
-                  {/* Inputs específicos por kind */}
                   {r.kind === 'bxgy' && (
-                    <div className="mt-3 grid grid-cols-3 gap-3">
+                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                       <Field label="Comprá (qty)">
                         <input
                           type="number" min={1}
                           value={(r.config as any).buy_qty ?? ''}
                           onChange={(e) => updateRuleConfig(i, 'buy_qty', Number(e.target.value))}
-                          className="input"
+                          className={inputBase}
                         />
                       </Field>
                       <Field label="Llevás (qty gratis)">
@@ -249,7 +317,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
                           type="number" min={1}
                           value={(r.config as any).get_qty ?? ''}
                           onChange={(e) => updateRuleConfig(i, 'get_qty', Number(e.target.value))}
-                          className="input"
+                          className={inputBase}
                         />
                       </Field>
                       <Field label="% descuento en el gratis">
@@ -257,19 +325,19 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
                           type="number" min={0} max={100}
                           value={(r.config as any).get_discount_pct ?? 100}
                           onChange={(e) => updateRuleConfig(i, 'get_discount_pct', Number(e.target.value))}
-                          className="input"
+                          className={inputBase}
                         />
                       </Field>
                     </div>
                   )}
 
                   {r.kind === 'gift_product' && (
-                    <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <Field label="ID producto regalo">
                         <input
                           value={(r.config as any).gift_product_id ?? ''}
                           onChange={(e) => updateRuleConfig(i, 'gift_product_id', e.target.value)}
-                          className="input"
+                          className={inputBase}
                           placeholder="alfajor-chocolate"
                         />
                       </Field>
@@ -278,14 +346,16 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
                           type="number" min={1}
                           value={(r.config as any).gift_qty ?? 1}
                           onChange={(e) => updateRuleConfig(i, 'gift_qty', Number(e.target.value))}
-                          className="input"
+                          className={inputBase}
                         />
                       </Field>
                     </div>
                   )}
+
                   <button
+                    type="button"
                     onClick={() => setRules((prev) => prev.filter((_, j) => j !== i))}
-                    className="text-xs text-red-700 mt-2 hover:underline"
+                    className="mt-3 font-body text-[10px] uppercase tracking-ultra text-red-400 hover:text-red-300"
                   >
                     Quitar regla
                   </button>
@@ -294,69 +364,87 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
             </div>
           </div>
 
-          {error && <p className="text-sm text-red-700">{error}</p>}
+          {error && <p className="font-body text-sm text-red-400">{error}</p>}
 
-          <div className="flex justify-end gap-2">
+          <div className="flex gap-3 pt-2">
             <button
+              type="button"
               onClick={() => setShowForm(false)}
-              className="px-4 py-2 text-sm text-ink/70 hover:text-ink"
+              className="font-body text-xs uppercase tracking-ultra text-bone/60 hover:text-bone"
             >
               Cancelar
             </button>
             <button
-              onClick={handleCreate}
+              type="submit"
               disabled={!code || isPending}
-              className="px-4 py-2 bg-ink text-cream rounded-md text-sm disabled:opacity-50"
+              className="rounded-full bg-gold px-6 py-2.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-gold-light disabled:opacity-50"
             >
               Crear cupón
             </button>
           </div>
-        </div>
+        </form>
       )}
 
-      <div className="bg-white border border-ink/10 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-cream/50 text-ink/70">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium">Código</th>
-              <th className="text-left px-4 py-3 font-medium">Tipo</th>
-              <th className="text-left px-4 py-3 font-medium">Reglas</th>
-              <th className="text-left px-4 py-3 font-medium">Usos</th>
-              <th className="text-left px-4 py-3 font-medium">Estado</th>
-              <th className="text-right px-4 py-3 font-medium">Acciones</th>
+      <div className="overflow-x-auto border border-carbon-line bg-carbon">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-carbon-line text-bone/50 font-body text-[10px] uppercase tracking-ultra">
+              <th className="p-4">Código</th>
+              <th className="p-4">Tipo</th>
+              <th className="p-4">Reglas</th>
+              <th className="p-4">Usos</th>
+              <th className="p-4">Estado</th>
+              <th className="p-4 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {coupons.map((c) => (
-              <tr key={c.id} className="border-t border-ink/5">
-                <td className="px-4 py-3 font-mono">{c.code}</td>
-                <td className="px-4 py-3">
+              <tr key={c.id} className="border-b border-carbon-line/40 font-body text-sm">
+                <td className="p-4 font-mono text-bone">{c.code}</td>
+                <td className="p-4 text-bone/80">
                   {c.customer_type ?? 'ambos'} · {c.combinable ? 'combinable' : 'exclusivo'}
                 </td>
-                <td className="px-4 py-3 text-ink/70">
+                <td className="p-4 text-bone/60">
                   {c.rules.length} regla{c.rules.length === 1 ? '' : 's'}
                 </td>
-                <td className="px-4 py-3">
+                <td className="p-4 text-bone/80">
                   {c.usage_count}{c.usage_limit ? ` / ${c.usage_limit}` : ''}
                 </td>
-                <td className="px-4 py-3">
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs ${c.is_active ? 'bg-green-100 text-green-800' : 'bg-ink/10 text-ink/60'}`}>
+                <td className="p-4">
+                  <span
+                    className={[
+                      'rounded-full px-2 py-0.5 text-[10px] uppercase tracking-ultra',
+                      c.is_active
+                        ? 'bg-gold/20 text-gold'
+                        : 'bg-carbon-line text-bone/50',
+                    ].join(' ')}
+                  >
                     {c.is_active ? 'activo' : 'inactivo'}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right space-x-2">
-                  <button onClick={() => toggleActive(c)} className="text-xs text-gold-deep hover:underline">
-                    {c.is_active ? 'Desactivar' : 'Activar'}
-                  </button>
-                  <button onClick={() => handleDelete(c.id)} className="text-xs text-red-700 hover:underline">
-                    Eliminar
-                  </button>
+                <td className="p-4 text-right">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(c)}
+                      className="rounded-full border border-gold/40 px-3 py-1 font-body text-[11px] uppercase tracking-ultra text-gold transition hover:bg-gold hover:text-carbon"
+                    >
+                      {c.is_active ? 'Desactivar' : 'Activar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(c.id)}
+                      className="rounded-full border border-red-500/40 px-3 py-1 font-body text-[11px] uppercase tracking-ultra text-red-400 transition hover:bg-red-500/20"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
             {coupons.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-ink/50">
+                <td colSpan={6} className="p-8 text-center font-body text-sm text-bone/50">
                   No hay cupones todavía.
                 </td>
               </tr>
@@ -364,21 +452,6 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
           </tbody>
         </table>
       </div>
-
-      <style jsx>{`
-        .input {
-          width: 100%;
-          padding: 0.5rem 0.75rem;
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          border-radius: 0.375rem;
-          background: white;
-          font-size: 0.875rem;
-        }
-        .input:focus {
-          outline: none;
-          border-color: #b89358;
-        }
-      `}</style>
     </div>
   );
 }
@@ -386,7 +459,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-ink/70 mb-1">{label}</span>
+      <span className={labelEyebrow}>{label}</span>
       {children}
     </label>
   );
