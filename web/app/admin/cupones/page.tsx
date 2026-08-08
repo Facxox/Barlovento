@@ -1,4 +1,5 @@
 import { getServiceSupabase } from '@/lib/supabase-admin';
+import { getProducts } from '@/lib/queries';
 import CouponsAdmin from '@/components/admin/CouponsAdmin';
 import type { Coupon } from '@/lib/coupons';
 
@@ -16,6 +17,6 @@ async function listCoupons(): Promise<Coupon[]> {
 }
 
 export default async function AdminCuponesPage() {
-  const coupons = await listCoupons();
-  return <CouponsAdmin initialCoupons={coupons} />;
+  const [coupons, products] = await Promise.all([listCoupons(), getProducts()]);
+  return <CouponsAdmin initialCoupons={coupons} products={products} />;
 }

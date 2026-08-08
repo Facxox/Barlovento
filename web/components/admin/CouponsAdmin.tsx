@@ -3,8 +3,9 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Coupon, CouponRule } from '@/lib/coupons';
+import type { Product } from '@/lib/queries';
 
-type Props = { initialCoupons: Coupon[] };
+type Props = { initialCoupons: Coupon[]; products: Product[] };
 
 type RuleDraft = {
   kind: CouponRule['kind'];
@@ -15,17 +16,33 @@ type RuleDraft = {
 
 const RULE_KINDS: CouponRule['kind'][] = ['percent', 'fixed', 'free_shipping', 'bxgy', 'gift_product'];
 
+// Etiquetas en español simple para el tipo de beneficio.
+const RULE_LABELS: Record<CouponRule['kind'], string> = {
+  percent: 'Porcentaje de descuento',
+  fixed: 'Monto fijo de descuento',
+  free_shipping: 'Envío gratis',
+  bxgy: 'Llevá más pagando menos (ej. 2x1)',
+  gift_product: 'Regalá un producto',
+};
+
 // Descripciones que muestran qué hace cada tipo de regla.
 // Diseñadas para que un usuario no técnico entienda la diferencia.
 const RULE_DESCRIPTIONS: Record<CouponRule['kind'], string> = {
-  percent: 'Aplica un porcentaje de descuento sobre el subtotal de los ítems que aplique.',
-  fixed: 'Resta un monto fijo (en la moneda del cupón) del subtotal de los ítems que aplique.',
-  free_shipping: 'Bonifica el costo de envío del pedido.',
+  percent: 'Descuenta un % del subtotal de los productos que aplique. Ej: 20 = 20% off.',
+  fixed: 'Resta un monto fijo en pesos del subtotal. Ej: 100 = $100 off.',
+  free_shipping: 'El envío del pedido sale gratis.',
   bxgy:
-    'Buy X Get Y: por cada N unidades compradas, las M siguientes salen con un % de descuento (ej. 2x1 = comprá 2, llevá 1 gratis).',
+    'Por cada N unidades compradas, las M siguientes se bonifican. Ej: comprá 2, llevá 1 gratis (2x1).',
   gift_product:
-    'Regala un producto concreto (identificado por su ID) cuando se cumpla la condición. No descuenta plata, suma un ítem al carrito.',
+    'Suma un producto de regalo al carrito cuando se cumple la condición. No descuenta plata, suma un ítem.',
 };
+
+const APPLIES_LABELS = {
+  all: 'Todo el carrito',
+  categories: 'Por categoría',
+  products: 'Productos específicos',
+} as const;
+type AppliesMode = keyof typeof APPLIES_LABELS;
 
 const blankRule = (): RuleDraft => ({
   kind: 'percent',
@@ -50,7 +67,7 @@ const STEPS: { id: Step; title: string; subtitle: string }[] = [
   { id: 'reglas', title: 'Beneficios', subtitle: 'Qué otorga el cupón' },
 ];
 
-export default function CouponsAdmin({ initialCoupons }: Props) {
+export default function CouponsAdmin({ initialCoupons, products }: Props) {
   const router = useRouter();
   const [coupons, setCoupons] = useState<Coupon[]>(initialCoupons);
   const [showForm, setShowForm] = useState(false);
@@ -413,6 +430,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
                       index={i}
                       rule={r}
                       canRemove={rules.length > 1}
+                      products={products}
                       onChange={(patch) => updateRule(i, patch)}
                       onConfigChange={(key, val) => updateRuleConfig(i, key, val)}
                       onRemove={() => removeRule(i)}
@@ -583,6 +601,7 @@ function RuleCard({
   index,
   rule,
   canRemove,
+  products,
   onChange,
   onConfigChange,
   onRemove,
@@ -590,10 +609,33 @@ function RuleCard({
   index: number;
   rule: RuleDraft;
   canRemove: boolean;
+  products: Product[];
   onChange: (patch: Partial<RuleDraft>) => void;
   onConfigChange: (key: string, value: unknown) => void;
   onRemove: () => void;
 }) {
+  // Modo de aplicación: derivar del shape actual de applies_to
+  const appliesMode: AppliesMode = rule.applies_to.all
+    ? 'all'
+    : rule.applies_to.product_ids
+      ? 'products'
+      : 'categories';
+  const selectedProductIds = rule.applies_to.product_ids ?? [];
+
+  function setAppliesMode(mode: AppliesMode) {
+    if (mode === 'all') onChange({ applies_to: { all: true } });
+    else if (mode === 'products')
+      onChange({ applies_to: { product_ids: selectedProductIds.length ? selectedProductIds : [] } });
+    else onChange({ applies_to: { categories: [] } });
+  }
+
+  function toggleProduct(productId: string) {
+    const next = selectedProductIds.includes(productId)
+      ? selectedProductIds.filter((id) => id !== productId)
+      : [...selectedProductIds, productId];
+    onChange({ applies_to: { product_ids: next } });
+  }
+
   return (
     <div className="border border-carbon-line bg-carbon-raised">
       <div className="flex items-center justify-between border-b border-carbon-line px-4 py-2">
@@ -611,18 +653,18 @@ function RuleCard({
         )}
       </div>
       <div className="space-y-4 px-4 py-4">
-        <Field label="Tipo de beneficio">
+        <Field label="¿Qué beneficio otorga esta regla?" hint="Elegí la acción principal. Abajo te explicamos cada una en simple.">
           <select
             value={rule.kind}
             onChange={(e) => onChange({ kind: e.target.value as CouponRule['kind'] })}
             className={selectBase}
           >
             {RULE_KINDS.map((k) => (
-              <option key={k} value={k}>{k}</option>
+              <option key={k} value={k}>{RULE_LABELS[k]}</option>
             ))}
           </select>
         </Field>
-        <p className="font-body text-xs italic text-bone/55">
+        <p className="rounded border border-gold/30 bg-gold/5 px-3 py-2 font-body text-xs italic text-bone/75">
           {RULE_DESCRIPTIONS[rule.kind]}
         </p>
 
@@ -643,21 +685,30 @@ function RuleCard({
               />
             </Field>
           )}
-          <Field label="Aplica a">
+          <Field label="¿A qué productos aplica?">
             <select
-              value={rule.applies_to.all ? 'all' : 'cats'}
-              onChange={(e) =>
-                onChange({
-                  applies_to: e.target.value === 'all' ? { all: true } : { categories: [] },
-                })
-              }
+              value={appliesMode}
+              onChange={(e) => setAppliesMode(e.target.value as AppliesMode)}
               className={selectBase}
             >
-              <option value="all">Todo el carrito</option>
-              <option value="cats">Por categoría</option>
+              {(Object.entries(APPLIES_LABELS) as [AppliesMode, string][]).map(([k, label]) => (
+                <option key={k} value={k}>{label}</option>
+              ))}
             </select>
           </Field>
         </div>
+
+        {appliesMode === 'products' && (
+          <ProductPicker
+            products={products}
+            selectedIds={selectedProductIds}
+            onToggle={toggleProduct}
+          />
+        )}
+
+        {appliesMode === 'categories' && (
+          <CategoryPickerHint />
+        )}
 
         {rule.kind === 'bxgy' && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -689,26 +740,180 @@ function RuleCard({
         )}
 
         {rule.kind === 'gift_product' && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="ID producto regalo" hint="Slug del producto en el catálogo.">
-              <input
-                value={(rule.config as any).gift_product_id ?? ''}
-                onChange={(e) => onConfigChange('gift_product_id', e.target.value)}
-                className={inputBase}
-                placeholder="alfajor-chocolate"
-              />
-            </Field>
-            <Field label="Cantidad">
-              <input
-                type="number" min={1}
-                value={(rule.config as any).gift_qty ?? 1}
-                onChange={(e) => onConfigChange('gift_qty', Number(e.target.value))}
-                className={inputBase}
-              />
-            </Field>
-          </div>
+          <GiftProductPicker
+            products={products}
+            selectedId={(rule.config as any).gift_product_id ?? ''}
+            onSelect={(id) => onConfigChange('gift_product_id', id)}
+          />
         )}
       </div>
     </div>
+  );
+}
+
+function ProductPicker({
+  products,
+  selectedIds,
+  onToggle,
+}: {
+  products: Product[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+}) {
+  const [q, setQ] = useState('');
+  const filtered = useMemo(() => {
+    const norm = q.trim().toLowerCase();
+    if (!norm) return products;
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(norm) ||
+        p.id.toLowerCase().includes(norm) ||
+        p.category.toLowerCase().includes(norm)
+    );
+  }, [products, q]);
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="font-body text-[10px] uppercase tracking-ultra text-bone/55">
+          Productos seleccionados ({selectedIds.length})
+        </p>
+        <input
+          type="text"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar por nombre o categoría…"
+          className="w-56 border-b border-carbon-line bg-transparent px-2 py-1 font-body text-xs text-bone focus:border-gold outline-none"
+        />
+      </div>
+      {filtered.length === 0 ? (
+        <p className="rounded border border-carbon-line bg-carbon p-4 text-center font-body text-sm text-bone/50">
+          No hay productos que coincidan con "{q}".
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {filtered.map((p) => {
+            const selected = selectedIds.includes(p.id);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onToggle(p.id)}
+                className={[
+                  'group relative overflow-hidden border bg-carbon text-left transition',
+                  selected
+                    ? 'border-gold ring-2 ring-gold/40'
+                    : 'border-carbon-line hover:border-gold/60',
+                ].join(' ')}
+              >
+                <div className="relative aspect-square w-full overflow-hidden bg-carbon-raised">
+                  {p.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.image}
+                      alt={p.name}
+                      className="h-full w-full object-cover transition group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center font-body text-xs text-bone/40">
+                      sin imagen
+                    </div>
+                  )}
+                  {selected && (
+                    <span className="absolute right-2 top-2 rounded-full bg-gold px-2 py-0.5 font-body text-[10px] uppercase tracking-ultra text-carbon">
+                      ✓
+                    </span>
+                  )}
+                </div>
+                <div className="p-2">
+                  <p className="line-clamp-1 font-body text-xs font-medium text-bone">{p.name}</p>
+                  <p className="mt-0.5 font-body text-[11px] text-bone/50">
+                    {p.currency} {p.price.toFixed(0)} · {p.category}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GiftProductPicker({
+  products,
+  selectedId,
+  onSelect,
+}: {
+  products: Product[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-3 font-body text-[10px] uppercase tracking-ultra text-bone/55">
+        Elegí el producto a regalar
+      </p>
+      {products.length === 0 ? (
+        <p className="rounded border border-carbon-line bg-carbon p-4 text-center font-body text-sm text-bone/50">
+          No hay productos activos en el catálogo.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {products.map((p) => {
+            const selected = p.id === selectedId;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onSelect(p.id)}
+                className={[
+                  'group relative overflow-hidden border bg-carbon text-left transition',
+                  selected
+                    ? 'border-gold ring-2 ring-gold/40'
+                    : 'border-carbon-line hover:border-gold/60',
+                ].join(' ')}
+              >
+                <div className="relative aspect-square w-full overflow-hidden bg-carbon-raised">
+                  {p.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.image}
+                      alt={p.name}
+                      className="h-full w-full object-cover transition group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center font-body text-xs text-bone/40">
+                      sin imagen
+                    </div>
+                  )}
+                  {selected && (
+                    <span className="absolute right-2 top-2 rounded-full bg-gold px-2 py-0.5 font-body text-[10px] uppercase tracking-ultra text-carbon">
+                      regalo
+                    </span>
+                  )}
+                </div>
+                <div className="p-2">
+                  <p className="line-clamp-1 font-body text-xs font-medium text-bone">{p.name}</p>
+                  <p className="mt-0.5 font-body text-[11px] text-bone/50">
+                    {p.currency} {p.price.toFixed(0)}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CategoryPickerHint() {
+  return (
+    <p className="rounded border border-carbon-line bg-carbon px-3 py-2 font-body text-xs text-bone/55">
+      La selección de categorías específicas se administra desde{' '}
+      <span className="text-bone">Productos → Categorías</span>. Por ahora la
+      promo aplica a todas las categorías.
+    </p>
   );
 }
