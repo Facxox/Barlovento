@@ -1,20 +1,9 @@
-import { getServerSupabase } from '@/lib/supabase-server';
+import { getEvents } from '@/lib/queries';
 import EventosTable from '@/components/admin/EventosTable';
-import eventsJson from '@/data/events.json';
-import type { BarloventoEvent } from '@/lib/queries';
-
-async function listAllEvents(): Promise<BarloventoEvent[]> {
-  const supabase = await getServerSupabase();
-  if (!supabase) return eventsJson as BarloventoEvent[];
-  const { data, error } = await supabase
-    .from('events')
-    .select('*')
-    .order('date', { ascending: true });
-  if (error || !data) return [];
-  return data as BarloventoEvent[];
-}
 
 export default async function AdminEventosPage() {
-  const events = await listAllEvents();
+  // getEvents() ya incluye las imágenes agrupadas; lo usamos
+  // también en admin para tener el mismo shape que la landing.
+  const events = await getEvents();
   return <EventosTable events={events} />;
 }

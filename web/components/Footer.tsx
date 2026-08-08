@@ -53,6 +53,9 @@ export default async function Footer() {
           <p>© {new Date().getFullYear()} Barlovento · Todos los derechos reservados.</p>
           <p className="tracking-ultra uppercase">Trinidad · Flores · Uruguay</p>
         </div>
+        <p className="mt-3 text-center font-body text-[11px] text-bone/40 md:text-right">
+          Desarrollado por <span className="text-gold">Facundo Langone</span>
+        </p>
       </div>
     </footer>
   );

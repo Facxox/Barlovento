@@ -716,6 +716,150 @@ export async function deleteEvent(id: number): Promise<void> {
   revalidatePath('/admin/eventos');
 }
 
+/**
+ * Sube una foto para un evento. La guarda en Storage bajo
+ * `events/{eventId}/{timestamp}.ext` y crea una fila en event_images
+ * con position = max(position)+1.
+ *
+ * Si el evento todavía no tiene portada (`events.image` vacío), la
+ * nueva foto pasa a ser la portada.
+ */
+export async function addEventImage(
+  eventId: number,
+  file: File
+): Promise<{ id: number; url: string }> {
+  const supabase = await requireAdmin();
+
+  // Verificamos que el evento exista.
+  const { data: ev, error: evErr } = await supabase
+    .from('events')
+    .select('id,image')
+    .eq('id', eventId)
+    .single();
+  if (evErr || !ev) throw new Error('Evento no encontrado.');
+
+  // Subimos al storage. Usamos el path del evento para mantener orden.
+  const url = await uploadImage(file, `events/${eventId}`);
+
+  // Calculamos position.
+  const { data: maxRow } = await supabase
+    .from('event_images')
+    .select('position')
+    .eq('event_id', eventId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextPos = (maxRow?.position ?? -1) + 1;
+
+  const { data: inserted, error } = await supabase
+    .from('event_images')
+    .insert({ event_id: eventId, url, position: nextPos })
+    .select('id,url')
+    .single();
+  if (error || !inserted) throw new Error(`addEventImage: ${error?.message ?? 'insert_failed'}`);
+
+  // Si no había portada, esta pasa a ser la portada.
+  if (!ev.image) {
+    await supabase.from('events').update({ image: url }).eq('id', eventId);
+  }
+
+  revalidatePath('/');
+  revalidatePath('/admin/eventos');
+  return inserted as { id: number; url: string };
+}
+
+/**
+ * Borra una imagen de un evento. Si era la portada (`position = 0`),
+ * promueve la siguiente imagen (si existe) como nueva portada y
+ * actualiza `events.image`.
+ */
+export async function removeEventImage(imageId: number): Promise<void> {
+  const supabase = await requireAdmin();
+
+  const { data: row, error: getErr } = await supabase
+    .from('event_images')
+    .select('id,event_id,url,position')
+    .eq('id', imageId)
+    .single();
+  if (getErr || !row) throw new Error('Imagen no encontrada.');
+
+  const { error: delErr } = await supabase
+    .from('event_images')
+    .delete()
+    .eq('id', imageId);
+  if (delErr) throw new Error(`removeEventImage: ${delErr.message}`);
+
+  // Borramos el archivo del storage (best-effort).
+  await deleteImageByUrl(row.url).catch(() => undefined);
+
+  // Si era la portada, buscamos la siguiente.
+  if (row.position === 0) {
+    const { data: next } = await supabase
+      .from('event_images')
+      .select('url')
+      .eq('event_id', row.event_id)
+      .order('position', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    await supabase
+      .from('events')
+      .update({ image: next?.url ?? '' })
+      .eq('id', row.event_id);
+  }
+
+  revalidatePath('/');
+  revalidatePath('/admin/eventos');
+}
+
+/**
+ * Reordena las imágenes de un evento. `orderedIds` es la lista de
+ * image_id en el nuevo orden (0..N-1). Solo afecta filas del evento
+ * dado.
+ */
+export async function reorderEventImages(
+  eventId: number,
+  orderedIds: number[]
+): Promise<void> {
+  const supabase = await requireAdmin();
+
+  // Verificamos que la cantidad coincida con la realidad para no
+  // dejar la tabla inconsistente.
+  const { count } = await supabase
+    .from('event_images')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventId);
+  if ((count ?? 0) !== orderedIds.length) {
+    throw new Error('Cantidad de imágenes no coincide.');
+  }
+
+  // Update en batch. No es atómico pero Supabase los procesa
+  // secuencialmente y al ser admin-only no genera conflicto.
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase
+      .from('event_images')
+      .update({ position: i })
+      .eq('id', orderedIds[i])
+      .eq('event_id', eventId);
+    if (error) throw new Error(`reorderEventImages: ${error.message}`);
+  }
+
+  // Si el orden cambió y la portada se movió, actualizamos events.image
+  // para que coincida con position=0.
+  const { data: first } = await supabase
+    .from('event_images')
+    .select('url')
+    .eq('event_id', eventId)
+    .order('position', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (first?.url) {
+    await supabase.from('events').update({ image: first.url }).eq('id', eventId);
+  }
+
+  revalidatePath('/');
+  revalidatePath('/admin/eventos');
+}
+
 // ----------------------------------------------------------------
 // Categories
 // ----------------------------------------------------------------
