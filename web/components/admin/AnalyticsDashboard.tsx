@@ -35,6 +35,20 @@ type SalesData = {
   timeSeries: DailyPoint[];
 };
 
+type TopProduct = {
+  productId: string | null;
+  name: string;
+  qty: number;
+  revenue: number;
+  currency: string;
+  ordersCount: number;
+};
+
+type TopProductsData = {
+  retail: { items: TopProduct[]; totalQty: number; totalRevenue: number };
+  wholesale: { items: TopProduct[]; totalQty: number; totalRevenue: number };
+};
+
 const formatNumber = (n: number) =>
   new Intl.NumberFormat('es-UY', { maximumFractionDigits: 0 }).format(n);
 
@@ -63,6 +77,7 @@ export default function AnalyticsDashboard() {
   const [period, setPeriod] = useState<Period>('30d');
   const [traffic, setTraffic] = useState<TrafficData | null>(null);
   const [sales, setSales] = useState<SalesData | null>(null);
+  const [topProducts, setTopProducts] = useState<TopProductsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,11 +94,16 @@ export default function AnalyticsDashboard() {
         if (!r.ok) throw new Error(`Sales ${r.status}`);
         return r.json();
       }),
+      fetch(`/api/admin/top-products?period=${period}`).then((r) => {
+        if (!r.ok) throw new Error(`TopProducts ${r.status}`);
+        return r.json();
+      }),
     ])
-      .then(([t, s]) => {
+      .then(([t, s, tp]) => {
         if (cancelled) return;
         setTraffic(t);
         setSales(s);
+        setTopProducts(tp);
         setLoading(false);
       })
       .catch((e: unknown) => {
@@ -221,7 +241,263 @@ export default function AnalyticsDashboard() {
               />
             </SubSection>
           </Section>
+
+          {topProducts && (
+            <Section
+              title="Productos Más Vendidos"
+              description="Top por canal, agrupando pedidos pagos y entregados."
+            >
+              <SubSection title="Ventas Minoristas">
+                <ChannelKpis
+                  totalQty={topProducts.retail.totalQty}
+                  totalRevenue={topProducts.retail.totalRevenue}
+                />
+                <TopList
+                  items={topProducts.retail.items}
+                  emptyHint="Aún no hay ventas minoristas en este período."
+                />
+              </SubSection>
+
+              <SubSection title="Ventas Mayoristas">
+                <ChannelKpis
+                  totalQty={topProducts.wholesale.totalQty}
+                  totalRevenue={topProducts.wholesale.totalRevenue}
+                />
+                <TopList
+                  items={topProducts.wholesale.items}
+                  emptyHint="Aún no hay ventas mayoristas en este período."
+                />
+              </SubSection>
+
+              <SubSection title="Comparativa Minorista vs Mayorista">
+                <ChannelCompare topProducts={topProducts} />
+              </SubSection>
+            </Section>
+          )}
         </>
+      )}
+    </div>
+  );
+}
+
+function ChannelKpis({
+  totalQty,
+  totalRevenue,
+}: {
+  totalQty: number;
+  totalRevenue: number;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <KpiCard
+        label="Unidades vendidas"
+        value={formatNumber(totalQty)}
+        delta={null}
+      />
+      <KpiCard
+        label="Ingresos del canal"
+        value={formatCurrency(totalRevenue, 'UYU')}
+        delta={null}
+      />
+    </div>
+  );
+}
+
+function TopList({
+  items,
+  emptyHint,
+}: {
+  items: TopProduct[];
+  emptyHint: string;
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="mt-4 grid h-48 place-items-center border border-carbon-line bg-carbon text-bone/40 font-body text-xs uppercase tracking-ultra">
+        {emptyHint}
+      </div>
+    );
+  }
+
+  const maxQty = Math.max(...items.map((i) => i.qty), 1);
+
+  return (
+    <ol className="mt-4 divide-y divide-carbon-line border border-carbon-line bg-carbon">
+      {items.map((p, i) => {
+        const widthPct = Math.max(4, Math.round((p.qty / maxQty) * 100));
+        return (
+          <li
+            key={p.productId ?? `${p.name}-${i}`}
+            className="flex items-center gap-4 px-5 py-4"
+          >
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-gold/40 font-display text-sm text-gold">
+              {i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="truncate font-display text-base text-bone">
+                  {p.name}
+                </p>
+                <p className="shrink-0 font-body text-xs uppercase tracking-ultra text-bone/50">
+                  {p.ordersCount} {p.ordersCount === 1 ? 'pedido' : 'pedidos'}
+                </p>
+              </div>
+              <div className="mt-2 h-1.5 w-full bg-carbon-raised">
+                <div
+                  className="h-full bg-gold"
+                  style={{ width: `${widthPct}%` }}
+                />
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="font-display text-lg text-bone">
+                {formatNumber(p.qty)}
+              </p>
+              <p className="font-body text-[10px] uppercase tracking-ultra text-bone/50">
+                unidades
+              </p>
+              <p className="mt-1 font-body text-xs text-gold">
+                {formatCurrency(p.revenue, p.currency)}
+              </p>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function ChannelCompare({ topProducts }: { topProducts: TopProductsData }) {
+  const r = topProducts.retail;
+  const w = topProducts.wholesale;
+  const totalRevenue = r.totalRevenue + w.totalRevenue;
+  const retailShare =
+    totalRevenue > 0 ? Math.round((r.totalRevenue / totalRevenue) * 100) : 0;
+  const wholesaleShare = 100 - retailShare;
+
+  const topRetail = r.items[0] ?? null;
+  const topWholesale = w.items[0] ?? null;
+
+  const sameLeader =
+    topRetail &&
+    topWholesale &&
+    topRetail.productId &&
+    topWholesale.productId &&
+    topRetail.productId === topWholesale.productId;
+
+  return (
+    <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <CompareChannel
+        title="Líder Minorista"
+        accent="bg-gold"
+        product={topRetail}
+        totalQty={r.totalQty}
+        totalRevenue={r.totalRevenue}
+        share={retailShare}
+      />
+      <CompareChannel
+        title="Líder Mayorista"
+        accent="bg-emerald-400"
+        product={topWholesale}
+        totalQty={w.totalQty}
+        totalRevenue={w.totalRevenue}
+        share={wholesaleShare}
+      />
+
+      <div className="md:col-span-2 border border-carbon-line bg-carbon p-5">
+        <p className="text-eyebrow text-gold">Diferencias principales</p>
+        <ul className="mt-3 space-y-2 font-body text-sm text-bone/80">
+          <li>
+            · El canal minorista representa el{' '}
+            <span className="text-bone font-medium">{retailShare}%</span> de los
+            ingresos del período; el mayorista, el{' '}
+            <span className="text-bone font-medium">{wholesaleShare}%</span>.
+          </li>
+          <li>
+            · Líder minorista:{' '}
+            <span className="text-bone font-medium">
+              {topRetail?.name ?? '— sin ventas —'}
+            </span>{' '}
+            ({formatNumber(topRetail?.qty ?? 0)} unidades).
+          </li>
+          <li>
+            · Líder mayorista:{' '}
+            <span className="text-bone font-medium">
+              {topWholesale?.name ?? '— sin ventas —'}
+            </span>{' '}
+            ({formatNumber(topWholesale?.qty ?? 0)} unidades).
+          </li>
+          {sameLeader && (
+            <li className="text-bone/70">
+              · Mismo producto lidera ambos canales.
+            </li>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function CompareChannel({
+  title,
+  accent,
+  product,
+  totalQty,
+  totalRevenue,
+  share,
+}: {
+  title: string;
+  accent: string;
+  product: TopProduct | null;
+  totalQty: number;
+  totalRevenue: number;
+  share: number;
+}) {
+  return (
+    <div className="border border-carbon-line bg-carbon p-5">
+      <div className="flex items-start justify-between gap-3">
+        <p className="font-body text-[10px] uppercase tracking-ultra text-bone/50">
+          {title}
+        </p>
+        <span
+          className={[
+            'rounded-full px-2 py-0.5 font-body text-[10px] uppercase tracking-ultra',
+            product
+              ? 'bg-gold/20 text-gold'
+              : 'bg-carbon-line text-bone/50',
+          ].join(' ')}
+        >
+          {share}% ingresos
+        </span>
+      </div>
+      <p className="mt-4 font-display text-2xl font-bold text-bone">
+        {product ? product.name : '—'}
+      </p>
+      {product ? (
+        <div className="mt-4 space-y-2 font-body text-xs text-bone/70">
+          <div className="flex items-center justify-between">
+            <span>Unidades</span>
+            <span className="text-bone">{formatNumber(product.qty)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Ingresos del líder</span>
+            <span className="text-bone">
+              {formatCurrency(product.revenue, product.currency)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Ingresos del canal</span>
+            <span className="text-bone">
+              {formatCurrency(totalRevenue, 'UYU')}
+            </span>
+          </div>
+          <div className="mt-3 h-1.5 w-full bg-carbon-raised">
+            <div className={`h-full ${accent}`} style={{ width: `${share}%` }} />
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 font-body text-xs text-bone/50">
+          Sin ventas en este canal durante el período seleccionado.
+        </p>
       )}
     </div>
   );
