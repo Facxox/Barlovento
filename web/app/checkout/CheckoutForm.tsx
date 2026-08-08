@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/components/CartContext';
 import GoldDivider from '@/components/GoldDivider';
+import CouponInput, { type AppliedCouponState } from '@/components/CouponInput';
 
 type Profile = {
   full_name?: string | null;
@@ -40,6 +41,13 @@ export default function CheckoutForm() {
   const [mpError, setMpError] = useState<string | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponState | null>(null);
+
+  // El total final descuenta el cupón (si lo hay) del subtotal del carrito.
+  const finalTotal = useMemo(() => {
+    if (!appliedCoupon) return subtotal;
+    return Math.max(0, subtotal - appliedCoupon.discount_total);
+  }, [subtotal, appliedCoupon]);
 
   // Pre-rellenar desde /api/me si hay sesión
   useEffect(() => {
@@ -108,17 +116,32 @@ export default function CheckoutForm() {
 
     setSubmitting(true);
     try {
+      const itemsToSend = items.map((i) => ({
+        id: i.id,
+        name: i.name,
+        qty: i.qty,
+        price: i.price,
+        currency: i.currency,
+      }));
+
+      // Si hay cupón, lo agregamos como línea con precio negativo para que
+      // Mercado Pago muestre el descuento en el checkout. El registro de la
+      // redención se hace server-side al recibir el webhook de pago.
+      if (appliedCoupon && appliedCoupon.discount_total > 0) {
+        itemsToSend.push({
+          id: `coupon:${appliedCoupon.coupon_id}`,
+          name: `Cupón ${appliedCoupon.code}`,
+          qty: 1,
+          price: -appliedCoupon.discount_total,
+          currency: items[0]?.currency ?? 'UYU',
+        });
+      }
+
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: items.map((i) => ({
-            id: i.id,
-            name: i.name,
-            qty: i.qty,
-            price: i.price,
-            currency: i.currency,
-          })),
+          items: itemsToSend,
           customer_name: fullName.trim(),
           customer_email: email.trim(),
           customer_phone: phone.trim(),
@@ -189,6 +212,36 @@ export default function CheckoutForm() {
             {formatUY(subtotal)}
           </span>
         </div>
+
+        {appliedCoupon && appliedCoupon.discount_total > 0 && (
+          <div className="mt-2 flex items-baseline justify-between font-body text-sm">
+            <span className="text-green-800">
+              Cupón {appliedCoupon.code}
+            </span>
+            <span className="text-green-800">
+              −{formatUY(appliedCoupon.discount_total)}
+            </span>
+          </div>
+        )}
+
+        {appliedCoupon && (
+          <div className="mt-3 flex items-baseline justify-between border-t border-ink/10 pt-3">
+            <span className="text-eyebrow text-ink/70">Total</span>
+            <span className="font-display text-2xl text-ink">
+              {formatUY(finalTotal)}
+            </span>
+          </div>
+        )}
+
+        <div className="mt-5">
+          <CouponInput
+            email={email}
+            customerType={null}
+            applied={appliedCoupon}
+            onApplied={setAppliedCoupon}
+          />
+        </div>
+
         <p className="mt-3 font-body text-xs text-ink/55">
           El costo del envío se coordina por separado y se abona al recibir el
           paquete.
