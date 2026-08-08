@@ -5,7 +5,26 @@ import { useRouter } from 'next/navigation';
 import type { Coupon, CouponRule } from '@/lib/coupons';
 import type { Product } from '@/lib/queries';
 
-type Props = { initialCoupons: Coupon[]; products: Product[] };
+// Producto que se muestra en el picker: igual a Product + etiqueta
+// de audiencia para saber si el producto aplica a retail, mayorista
+// o ambos.
+export type PickerProduct = Product & {
+  audience: 'retail' | 'wholesale' | 'both';
+};
+
+const AUDIENCE_LABEL: Record<PickerProduct['audience'], string> = {
+  retail: 'Minorista',
+  wholesale: 'Mayorista',
+  both: 'Minorista y mayorista',
+};
+
+const AUDIENCE_STYLES: Record<PickerProduct['audience'], string> = {
+  retail: 'bg-blue-500/20 text-blue-300',
+  wholesale: 'bg-purple-500/20 text-purple-300',
+  both: 'bg-gold/20 text-gold',
+};
+
+type Props = { initialCoupons: Coupon[]; products: PickerProduct[] };
 
 type RuleDraft = {
   kind: CouponRule['kind'];
@@ -609,7 +628,7 @@ function RuleCard({
   index: number;
   rule: RuleDraft;
   canRemove: boolean;
-  products: Product[];
+  products: PickerProduct[];
   onChange: (patch: Partial<RuleDraft>) => void;
   onConfigChange: (key: string, value: unknown) => void;
   onRemove: () => void;
@@ -756,39 +775,69 @@ function ProductPicker({
   selectedIds,
   onToggle,
 }: {
-  products: Product[];
+  products: PickerProduct[];
   selectedIds: string[];
   onToggle: (id: string) => void;
 }) {
   const [q, setQ] = useState('');
+  const [audienceFilter, setAudienceFilter] = useState<'all' | PickerProduct['audience']>('all');
+
   const filtered = useMemo(() => {
     const norm = q.trim().toLowerCase();
-    if (!norm) return products;
-    return products.filter(
-      (p) =>
+    return products.filter((p) => {
+      if (audienceFilter !== 'all' && p.audience !== audienceFilter) return false;
+      if (!norm) return true;
+      return (
         p.name.toLowerCase().includes(norm) ||
         p.id.toLowerCase().includes(norm) ||
         p.category.toLowerCase().includes(norm)
-    );
-  }, [products, q]);
+      );
+    });
+  }, [products, q, audienceFilter]);
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <p className="font-body text-[10px] uppercase tracking-ultra text-bone/55">
           Productos seleccionados ({selectedIds.length})
         </p>
-        <input
-          type="text"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por nombre o categoría…"
-          className="w-56 border-b border-carbon-line bg-transparent px-2 py-1 font-body text-xs text-bone focus:border-gold outline-none"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex overflow-hidden rounded-full border border-carbon-line">
+            {(
+              [
+                ['all', 'Todos'],
+                ['retail', 'Minorista'],
+                ['wholesale', 'Mayorista'],
+                ['both', 'Ambos'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setAudienceFilter(key)}
+                className={[
+                  'px-3 py-1 font-body text-[10px] uppercase tracking-ultra transition',
+                  audienceFilter === key
+                    ? 'bg-gold text-carbon'
+                    : 'text-bone/60 hover:bg-carbon-raised hover:text-bone',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar…"
+            className="w-40 border-b border-carbon-line bg-transparent px-2 py-1 font-body text-xs text-bone focus:border-gold outline-none"
+          />
+        </div>
       </div>
       {filtered.length === 0 ? (
         <p className="rounded border border-carbon-line bg-carbon p-4 text-center font-body text-sm text-bone/50">
-          No hay productos que coincidan con "{q}".
+          No hay productos que coincidan con esos filtros.
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -824,6 +873,14 @@ function ProductPicker({
                       ✓
                     </span>
                   )}
+                  <span
+                    className={[
+                      'absolute left-2 top-2 rounded-full px-2 py-0.5 font-body text-[9px] uppercase tracking-ultra',
+                      AUDIENCE_STYLES[p.audience],
+                    ].join(' ')}
+                  >
+                    {p.audience === 'wholesale' ? 'Mayorista' : p.audience === 'both' ? 'Ambos' : 'Minorista'}
+                  </span>
                 </div>
                 <div className="p-2">
                   <p className="line-clamp-1 font-body text-xs font-medium text-bone">{p.name}</p>
@@ -845,22 +902,57 @@ function GiftProductPicker({
   selectedId,
   onSelect,
 }: {
-  products: Product[];
+  products: PickerProduct[];
   selectedId: string;
   onSelect: (id: string) => void;
 }) {
+  const [audienceFilter, setAudienceFilter] = useState<'all' | PickerProduct['audience']>('all');
+  const filtered = useMemo(
+    () =>
+      audienceFilter === 'all'
+        ? products
+        : products.filter((p) => p.audience === audienceFilter),
+    [products, audienceFilter]
+  );
+
   return (
     <div>
-      <p className="mb-3 font-body text-[10px] uppercase tracking-ultra text-bone/55">
-        Elegí el producto a regalar
-      </p>
-      {products.length === 0 ? (
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="font-body text-[10px] uppercase tracking-ultra text-bone/55">
+          Elegí el producto a regalar
+        </p>
+        <div className="flex overflow-hidden rounded-full border border-carbon-line">
+          {(
+            [
+              ['all', 'Todos'],
+              ['retail', 'Minorista'],
+              ['wholesale', 'Mayorista'],
+              ['both', 'Ambos'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setAudienceFilter(key)}
+              className={[
+                'px-3 py-1 font-body text-[10px] uppercase tracking-ultra transition',
+                audienceFilter === key
+                  ? 'bg-gold text-carbon'
+                  : 'text-bone/60 hover:bg-carbon-raised hover:text-bone',
+              ].join(' ')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {filtered.length === 0 ? (
         <p className="rounded border border-carbon-line bg-carbon p-4 text-center font-body text-sm text-bone/50">
-          No hay productos activos en el catálogo.
+          No hay productos activos en el catálogo para ese filtro.
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {products.map((p) => {
+          {filtered.map((p) => {
             const selected = p.id === selectedId;
             return (
               <button
@@ -892,6 +984,14 @@ function GiftProductPicker({
                       regalo
                     </span>
                   )}
+                  <span
+                    className={[
+                      'absolute left-2 top-2 rounded-full px-2 py-0.5 font-body text-[9px] uppercase tracking-ultra',
+                      AUDIENCE_STYLES[p.audience],
+                    ].join(' ')}
+                  >
+                    {p.audience === 'wholesale' ? 'Mayorista' : p.audience === 'both' ? 'Ambos' : 'Minorista'}
+                  </span>
                 </div>
                 <div className="p-2">
                   <p className="line-clamp-1 font-body text-xs font-medium text-bone">{p.name}</p>
