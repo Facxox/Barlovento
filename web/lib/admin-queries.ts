@@ -121,6 +121,25 @@ export async function listUsersWithStats(): Promise<ListUsersResult> {
   return { users, stats };
 }
 
+/**
+ * Conteo de cupones para mostrar en el Resumen.
+ * Devuelve { total, active } o null si Supabase no está configurado.
+ */
+export async function countCoupons(): Promise<{ total: number; active: number } | null> {
+  const supabase = getServiceSupabase();
+  if (!supabase) return null;
+  const { count: total, error: totalErr } = await supabase
+    .from('coupons')
+    .select('id', { count: 'exact', head: true });
+  if (totalErr) return null;
+  const { count: active, error: activeErr } = await supabase
+    .from('coupons')
+    .select('id', { count: 'exact', head: true })
+    .eq('is_active', true);
+  if (activeErr) return null;
+  return { total: total ?? 0, active: active ?? 0 };
+}
+
 export async function countUsers(): Promise<number | null> {
   const supabase = getServiceSupabase();
   if (!supabase) {

@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { getProducts, getGallery, getGalleryCategories, getEvents, getCategories } from '@/lib/queries';
 import { listOrders, countPendingOrders } from '@/lib/orders';
-import { countUsers } from '@/lib/admin-queries';
+import { countUsers, countCoupons } from '@/lib/admin-queries';
 import { getServiceSupabase } from '@/lib/supabase-admin';
 
 export default async function AdminDashboard() {
-  const [products, gallery, galleryCategories, events, categories, pending, userCount] = await Promise.all([
+  const [products, gallery, galleryCategories, events, categories, pending, userCount, coupons] = await Promise.all([
     getProducts(),
     getGallery(),
     getGalleryCategories(),
@@ -13,6 +13,7 @@ export default async function AdminDashboard() {
     getCategories(),
     countPendingOrders(),
     countUsers(),
+    countCoupons(),
   ]);
 
   // Pageviews de hoy (UTC). Es una sola fila agregada por el middleware.
@@ -92,6 +93,14 @@ export default async function AdminDashboard() {
       label: 'Textos de marca',
       value: '—',
       hint: 'Historia, misión, visión, valores y más',
+    },
+    {
+      href: '/admin/cupones',
+      label: 'Cupones',
+      value: coupons?.active ?? '—',
+      hint: coupons
+        ? `${coupons.total} configurado${coupons.total === 1 ? '' : 's'} · crear desde acá →`
+        : 'Crear y gestionar promociones',
     },
   ];
 
