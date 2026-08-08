@@ -97,7 +97,11 @@ export type BarloventoEvent = {
   date: string;          // ISO yyyy-mm-dd
   location: string;
   description: string;
+  /** Portada. Se mantiene igual a images[0] (se escribe al subir
+   *  la primera foto o al promover una nueva portada). */
   image: string;
+  /** Todas las fotos del evento, ordenadas por position asc. */
+  images: string[];
   kind: 'upcoming' | 'past';
 };
 
@@ -255,7 +259,44 @@ export async function getEvents(): Promise<BarloventoEvent[]> {
     if (a.kind !== b.kind) return a.kind === 'upcoming' ? -1 : 1;
     return a.date.localeCompare(b.date);
   }) as BarloventoEvent[];
-  return fromSupabase<BarloventoEvent[]>('events', 'date', fallback);
+
+  const events = await fromSupabase<BarloventoEvent[]>(
+    'events',
+    'date',
+    fallback
+  );
+
+  // Merge con event_images. Si no hay Supabase o no hay fotos,
+  // devolvemos [image] como único elemento para no romper consumers.
+  const supabase = await getServerSupabase();
+  if (!supabase) {
+    return events.map((e) => ({ ...e, images: [e.image] }));
+  }
+  try {
+    const { data: rows, error } = await supabase
+      .from('event_images')
+      .select('event_id,url,position')
+      .order('position', { ascending: true });
+    if (error || !rows) {
+      return events.map((e) => ({ ...e, images: [e.image] }));
+    }
+    const byEvent = new Map<number, string[]>();
+    for (const r of rows as Array<{
+      event_id: number;
+      url: string;
+      position: number;
+    }>) {
+      const arr = byEvent.get(r.event_id) ?? [];
+      arr.push(r.url);
+      byEvent.set(r.event_id, arr);
+    }
+    return events.map((e) => ({
+      ...e,
+      images: byEvent.get(e.id)?.length ? byEvent.get(e.id)! : [e.image],
+    }));
+  } catch {
+    return events.map((e) => ({ ...e, images: [e.image] }));
+  }
 }
 
 export async function getSiteContent(): Promise<SiteContent> {

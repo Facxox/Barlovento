@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   upsertEvent,
   deleteEvent,
   moveEvent,
+  addEventImage,
+  removeEventImage,
+  reorderEventImages,
 } from '@/lib/admin-actions';
 import type { BarloventoEvent } from '@/lib/queries';
 import ImageDropzone from './ImageDropzone';
@@ -18,6 +21,201 @@ const empty = {
   image: '',
   kind: 'upcoming' as 'upcoming' | 'past',
 };
+
+type ImageRow = { id: number; url: string };
+
+/**
+ * Editor de múltiples imágenes para un evento ya guardado.
+ * - La primera (position=0) es la portada.
+ * - Permite subir, borrar y reordenar.
+ *
+ * Después de cada acción llama a `onChanged()` para que el padre
+ * refresque la lista (router.refresh) y los ids queden en sync.
+ */
+function MultiImageEditor({
+  eventId,
+  initial,
+  onChanged,
+}: {
+  eventId: number;
+  initial: ImageRow[];
+  onChanged: () => void;
+}) {
+  const [images, setImages] = useState<ImageRow[]>(initial);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onAdd = async (file: File) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const inserted = await addEventImage(eventId, file);
+      setImages((prev) => [...prev, { id: inserted.id, url: inserted.url }]);
+      onChanged();
+    } catch (e: any) {
+      setError(e.message ?? 'No pudimos subir la foto.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRemove = async (img: ImageRow) => {
+    if (!confirm('¿Borrar esta foto?')) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await removeEventImage(img.id);
+      setImages((prev) => prev.filter((i) => i.id !== img.id));
+      onChanged();
+    } catch (e: any) {
+      setError(e.message ?? 'No pudimos borrar la foto.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onMove = async (idx: number, dir: -1 | 1) => {
+    const target = idx + dir;
+    if (target < 0 || target >= images.length) return;
+    const next = [...images];
+    const [moved] = next.splice(idx, 1);
+    next.splice(target, 0, moved);
+    setImages(next);
+    setBusy(true);
+    setError(null);
+    try {
+      await reorderEventImages(
+        eventId,
+        next.map((i) => i.id)
+      );
+      onChanged();
+    } catch (e: any) {
+      setError(e.message ?? 'No pudimos reordenar.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (images.length === 0) {
+    return (
+      <div className="space-y-2">
+        <p className="font-body text-[10px] uppercase tracking-ultra text-bone/50">
+          Sin fotos. Subí la primera para crear la portada.
+        </p>
+        <SingleUploader onFile={onAdd} disabled={busy} label="Subir primera foto" />
+        {error && <p className="font-body text-xs text-red-400">{error}</p>}
+      </div>
+    );
+  }
+
+  const cover = images[0];
+  const rest = images.slice(1);
+
+  return (
+    <div className="space-y-4">
+      <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
+        Portada
+      </p>
+      <div className="relative aspect-[16/10] w-full overflow-hidden border border-carbon-line bg-carbon-raised">
+        <img src={cover.url} alt="" className="h-full w-full object-cover" />
+        <button
+          type="button"
+          onClick={() => onRemove(cover)}
+          disabled={busy}
+          className="absolute right-2 top-2 rounded-full bg-carbon/80 px-2 py-1 font-body text-[10px] uppercase tracking-ultra text-red-300 hover:bg-red-500/30"
+        >
+          ✕ Quitar portada
+        </button>
+      </div>
+
+      {rest.length > 0 && (
+        <>
+          <p className="font-body text-[10px] uppercase tracking-ultra text-bone/50">
+            Más fotos ({rest.length})
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            {rest.map((img, idx) => {
+              // idx en `images` es idx + 1 porque la portada está en 0.
+              const realIdx = idx + 1;
+              return (
+                <div
+                  key={img.id}
+                  className="group relative aspect-square overflow-hidden border border-carbon-line bg-carbon-raised"
+                >
+                  <img src={img.url} alt="" className="h-full w-full object-cover" />
+                  <div className="absolute inset-x-1 top-1 flex justify-between">
+                    <button
+                      type="button"
+                      onClick={() => onMove(realIdx, -1)}
+                      disabled={busy}
+                      className="rounded bg-carbon/80 px-1.5 py-0.5 font-body text-[10px] text-bone hover:bg-gold hover:text-carbon"
+                      aria-label="Mover antes"
+                    >
+                      ←
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onMove(realIdx, 1)}
+                      disabled={busy}
+                      className="rounded bg-carbon/80 px-1.5 py-0.5 font-body text-[10px] text-bone hover:bg-gold hover:text-carbon"
+                      aria-label="Mover después"
+                    >
+                      →
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(img)}
+                    disabled={busy}
+                    className="absolute bottom-1 right-1 rounded bg-carbon/80 px-1.5 py-0.5 font-body text-[10px] text-red-300 hover:bg-red-500/30"
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      <SingleUploader onFile={onAdd} disabled={busy} label="Agregar otra foto" />
+      {error && <p className="font-body text-xs text-red-400">{error}</p>}
+    </div>
+  );
+}
+
+function SingleUploader({
+  onFile,
+  disabled,
+  label,
+}: {
+  onFile: (f: File) => void | Promise<void>;
+  disabled?: boolean;
+  label: string;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  return (
+    <div
+      className={disabled ? 'pointer-events-none opacity-60' : ''}
+      onClick={() => {
+        if (!file) return;
+        void onFile(file).then(() => setFile(null));
+      }}
+    >
+      <ImageDropzone
+        file={file}
+        onFile={setFile}
+        label={label}
+        aspect="video"
+      />
+      {file && (
+        <p className="mt-2 font-body text-[11px] text-bone/60">
+          Tocá fuera del recuadro para confirmar la subida.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function EventosTable({ events }: { events: BarloventoEvent[] }) {
   const router = useRouter();
@@ -50,7 +248,7 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file && !draft.image) {
+    if (!editing && !file && !draft.image) {
       setError('Subí una imagen para el evento.');
       return;
     }
@@ -70,12 +268,17 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
         const saved = await upsertEvent(fd);
         setList((prev) => {
           const idx = prev.findIndex((p) => p.id === saved.id);
-          if (idx === -1) return [saved, ...prev];
+          const merged: BarloventoEvent = {
+            ...saved,
+            images: saved.images?.length ? saved.images : [saved.image],
+          };
+          if (idx === -1) return [merged, ...prev];
           const copy = [...prev];
-          copy[idx] = saved;
+          copy[idx] = merged;
           return copy;
         });
         onCancel();
+        router.refresh();
         setBusy(false);
       } catch (err: any) {
         setError(err.message ?? 'Error al guardar.');
@@ -155,15 +358,23 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
             <option value="upcoming">Próximo</option>
             <option value="past">Archivo</option>
           </select>
-          <div className="sm:col-span-2">
-            <ImageDropzone
-              file={file}
-              onFile={setFile}
-              previewUrl={draft.image || undefined}
-              label="Imagen del evento"
-              aspect="video"
-            />
-          </div>
+          {!editing && (
+            <div className="sm:col-span-2">
+              <p className="mb-1 font-body text-[10px] uppercase tracking-ultra text-bone/50">
+                Foto de portada
+              </p>
+              <ImageDropzone
+                file={file}
+                onFile={setFile}
+                previewUrl={draft.image || undefined}
+                label="Subir primera foto"
+                aspect="video"
+              />
+              <p className="mt-1 font-body text-[11px] text-bone/50">
+                Después de crearlo podrás agregar más fotos desde la lista.
+              </p>
+            </div>
+          )}
           <textarea
             placeholder="Descripción"
             value={draft.description}
@@ -202,71 +413,30 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
               <th className="p-3">Fecha</th>
               <th className="p-3">Título</th>
               <th className="p-3">Lugar</th>
+              <th className="p-3">Fotos</th>
               <th className="p-3">Estado</th>
               <th className="p-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {list.map((e, i) => (
-              <tr
+              <EventRow
                 key={e.id}
-                className={[
-                  'border-b border-carbon-line/40 last:border-0',
-                  busyId === e.id ? 'opacity-50' : '',
-                ].join(' ')}
-              >
-                <td className="p-3">
-                  <div className="flex flex-col gap-0.5">
-                    <button
-                      onClick={() => onMove(e, -1)}
-                      disabled={i === 0}
-                      className="text-bone/50 hover:text-gold disabled:opacity-30"
-                      aria-label="Subir"
-                    >▲</button>
-                    <button
-                      onClick={() => onMove(e, 1)}
-                      disabled={i === list.length - 1}
-                      className="text-bone/50 hover:text-gold disabled:opacity-30"
-                      aria-label="Bajar"
-                    >▼</button>
-                  </div>
-                </td>
-                <td className="p-3 font-body text-sm text-bone/80">{e.date}</td>
-                <td className="p-3 font-body text-sm text-bone">{e.title}</td>
-                <td className="p-3 font-body text-sm text-bone/70">{e.location}</td>
-                <td className="p-3">
-                  <span
-                    className={[
-                      'rounded-full px-2 py-0.5 text-[10px] uppercase tracking-ultra',
-                      e.kind === 'upcoming'
-                        ? 'bg-gold/20 text-gold'
-                        : 'bg-carbon-line text-bone/50',
-                    ].join(' ')}
-                  >
-                    {e.kind}
-                  </span>
-                </td>
-                <td className="p-3 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => onEdit(e)}
-                      className="rounded-full border border-gold/40 px-3 py-1 font-body text-[11px] uppercase tracking-ultra text-gold hover:bg-gold hover:text-carbon transition"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => onDelete(e.id)}
-                      className="rounded-full border border-red-500/40 px-3 py-1 font-body text-[11px] uppercase tracking-ultra text-red-400 hover:bg-red-500/20 transition"
-                    >
-                      Borrar
-                    </button>
-                  </div>
-                </td>
-              </tr>
+                index={i}
+                event={e}
+                isEditing={editing === e.id}
+                isBusy={busyId === e.id}
+                listLength={list.length}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onMove={onMove}
+                onCloseEditor={onCancel}
+                onImagesChanged={() => router.refresh()}
+              />
             ))}
             {list.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-bone/50 font-body text-sm">
+                <td colSpan={7} className="p-8 text-center text-bone/50 font-body text-sm">
                   Sin eventos todavía.
                 </td>
               </tr>
@@ -275,5 +445,162 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
         </table>
       </div>
     </div>
+  );
+}
+
+function EventRow({
+  index,
+  event,
+  isEditing,
+  isBusy,
+  listLength,
+  onEdit,
+  onDelete,
+  onMove,
+  onCloseEditor,
+  onImagesChanged,
+}: {
+  index: number;
+  event: BarloventoEvent;
+  isEditing: boolean;
+  isBusy: boolean;
+  listLength: number;
+  onEdit: (e: BarloventoEvent) => void;
+  onDelete: (id: number) => void;
+  onMove: (e: BarloventoEvent, dir: -1 | 1) => void;
+  onCloseEditor: () => void;
+  onImagesChanged: () => void;
+}) {
+  return (
+    <>
+      <tr
+        className={[
+          'border-b border-carbon-line/40',
+          isBusy ? 'opacity-50' : '',
+        ].join(' ')}
+      >
+        <td className="p-3">
+          <div className="flex flex-col gap-0.5">
+            <button
+              onClick={() => onMove(event, -1)}
+              disabled={index === 0}
+              className="text-bone/50 hover:text-gold disabled:opacity-30"
+              aria-label="Subir"
+            >▲</button>
+            <button
+              onClick={() => onMove(event, 1)}
+              disabled={index === listLength - 1}
+              className="text-bone/50 hover:text-gold disabled:opacity-30"
+              aria-label="Bajar"
+            >▼</button>
+          </div>
+        </td>
+        <td className="p-3 font-body text-sm text-bone/80">{event.date}</td>
+        <td className="p-3 font-body text-sm text-bone">{event.title}</td>
+        <td className="p-3 font-body text-sm text-bone/70">{event.location}</td>
+        <td className="p-3 font-body text-xs text-bone/60">{event.images.length}</td>
+        <td className="p-3">
+          <span
+            className={[
+              'rounded-full px-2 py-0.5 text-[10px] uppercase tracking-ultra',
+              event.kind === 'upcoming'
+                ? 'bg-gold/20 text-gold'
+                : 'bg-carbon-line text-bone/50',
+            ].join(' ')}
+          >
+            {event.kind}
+          </span>
+        </td>
+        <td className="p-3 text-right">
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => (isEditing ? onCloseEditor() : onEdit(event))}
+              className={[
+                'rounded-full border px-3 py-1 font-body text-[11px] uppercase tracking-ultra transition',
+                isEditing
+                  ? 'border-bone/40 text-bone/60 hover:bg-bone/10'
+                  : 'border-gold/40 text-gold hover:bg-gold hover:text-carbon',
+              ].join(' ')}
+            >
+              {isEditing ? 'Cerrar' : 'Editar'}
+            </button>
+            <button
+              onClick={() => onDelete(event.id)}
+              className="rounded-full border border-red-500/40 px-3 py-1 font-body text-[11px] uppercase tracking-ultra text-red-400 hover:bg-red-500/20 transition"
+            >
+              Borrar
+            </button>
+          </div>
+        </td>
+      </tr>
+      {isEditing && (
+        <tr className="bg-carbon-raised">
+          <td colSpan={7} className="p-4">
+            <p className="mb-2 font-body text-[10px] uppercase tracking-ultra text-gold">
+              Editor de fotos
+            </p>
+            <EventImageEditor
+              eventId={event.id}
+              onChanged={onImagesChanged}
+            />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+/**
+ * Carga las imágenes del evento vía /api/admin/event-images y las pasa
+ * al editor. Si onChanged se dispara, vuelve a fetchear para mantener
+ * ids en sync (caso: el server promovió una nueva portada).
+ */
+function EventImageEditor({
+  eventId,
+  onChanged,
+}: {
+  eventId: number;
+  onChanged: () => void;
+}) {
+  const [rows, setRows] = useState<ImageRow[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/event-images?eventId=${eventId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as { images: ImageRow[] };
+        if (!cancelled) setRows(data.images);
+      } catch (e: any) {
+        if (!cancelled) setErr(e.message ?? 'No se pudieron cargar las fotos.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
+
+  if (err) return <p className="font-body text-sm text-red-400">{err}</p>;
+  if (!rows) return <p className="font-body text-xs text-bone/50">Cargando fotos…</p>;
+
+  return (
+    <MultiImageEditor
+      eventId={eventId}
+      initial={rows}
+      onChanged={() => {
+        // Re-fetch para que la portada promovida se vea bien y el orden
+        // quede en sync con el server.
+        (async () => {
+          const res = await fetch(`/api/admin/event-images?eventId=${eventId}`);
+          if (res.ok) {
+            const data = (await res.json()) as { images: ImageRow[] };
+            setRows(data.images);
+          }
+          onChanged();
+        })();
+      }}
+    />
   );
 }
