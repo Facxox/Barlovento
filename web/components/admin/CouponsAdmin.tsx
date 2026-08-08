@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Coupon, CouponRule } from '@/lib/coupons';
 
@@ -15,6 +15,18 @@ type RuleDraft = {
 
 const RULE_KINDS: CouponRule['kind'][] = ['percent', 'fixed', 'free_shipping', 'bxgy', 'gift_product'];
 
+// Descripciones que muestran qué hace cada tipo de regla.
+// Diseñadas para que un usuario no técnico entienda la diferencia.
+const RULE_DESCRIPTIONS: Record<CouponRule['kind'], string> = {
+  percent: 'Aplica un porcentaje de descuento sobre el subtotal de los ítems que aplique.',
+  fixed: 'Resta un monto fijo (en la moneda del cupón) del subtotal de los ítems que aplique.',
+  free_shipping: 'Bonifica el costo de envío del pedido.',
+  bxgy:
+    'Buy X Get Y: por cada N unidades compradas, las M siguientes salen con un % de descuento (ej. 2x1 = comprá 2, llevá 1 gratis).',
+  gift_product:
+    'Regala un producto concreto (identificado por su ID) cuando se cumpla la condición. No descuenta plata, suma un ítem al carrito.',
+};
+
 const blankRule = (): RuleDraft => ({
   kind: 'percent',
   value: 10,
@@ -24,16 +36,34 @@ const blankRule = (): RuleDraft => ({
 
 // Estilos compartidos (carbon theme)
 const inputBase =
-  'w-full border-b border-carbon-line bg-transparent px-2 py-2 font-body text-bone focus:border-gold outline-none';
+  'w-full border-b border-carbon-line bg-transparent px-2 py-2 font-body text-bone focus:border-gold outline-none disabled:opacity-50';
 const selectBase = inputBase + ' [&>option]:bg-carbon';
 const labelEyebrow =
   'mb-1 block font-body text-[10px] uppercase tracking-ultra text-bone/50';
+
+// Steps del formulario. Cada paso colapsa para reducir carga visual.
+type Step = 'basicos' | 'vigencia' | 'audiencia' | 'reglas';
+const STEPS: { id: Step; title: string; subtitle: string }[] = [
+  { id: 'basicos', title: 'Identidad', subtitle: 'Cómo lo van a ver tus clientes' },
+  { id: 'vigencia', title: 'Vigencia y límites', subtitle: 'Cuándo y cuánto se puede usar' },
+  { id: 'audiencia', title: 'Audiencia', subtitle: 'A quién le aplica' },
+  { id: 'reglas', title: 'Beneficios', subtitle: 'Qué otorga el cupón' },
+];
 
 export default function CouponsAdmin({ initialCoupons }: Props) {
   const router = useRouter();
   const [coupons, setCoupons] = useState<Coupon[]>(initialCoupons);
   const [showForm, setShowForm] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+
+  // Pasos colapsados (todos abiertos por defecto para descubrimiento fácil)
+  const [openSteps, setOpenSteps] = useState<Record<Step, boolean>>({
+    basicos: true,
+    vigencia: true,
+    audiencia: true,
+    reglas: true,
+  });
 
   // form state
   const [code, setCode] = useState('');
@@ -49,8 +79,40 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
   const [rules, setRules] = useState<RuleDraft[]>([blankRule()]);
   const [error, setError] = useState<string | null>(null);
 
+  function flash(kind: 'success' | 'error', message: string) {
+    setToast({ kind, message });
+    window.setTimeout(() => setToast(null), 3200);
+  }
+
+  function toggleStep(s: Step) {
+    setOpenSteps((prev) => ({ ...prev, [s]: !prev[s] }));
+  }
+
   async function handleCreate() {
     setError(null);
+
+    // Validación rápida: al menos una regla con valor (cuando aplique)
+    if (!code.trim()) {
+      setError('Ingresá un código para el cupón.');
+      return;
+    }
+    const incompleteRule = rules.find((r) => {
+      if (r.kind === 'percent' || r.kind === 'fixed') return r.value === null || r.value <= 0;
+      if (r.kind === 'bxgy') {
+        const cfg = r.config as any;
+        return !cfg.buy_qty || !cfg.get_qty;
+      }
+      if (r.kind === 'gift_product') {
+        const cfg = r.config as any;
+        return !cfg.gift_product_id;
+      }
+      return false;
+    });
+    if (incompleteRule) {
+      setError(`La regla "${incompleteRule.kind}" está incompleta. Revisá sus campos.`);
+      return;
+    }
+
     const res = await fetch('/api/admin/coupons', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -78,6 +140,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
     const json = await res.json();
     if (!res.ok || !json.ok) {
       setError(json.error ?? 'Error al crear el cupón');
+      flash('error', 'No pudimos crear el cupón.');
       return;
     }
     setShowForm(false);
@@ -85,6 +148,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
     setUsageLimit(''); setPerUserLimit(''); setCombinable(false);
     setCustomerType(''); setStartsAt(''); setEndsAt('');
     setRules([blankRule()]);
+    flash('success', `Cupón ${code.toUpperCase()} creado y activo.`);
     startTransition(() => router.refresh());
   }
 
@@ -98,14 +162,20 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
       setCoupons((prev) =>
         prev.map((x) => (x.id === c.id ? { ...x, is_active: !x.is_active } : x))
       );
+      flash('success', `Cupón ${c.code} ${!c.is_active ? 'activado' : 'desactivado'}.`);
+    } else {
+      flash('error', 'No pudimos cambiar el estado del cupón.');
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este cupón? Sus redenciones históricas se conservan.')) return;
+  async function handleDelete(id: string, code: string) {
+    if (!confirm(`¿Eliminar el cupón ${code}? Sus redenciones históricas se conservan.`)) return;
     const res = await fetch(`/api/admin/coupons?id=${id}`, { method: 'DELETE' });
     if (res.ok) {
       setCoupons((prev) => prev.filter((x) => x.id !== id));
+      flash('success', `Cupón ${code} eliminado.`);
+    } else {
+      flash('error', 'No pudimos eliminar el cupón.');
     }
   }
 
@@ -121,27 +191,52 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
     );
   }
 
+  function addRule() {
+    setRules((prev) => [...prev, blankRule()]);
+  }
+
+  function removeRule(idx: number) {
+    setRules((prev) => (prev.length <= 1 ? prev : prev.filter((_, j) => j !== idx)));
+  }
+
+  const activeCount = useMemo(
+    () => coupons.filter((c) => c.is_active).length,
+    [coupons]
+  );
+
   return (
     <div>
-      <header className="mb-6">
-        <h1 className="font-display text-3xl text-bone">Cupones</h1>
-        <p className="mt-1 font-body text-sm text-bone/60">
-          {coupons.length} cupón{coupons.length === 1 ? '' : 'es'} configurado{coupons.length === 1 ? '' : 's'}.
-        </p>
+      <header className="mb-6 flex items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl text-bone">Cupones</h1>
+          <p className="mt-1 font-body text-sm text-bone/60">
+            {coupons.length} configurado{coupons.length === 1 ? '' : 's'} · {activeCount} activo{activeCount === 1 ? '' : 's'}.
+          </p>
+        </div>
+        {!showForm && (
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="rounded-full bg-gold px-6 py-2.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-gold-light"
+          >
+            + Nuevo cupón
+          </button>
+        )}
       </header>
 
-      <div className="mb-10 flex items-center justify-between border border-carbon-line bg-carbon p-4 sm:p-6">
-        <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
-          {showForm ? 'Nuevo cupón' : 'Promociones'}
-        </p>
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className="rounded-full bg-gold px-6 py-2.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-gold-light"
+      {toast && (
+        <div
+          role="status"
+          className={[
+            'mb-4 border px-4 py-3 font-body text-sm',
+            toast.kind === 'success'
+              ? 'border-gold/40 bg-gold/10 text-gold'
+              : 'border-red-500/40 bg-red-500/10 text-red-300',
+          ].join(' ')}
         >
-          {showForm ? 'Cancelar' : 'Nuevo cupón'}
-        </button>
-      </div>
+          {toast.message}
+        </div>
+      )}
 
       {showForm && (
         <form
@@ -149,224 +244,17 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
             e.preventDefault();
             handleCreate();
           }}
-          className="mb-10 space-y-6 border border-carbon-line bg-carbon p-4 sm:p-6"
+          className="mb-10 border border-carbon-line bg-carbon"
         >
-          <div>
-            <p className="mb-4 font-body text-[10px] uppercase tracking-ultra text-gold">
-              Datos básicos
-            </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Código">
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="VERANO20"
-                  required
-                  className={inputBase + ' font-mono'}
-                />
-              </Field>
-              <Field label="Descripción">
-                <input
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="20% off en vinos"
-                  className={inputBase}
-                />
-              </Field>
-              <Field label="Mínimo de compra">
-                <input
-                  type="number"
-                  value={minSubtotal}
-                  onChange={(e) => setMinSubtotal(e.target.value)}
-                  className={inputBase}
-                />
-              </Field>
-              <Field label="Tope de descuento">
-                <input
-                  type="number"
-                  value={maxDiscount}
-                  onChange={(e) => setMaxDiscount(e.target.value)}
-                  className={inputBase}
-                />
-              </Field>
-              <Field label="Límite de usos global">
-                <input
-                  type="number"
-                  value={usageLimit}
-                  onChange={(e) => setUsageLimit(e.target.value)}
-                  className={inputBase}
-                />
-              </Field>
-              <Field label="Límite por usuario">
-                <input
-                  type="number"
-                  value={perUserLimit}
-                  onChange={(e) => setPerUserLimit(e.target.value)}
-                  className={inputBase}
-                />
-              </Field>
-              <Field label="Inicio">
-                <input
-                  type="datetime-local"
-                  value={startsAt}
-                  onChange={(e) => setStartsAt(e.target.value)}
-                  className={inputBase}
-                />
-              </Field>
-              <Field label="Fin">
-                <input
-                  type="datetime-local"
-                  value={endsAt}
-                  onChange={(e) => setEndsAt(e.target.value)}
-                  className={inputBase}
-                />
-              </Field>
-              <Field label="Tipo de cliente">
-                <select
-                  value={customerType}
-                  onChange={(e) => setCustomerType(e.target.value as '' | 'retail' | 'wholesale')}
-                  className={selectBase}
-                >
-                  <option value="">Todos</option>
-                  <option value="retail">Solo minorista</option>
-                  <option value="wholesale">Solo mayorista</option>
-                </select>
-              </Field>
-              <Field label="Combinable">
-                <label className="mt-2 flex items-center gap-2 font-body text-sm text-bone/80">
-                  <input
-                    type="checkbox"
-                    checked={combinable}
-                    onChange={(e) => setCombinable(e.target.checked)}
-                    className="h-4 w-4 accent-gold"
-                  />
-                  Permite combinarse con otros cupones
-                </label>
-              </Field>
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center justify-between border-b border-carbon-line px-4 py-4 sm:px-6">
+            <div>
               <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
-                Reglas del cupón
+                Nuevo cupón
               </p>
-              <button
-                type="button"
-                onClick={() => setRules((prev) => [...prev, blankRule()])}
-                className="font-body text-[10px] uppercase tracking-ultra text-gold hover:underline"
-              >
-                + Agregar regla
-              </button>
+              <p className="mt-1 font-display text-lg text-bone">
+                {code ? code.toUpperCase() : 'Sin código todavía'}
+              </p>
             </div>
-            <div className="space-y-4">
-              {rules.map((r, i) => (
-                <div
-                  key={i}
-                  className="border border-carbon-line bg-carbon-raised p-4"
-                >
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <Field label="Tipo">
-                      <select
-                        value={r.kind}
-                        onChange={(e) => updateRule(i, { kind: e.target.value as CouponRule['kind'] })}
-                        className={selectBase}
-                      >
-                        {RULE_KINDS.map((k) => (
-                          <option key={k} value={k}>{k}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Valor">
-                      <input
-                        type="number"
-                        value={r.value ?? ''}
-                        onChange={(e) => updateRule(i, { value: e.target.value === '' ? null : Number(e.target.value) })}
-                        className={inputBase}
-                        disabled={r.kind === 'free_shipping' || r.kind === 'gift_product'}
-                      />
-                    </Field>
-                    <Field label="Aplica a">
-                      <select
-                        value={r.applies_to.all ? 'all' : 'cats'}
-                        onChange={(e) => updateRule(i, {
-                          applies_to: e.target.value === 'all'
-                            ? { all: true }
-                            : { categories: [] },
-                        })}
-                        className={selectBase}
-                      >
-                        <option value="all">Todo el carrito</option>
-                        <option value="cats">Por categoría</option>
-                      </select>
-                    </Field>
-                  </div>
-
-                  {r.kind === 'bxgy' && (
-                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                      <Field label="Comprá (qty)">
-                        <input
-                          type="number" min={1}
-                          value={(r.config as any).buy_qty ?? ''}
-                          onChange={(e) => updateRuleConfig(i, 'buy_qty', Number(e.target.value))}
-                          className={inputBase}
-                        />
-                      </Field>
-                      <Field label="Llevás (qty gratis)">
-                        <input
-                          type="number" min={1}
-                          value={(r.config as any).get_qty ?? ''}
-                          onChange={(e) => updateRuleConfig(i, 'get_qty', Number(e.target.value))}
-                          className={inputBase}
-                        />
-                      </Field>
-                      <Field label="% descuento en el gratis">
-                        <input
-                          type="number" min={0} max={100}
-                          value={(r.config as any).get_discount_pct ?? 100}
-                          onChange={(e) => updateRuleConfig(i, 'get_discount_pct', Number(e.target.value))}
-                          className={inputBase}
-                        />
-                      </Field>
-                    </div>
-                  )}
-
-                  {r.kind === 'gift_product' && (
-                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <Field label="ID producto regalo">
-                        <input
-                          value={(r.config as any).gift_product_id ?? ''}
-                          onChange={(e) => updateRuleConfig(i, 'gift_product_id', e.target.value)}
-                          className={inputBase}
-                          placeholder="alfajor-chocolate"
-                        />
-                      </Field>
-                      <Field label="Cantidad">
-                        <input
-                          type="number" min={1}
-                          value={(r.config as any).gift_qty ?? 1}
-                          onChange={(e) => updateRuleConfig(i, 'gift_qty', Number(e.target.value))}
-                          className={inputBase}
-                        />
-                      </Field>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setRules((prev) => prev.filter((_, j) => j !== i))}
-                    className="mt-3 font-body text-[10px] uppercase tracking-ultra text-red-400 hover:text-red-300"
-                  >
-                    Quitar regla
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {error && <p className="font-body text-sm text-red-400">{error}</p>}
-
-          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={() => setShowForm(false)}
@@ -374,13 +262,193 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
             >
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={!code || isPending}
-              className="rounded-full bg-gold px-6 py-2.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-gold-light disabled:opacity-50"
+          </div>
+
+          <div className="divide-y divide-carbon-line">
+            <Section
+              step={STEPS[0]}
+              open={openSteps.basicos}
+              onToggle={() => toggleStep('basicos')}
             >
-              Crear cupón
-            </button>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Código" hint="Es el texto que el cliente ingresa en el checkout. Mayúsculas, sin espacios.">
+                  <input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    placeholder="VERANO20"
+                    required
+                    className={inputBase + ' font-mono uppercase'}
+                  />
+                </Field>
+                <Field label="Descripción" hint="Texto interno para que vos identifiques el cupón.">
+                  <input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="20% off en vinos"
+                    className={inputBase}
+                  />
+                </Field>
+              </div>
+            </Section>
+
+            <Section
+              step={STEPS[1]}
+              open={openSteps.vigencia}
+              onToggle={() => toggleStep('vigencia')}
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Inicio" hint="Opcional. Si lo dejás vacío, empieza ahora.">
+                  <input
+                    type="datetime-local"
+                    value={startsAt}
+                    onChange={(e) => setStartsAt(e.target.value)}
+                    className={inputBase}
+                  />
+                </Field>
+                <Field label="Fin" hint="Opcional. Si lo dejás vacío, no vence.">
+                  <input
+                    type="datetime-local"
+                    value={endsAt}
+                    onChange={(e) => setEndsAt(e.target.value)}
+                    className={inputBase}
+                  />
+                </Field>
+                <Field label="Mínimo de compra" hint="Subtotal mínimo del carrito para que aplique.">
+                  <input
+                    type="number"
+                    value={minSubtotal}
+                    onChange={(e) => setMinSubtotal(e.target.value)}
+                    placeholder="0"
+                    min={0}
+                    className={inputBase}
+                  />
+                </Field>
+                <Field label="Tope de descuento" hint="Monto máximo a descontar (cápsula de seguridad).">
+                  <input
+                    type="number"
+                    value={maxDiscount}
+                    onChange={(e) => setMaxDiscount(e.target.value)}
+                    placeholder="Sin tope"
+                    min={0}
+                    className={inputBase}
+                  />
+                </Field>
+                <Field label="Usos totales" hint="Cantidad máxima de canjes en todo el cupón.">
+                  <input
+                    type="number"
+                    value={usageLimit}
+                    onChange={(e) => setUsageLimit(e.target.value)}
+                    placeholder="Sin límite"
+                    min={1}
+                    className={inputBase}
+                  />
+                </Field>
+                <Field label="Usos por usuario" hint="Cuántas veces lo puede canjear una misma persona.">
+                  <input
+                    type="number"
+                    value={perUserLimit}
+                    onChange={(e) => setPerUserLimit(e.target.value)}
+                    placeholder="Sin límite"
+                    min={1}
+                    className={inputBase}
+                  />
+                </Field>
+              </div>
+            </Section>
+
+            <Section
+              step={STEPS[2]}
+              open={openSteps.audiencia}
+              onToggle={() => toggleStep('audiencia')}
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Tipo de cliente" hint="Si lo limitás a un solo segmento.">
+                  <select
+                    value={customerType}
+                    onChange={(e) => setCustomerType(e.target.value as '' | 'retail' | 'wholesale')}
+                    className={selectBase}
+                  >
+                    <option value="">Todos</option>
+                    <option value="retail">Solo minorista</option>
+                    <option value="wholesale">Solo mayorista</option>
+                  </select>
+                </Field>
+                <Field label="Combinable" hint="Si permitís que se use junto con otros cupones en el mismo carrito.">
+                  <label className="mt-2 flex items-center gap-2 font-body text-sm text-bone/80">
+                    <input
+                      type="checkbox"
+                      checked={combinable}
+                      onChange={(e) => setCombinable(e.target.checked)}
+                      className="h-4 w-4 accent-gold"
+                    />
+                    {combinable ? 'Sí, combinable' : 'No, exclusivo'}
+                  </label>
+                </Field>
+              </div>
+            </Section>
+
+            <Section
+              step={STEPS[3]}
+              open={openSteps.reglas}
+              onToggle={() => toggleStep('reglas')}
+              right={
+                <button
+                  type="button"
+                  onClick={addRule}
+                  className="font-body text-[10px] uppercase tracking-ultra text-gold hover:underline"
+                >
+                  + Agregar regla
+                </button>
+              }
+            >
+              {rules.length === 0 ? (
+                <p className="font-body text-sm text-bone/50">
+                  Este cupón todavía no otorga ningún beneficio. Agregá al menos una regla.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {rules.map((r, i) => (
+                    <RuleCard
+                      key={i}
+                      index={i}
+                      rule={r}
+                      canRemove={rules.length > 1}
+                      onChange={(patch) => updateRule(i, patch)}
+                      onConfigChange={(key, val) => updateRuleConfig(i, key, val)}
+                      onRemove={() => removeRule(i)}
+                    />
+                  ))}
+                </div>
+              )}
+            </Section>
+          </div>
+
+          {error && (
+            <p className="border-t border-carbon-line bg-red-500/10 px-4 py-3 font-body text-sm text-red-300 sm:px-6">
+              {error}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between gap-3 border-t border-carbon-line px-4 py-4 sm:px-6">
+            <p className="font-body text-xs text-bone/50">
+              El cupón se crea <strong className="text-bone">activo</strong>. Podés desactivarlo desde la lista.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="font-body text-xs uppercase tracking-ultra text-bone/60 hover:text-bone"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={!code || isPending}
+                className="rounded-full bg-gold px-6 py-2.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-gold-light disabled:opacity-50"
+              >
+                {isPending ? 'Creando…' : 'Crear cupón'}
+              </button>
+            </div>
           </div>
         </form>
       )}
@@ -391,7 +459,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
             <tr className="border-b border-carbon-line text-bone/50 font-body text-[10px] uppercase tracking-ultra">
               <th className="p-4">Código</th>
               <th className="p-4">Tipo</th>
-              <th className="p-4">Reglas</th>
+              <th className="p-4">Beneficios</th>
               <th className="p-4">Usos</th>
               <th className="p-4">Estado</th>
               <th className="p-4 text-right">Acciones</th>
@@ -408,7 +476,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
                   {c.rules.length} regla{c.rules.length === 1 ? '' : 's'}
                 </td>
                 <td className="p-4 text-bone/80">
-                  {c.usage_count}{c.usage_limit ? ` / ${c.usage_limit}` : ''}
+                  {c.usage_count}{c.usage_limit ? ` / ${c.usage_limit}` : ' (sin tope)'}
                 </td>
                 <td className="p-4">
                   <span
@@ -433,7 +501,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(c.id)}
+                      onClick={() => handleDelete(c.id, c.code)}
                       className="rounded-full border border-red-500/40 px-3 py-1 font-body text-[11px] uppercase tracking-ultra text-red-400 transition hover:bg-red-500/20"
                     >
                       Eliminar
@@ -445,7 +513,7 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
             {coupons.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-8 text-center font-body text-sm text-bone/50">
-                  No hay cupones todavía.
+                  No hay cupones todavía. Hacé click en <span className="text-gold">+ Nuevo cupón</span> para crear el primero.
                 </td>
               </tr>
             )}
@@ -456,11 +524,191 @@ export default function CouponsAdmin({ initialCoupons }: Props) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({
+  step,
+  open,
+  onToggle,
+  right,
+  children,
+}: {
+  step: { title: string; subtitle: string };
+  open: boolean;
+  onToggle: () => void;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-carbon-raised/40 sm:px-6"
+      >
+        <div className="min-w-0">
+          <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
+            {open ? '▾' : '▸'} {step.title}
+          </p>
+          <p className="mt-0.5 font-body text-xs text-bone/50">{step.subtitle}</p>
+        </div>
+        {right && <div onClick={(e) => e.stopPropagation()}>{right}</div>}
+      </button>
+      {open && <div className="px-4 pb-5 sm:px-6">{children}</div>}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span className={labelEyebrow}>{label}</span>
       {children}
+      {hint && (
+        <span className="mt-1 block font-body text-[11px] text-bone/45">
+          {hint}
+        </span>
+      )}
     </label>
+  );
+}
+
+function RuleCard({
+  index,
+  rule,
+  canRemove,
+  onChange,
+  onConfigChange,
+  onRemove,
+}: {
+  index: number;
+  rule: RuleDraft;
+  canRemove: boolean;
+  onChange: (patch: Partial<RuleDraft>) => void;
+  onConfigChange: (key: string, value: unknown) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="border border-carbon-line bg-carbon-raised">
+      <div className="flex items-center justify-between border-b border-carbon-line px-4 py-2">
+        <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
+          Regla #{index + 1}
+        </p>
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="font-body text-[10px] uppercase tracking-ultra text-red-400 hover:text-red-300"
+          >
+            Quitar
+          </button>
+        )}
+      </div>
+      <div className="space-y-4 px-4 py-4">
+        <Field label="Tipo de beneficio">
+          <select
+            value={rule.kind}
+            onChange={(e) => onChange({ kind: e.target.value as CouponRule['kind'] })}
+            className={selectBase}
+          >
+            {RULE_KINDS.map((k) => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
+        </Field>
+        <p className="font-body text-xs italic text-bone/55">
+          {RULE_DESCRIPTIONS[rule.kind]}
+        </p>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {(rule.kind === 'percent' || rule.kind === 'fixed') && (
+            <Field
+              label={rule.kind === 'percent' ? 'Porcentaje' : 'Monto fijo'}
+              hint={rule.kind === 'percent' ? 'Ej: 20 = 20% off.' : 'Monto en la moneda del cupón.'}
+            >
+              <input
+                type="number"
+                value={rule.value ?? ''}
+                onChange={(e) =>
+                  onChange({ value: e.target.value === '' ? null : Number(e.target.value) })
+                }
+                min={0}
+                className={inputBase}
+              />
+            </Field>
+          )}
+          <Field label="Aplica a">
+            <select
+              value={rule.applies_to.all ? 'all' : 'cats'}
+              onChange={(e) =>
+                onChange({
+                  applies_to: e.target.value === 'all' ? { all: true } : { categories: [] },
+                })
+              }
+              className={selectBase}
+            >
+              <option value="all">Todo el carrito</option>
+              <option value="cats">Por categoría</option>
+            </select>
+          </Field>
+        </div>
+
+        {rule.kind === 'bxgy' && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Field label="Comprá (qty)" hint="Cantidad que el cliente debe llevar para activar la promo.">
+              <input
+                type="number" min={1}
+                value={(rule.config as any).buy_qty ?? ''}
+                onChange={(e) => onConfigChange('buy_qty', Number(e.target.value))}
+                className={inputBase}
+              />
+            </Field>
+            <Field label="Llevás (qty)" hint="Unidades bonificadas que se suman.">
+              <input
+                type="number" min={1}
+                value={(rule.config as any).get_qty ?? ''}
+                onChange={(e) => onConfigChange('get_qty', Number(e.target.value))}
+                className={inputBase}
+              />
+            </Field>
+            <Field label="% descuento en el regalo" hint="100 = totalmente gratis.">
+              <input
+                type="number" min={0} max={100}
+                value={(rule.config as any).get_discount_pct ?? 100}
+                onChange={(e) => onConfigChange('get_discount_pct', Number(e.target.value))}
+                className={inputBase}
+              />
+            </Field>
+          </div>
+        )}
+
+        {rule.kind === 'gift_product' && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="ID producto regalo" hint="Slug del producto en el catálogo.">
+              <input
+                value={(rule.config as any).gift_product_id ?? ''}
+                onChange={(e) => onConfigChange('gift_product_id', e.target.value)}
+                className={inputBase}
+                placeholder="alfajor-chocolate"
+              />
+            </Field>
+            <Field label="Cantidad">
+              <input
+                type="number" min={1}
+                value={(rule.config as any).gift_qty ?? 1}
+                onChange={(e) => onConfigChange('gift_qty', Number(e.target.value))}
+                className={inputBase}
+              />
+            </Field>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
