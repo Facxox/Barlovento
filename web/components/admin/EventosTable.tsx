@@ -197,9 +197,10 @@ function SingleUploader({
   return (
     <div
       className={disabled ? 'pointer-events-none opacity-60' : ''}
-      onClick={() => {
+      onClick={async () => {
         if (!file) return;
-        void onFile(file).then(() => setFile(null));
+        await onFile(file);
+        setFile(null);
       }}
     >
       <ImageDropzone
