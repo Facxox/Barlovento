@@ -7,6 +7,7 @@ export type OrderRow = {
   total: number;
   currency: string;
   channel: 'mercadopago' | 'whatsapp';
+  customer_type: 'retail' | 'wholesale';
   status: 'pending' | 'paid' | 'fulfilled' | 'cancelled';
   customer_name: string | null;
   customer_phone: string | null;
@@ -170,4 +171,146 @@ export async function getOrderMetrics(): Promise<OrderMetrics> {
 
   empty.daily = Array.from(dailyMap.values());
   return empty;
+}
+
+export type TopProduct = {
+  productId: string | null;
+  name: string;
+  qty: number;
+  revenue: number;
+  currency: string;
+  ordersCount: number;
+};
+
+export type TopProductsByChannel = {
+  retail: { items: TopProduct[]; totalQty: number; totalRevenue: number };
+  wholesale: { items: TopProduct[]; totalQty: number; totalRevenue: number };
+};
+
+/**
+ * Ranking de productos más vendidos, separado por canal (retail vs
+ * wholesale). Considera únicamente pedidos en estados que cuentan
+ * como venta (`paid` o `fulfilled`). Agrupa por `items.id` y nombre
+ * del item. Devuelve top N por canal ordenado por unidades vendidas.
+ */
+export async function getTopProductsByChannel(
+  limit = 5,
+  period: AnalyticsPeriodLike | null = null
+): Promise<TopProductsByChannel> {
+  const empty: TopProductsByChannel = {
+    retail: { items: [], totalQty: 0, totalRevenue: 0 },
+    wholesale: { items: [], totalQty: 0, totalRevenue: 0 },
+  };
+
+  const supabase = await getServerSupabase();
+  if (!supabase) return empty;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return empty;
+
+  // Traemos sólo lo necesario para el ranking.
+  let query = supabase
+    .from('orders')
+    .select('items,total,currency,status,created_at,customer_type')
+    .in('status', ['paid', 'fulfilled'])
+    .order('created_at', { ascending: false });
+
+  if (period) {
+    const start = periodStart(period);
+    if (start) query = query.gte('created_at', start.toISOString());
+  }
+
+  const { data, error } = await query;
+  if (error || !data) return empty;
+
+  const buckets: Record<
+    'retail' | 'wholesale',
+    Map<string, TopProduct>
+  > = {
+    retail: new Map(),
+    wholesale: new Map(),
+  };
+  const totals: Record<
+    'retail' | 'wholesale',
+    { qty: number; revenue: number }
+  > = {
+    retail: { qty: 0, revenue: 0 },
+    wholesale: { qty: 0, revenue: 0 },
+  };
+
+  type RawOrder = {
+    items: Array<{
+      id?: string | null;
+      name: string;
+      qty: number;
+      price: number;
+      currency?: string;
+    }>;
+    total: number | string;
+    currency: string;
+    customer_type: 'retail' | 'wholesale' | null;
+  };
+
+  for (const row of data as RawOrder[]) {
+    const channel: 'retail' | 'wholesale' =
+      row.customer_type === 'wholesale' ? 'wholesale' : 'retail';
+    const orderTotal = Number(row.total) || 0;
+    const bucket = buckets[channel];
+    const total = totals[channel];
+
+    for (const it of row.items ?? []) {
+      const qty = Number(it.qty) || 0;
+      if (qty <= 0) continue;
+      const lineRevenue =
+        qty * (Number(it.price) || 0);
+      const key = it.id ?? `name:${it.name}`;
+      const existing = bucket.get(key);
+      if (existing) {
+        existing.qty += qty;
+        existing.revenue += lineRevenue;
+        existing.ordersCount += 1;
+      } else {
+        bucket.set(key, {
+          productId: it.id ?? null,
+          name: it.name,
+          qty,
+          revenue: lineRevenue,
+          currency: it.currency ?? row.currency ?? 'UYU',
+          ordersCount: 1,
+        });
+      }
+      total.qty += qty;
+      total.revenue += lineRevenue;
+    }
+    // Asegurar que un pedido sin items no descuadre el totalRevenue.
+    if ((row.items ?? []).length === 0) {
+      total.revenue += orderTotal;
+    }
+  }
+
+  const finalize = (
+    channel: 'retail' | 'wholesale'
+  ): TopProductsByChannel[typeof channel] => {
+    const items = Array.from(buckets[channel].values())
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, limit);
+    return {
+      items,
+      totalQty: totals[channel].qty,
+      totalRevenue: totals[channel].revenue,
+    };
+  };
+
+  return { retail: finalize('retail'), wholesale: finalize('wholesale') };
+}
+
+/** Helper: tipo local liviano para evitar importar analytics.ts. */
+type AnalyticsPeriodLike = '7d' | '30d' | '90d' | 'all';
+function periodStart(p: AnalyticsPeriodLike): Date | null {
+  if (p === 'all') return null;
+  const days = p === '7d' ? 7 : p === '30d' ? 30 : 90;
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  return d;
 }

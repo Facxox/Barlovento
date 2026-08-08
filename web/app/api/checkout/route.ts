@@ -97,9 +97,24 @@ export async function POST(req: NextRequest) {
   // Persist order via service role (bypasses RLS — Mercado Pago channel).
   const supabase = getServiceSupabase();
   if (supabase) {
+    // Resolvemos el customer_type desde profiles por email.
+    // MP no se ofrece a mayoristas (el botón se oculta en CartDrawer),
+    // así que en práctica siempre será 'retail', pero la columna queda
+    // consistente por si cambia esa lógica en el futuro.
+    let customerType: 'retail' | 'wholesale' = 'retail';
+    if (body.customer_email) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('customer_type')
+        .eq('email', body.customer_email)
+        .maybeSingle();
+      if (profile?.customer_type === 'wholesale') customerType = 'wholesale';
+    }
+
     const { error } = await supabase.from('orders').insert({
       channel: 'mercadopago',
       status: 'pending',
+      customer_type: customerType,
       items: body.items.map((it) => ({
         id: it.id,
         name: it.name,

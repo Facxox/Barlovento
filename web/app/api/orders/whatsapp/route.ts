@@ -53,6 +53,8 @@ export async function POST(req: NextRequest) {
     currency: body.currency,
     customer_name: body.customer_name ?? null,
     customer_phone: body.customer_phone ?? null,
+    customer_type:
+      body.customer_type === 'wholesale' ? 'wholesale' : 'retail',
   });
 
   if (error) {
