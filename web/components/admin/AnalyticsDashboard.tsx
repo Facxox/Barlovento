@@ -59,13 +59,21 @@ const formatCurrency = (n: number, currency: string) =>
     maximumFractionDigits: 0,
   }).format(n);
 
+// El bucket viene como 'YYYY-MM-DD' en UTC. Para evitar que el
+// cambio de zona horaria (UTC-3 en Uruguay) corra el día hacia atrás
+// al renderizar, parseamos como fecha local sin componente horario.
+const parseIsoLocal = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+};
+
 const formatShortDay = (iso: string) => {
-  const d = new Date(iso + 'T00:00:00Z');
+  const d = parseIsoLocal(iso);
   return d.toLocaleDateString('es-UY', { month: 'short', day: 'numeric' });
 };
 
 const formatFullDay = (iso: string) => {
-  const d = new Date(iso + 'T00:00:00Z');
+  const d = parseIsoLocal(iso);
   return d.toLocaleDateString('es-UY', {
     weekday: 'short',
     month: 'short',
