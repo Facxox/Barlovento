@@ -3,6 +3,7 @@ import { getProducts, getGallery, getGalleryCategories, getEvents, getCategories
 import { listOrders, countPendingOrders } from '@/lib/orders';
 import { countUsers, countCoupons } from '@/lib/admin-queries';
 import { getServiceSupabase } from '@/lib/supabase-admin';
+import { ShortDate } from '@/components/ShortDate';
 
 export default async function AdminDashboard() {
   const [products, gallery, galleryCategories, events, categories, pending, userCount, coupons] = await Promise.all([
@@ -181,7 +182,7 @@ export default async function AdminDashboard() {
                     </td>
                     <td className="p-4 text-bone/70">{o.status}</td>
                     <td className="p-4 text-bone/60">
-                      <ShortDate iso={o.created_at} />
+                      <ShortDate iso={o.created_at} showTime />
                     </td>
                   </tr>
                 ))}
@@ -192,20 +193,4 @@ export default async function AdminDashboard() {
       </section>
     </div>
   );
-}
-
-/**
- * Formato fijo de fecha corta (no depende del locale del runtime).
- * Usado en server components para evitar hydration mismatches con
- * toLocaleString.
- */
-function ShortDate({ iso }: { iso: string }) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return <>{iso}</>;
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  return <>{`${dd}/${mm}/${yy}, ${hh}:${mi}`}</>;
 }

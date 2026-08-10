@@ -129,12 +129,9 @@ export default function UserOrdersDrawer({
                     </span>
                   </div>
                   <p className="mt-1 font-body text-[11px] uppercase tracking-ultra text-bone/50">
-                    {new Date(o.created_at).toLocaleDateString('es-UY', {
-                      day: '2-digit',
-                      month: 'long',
-                      year: 'numeric',
-                    })}{' '}
-                    · {o.channel === 'mercadopago' ? 'Mercado Pago' : 'WhatsApp'}
+                    {formatLongDate(o.created_at)}
+                    {' · '}
+                    {o.channel === 'mercadopago' ? 'Mercado Pago' : 'WhatsApp'}
                   </p>
                   <div className="mt-3 flex items-center justify-between">
                     <span
@@ -170,4 +167,16 @@ export default function UserOrdersDrawer({
       </aside>
     </>
   );
+}
+
+const MONTHS_LONG_ES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+/** Formato fijo dd de <mes> yyyy para evitar hydration mismatches. */
+function formatLongDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.getDate()} de ${MONTHS_LONG_ES[d.getMonth()]} ${d.getFullYear()}`;
 }

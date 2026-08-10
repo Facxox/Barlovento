@@ -221,11 +221,7 @@ export default function UsuariosTable({
                     {u.total_spent > 0 ? formatUY(u.total_spent) : '—'}
                   </td>
                   <td className="p-3 text-bone/60">
-                    {new Date(u.created_at).toLocaleDateString('es-UY', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
+                    {formatShortMonth(u.created_at)}
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex flex-col items-end gap-2">
@@ -299,4 +295,16 @@ export default function UsuariosTable({
       />
     </div>
   );
+}
+
+const MONTHS_SHORT_ES = [
+  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+  'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+];
+
+/** Formato fijo dd <mes corto> yyyy — sin locale dependency. */
+function formatShortMonth(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS_SHORT_ES[d.getMonth()]} ${d.getFullYear()}`;
 }
