@@ -187,8 +187,10 @@ export async function POST(req: NextRequest) {
   }
 
   const type = String(payload.type ?? payload.topic ?? '');
-  const dataIdRaw = payload.data?.id ?? payload.id;
-  const dataId = dataIdRaw ? String(dataIdRaw) : null;
+  // payload viene de JSON o form-encoded; unknown por seguridad.
+  const dataObj = (payload.data ?? null) as { id?: unknown } | null;
+  const dataIdRaw = dataObj?.id ?? payload.id;
+  const dataId = dataIdRaw != null ? String(dataIdRaw) : null;
 
   // Sólo nos interesan notificaciones de pagos / merchant_orders.
   if (!type || !dataId) {
