@@ -216,7 +216,35 @@ export async function POST(req: NextRequest) {
 
   const subtotal = validated.reduce((acc, v) => acc + v.qty * v.unit_price, 0);
 
-  // 4) Cupón opcional: se revalida server-side y se aplica al total.
+  // 4) Resolver sesión y customer_type ANTES del cupón para poder pasar
+  //    el userId a la validación de cupones.
+  const { getServerSupabase } = await import('@/lib/supabase-server');
+  const serverSupabase = await getServerSupabase();
+  let userId: string | null = null;
+  let customerType: 'retail' | 'wholesale' = 'retail';
+  if (serverSupabase) {
+    const { data: userData } = await serverSupabase.auth.getUser();
+    userId = userData?.user?.id ?? null;
+    if (userId) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('customer_type, email')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (profile?.customer_type === 'wholesale') customerType = 'wholesale';
+    }
+  }
+
+  // Wholesale bloqueado para MP: el botón en el carrito está oculto
+  // pero igual validamos server-side.
+  if (customerType === 'wholesale') {
+    return NextResponse.json(
+      { ok: false, error: 'wholesale_blocked_from_mp' },
+      { status: 403 }
+    );
+  }
+
+  // 5) Cupón opcional: se revalida server-side y se aplica al total.
   let couponDiscount = 0;
   let couponCode: string | null = null;
   let couponId: string | null = null;
@@ -270,35 +298,16 @@ export async function POST(req: NextRequest) {
     notes: cleanText(body.customer_notes, 500),
   };
 
-  // 6) Resolver customer_type desde la sesión autenticada. Ya NO se
-  //    confía en el email del cliente.
-  const { getServerSupabase } = await import('@/lib/supabase-server');
-  const serverSupabase = await getServerSupabase();
-  let userId: string | null = null;
-  let customerType: 'retail' | 'wholesale' = 'retail';
-  if (serverSupabase) {
-    const { data: userData } = await serverSupabase.auth.getUser();
-    userId = userData?.user?.id ?? null;
-    if (userId) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('customer_type, email')
-        .eq('user_id', userId)
-        .maybeSingle();
-      if (profile?.customer_type === 'wholesale') customerType = 'wholesale';
-      // Si el cliente está autenticado, usamos su email de la cuenta,
-      // no lo que mandó en el form.
-      if (profile?.email) customer.email = profile.email;
-    }
-  }
-
-  // Wholesale está bloqueado para pagos por MP. Mayoristas usan
-  // WhatsApp. Si un wholesale user llega acá, devolvemos 403.
-  if (customerType === 'wholesale') {
-    return NextResponse.json(
-      { ok: false, error: 'wholesale_blocked_from_mp' },
-      { status: 403 }
-    );
+  // 6) Si el cliente está autenticado, sobrescribimos el email con el
+  //    de la cuenta (no confiamos en lo que mandó en el form).
+  //    userId y customerType ya se resolvieron arriba (paso 4).
+  if (userId) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (profile?.email) customer.email = profile.email;
   }
 
   // 7) Pre-persisto la orden (status=pending, sin mp_preference_id).
