@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
           pending: `${siteUrl()}/checkout/pending`,
         },
         auto_return: 'approved',
+        notification_url: `${siteUrl()}/api/webhook/mp`,
         statement_descriptor: 'Barlovento',
         metadata: {
           source: 'web',
