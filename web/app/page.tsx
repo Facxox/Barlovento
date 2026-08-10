@@ -3,7 +3,6 @@ import Historia from '@/components/Historia';
 import MisionVision from '@/components/MisionVision';
 import Valores from '@/components/Valores';
 import PuntosVenta from '@/components/PuntosVenta';
-import ProductosHero from '@/components/ProductosHero';
 import TiendaServer from '@/components/TiendaServer';
 import Eventos from '@/components/Eventos';
 import RegalosEmpresariales from '@/components/RegalosEmpresariales';
@@ -18,7 +17,6 @@ export default function Home() {
       <MisionVision />
       <Valores />
       <PuntosVenta />
-      <ProductosHero />
       <TiendaServer />
       <Eventos />
       <RegalosEmpresariales />
