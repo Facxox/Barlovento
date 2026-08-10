@@ -46,18 +46,34 @@ export async function GET() {
   }
 
   try {
-    // El SDK v3 expone `users` para /users/me.
-    const { Users } = await import('mercadopago');
-    const users = new Users(mp);
-    const me: any = (await users.get()) as any;
-    const data: MpMeResponse = (me?.response ?? me?.body ?? me) as MpMeResponse;
+    // /users/me no está tipado en el SDK v3, así que pegamos directo a la API.
+    const r = await fetch('https://api.mercadopago.com/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+      // MP responde rápido o no responde; cache off para tener lectura fresca.
+      cache: 'no-store',
+    });
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      return NextResponse.json({
+        ok: false,
+        token_present: true,
+        token_prefix: tokenPrefix,
+        http_status: r.status,
+        error: 'mp_rejected_token',
+        body_excerpt: text.slice(0, 200),
+        hint:
+          r.status === 401
+            ? 'Token rechazado. Probablemente sea de test o esté mal copiado.'
+            : 'MP rechazó la consulta. Revisá estado de la cuenta.',
+      });
+    }
+    const data = (await r.json()) as MpMeResponse;
 
     return NextResponse.json({
       ok: true,
       token: {
         prefix: tokenPrefix,
         length: tokenLength,
-        // Heurística: TEST- o token que empieza con TEST_APP_USR
         looks_like_test: /^TEST(-|_)/i.test(tokenPrefix),
       },
       mp_account: {
