@@ -49,15 +49,29 @@ type TopProductsData = {
   wholesale: { items: TopProduct[]; totalQty: number; totalRevenue: number };
 };
 
-const formatNumber = (n: number) =>
-  new Intl.NumberFormat('es-UY', { maximumFractionDigits: 0 }).format(n);
+const formatNumber = (n: number) => {
+  const rounded = Math.round(n);
+  return String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
 
-const formatCurrency = (n: number, currency: string) =>
-  new Intl.NumberFormat('es-UY', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(n);
+const formatCurrency = (n: number, currency: string) => {
+  const sym =
+    CURRENCY_SYMBOLS[currency] ?? `${currency} `;
+  const rounded = Math.round(n);
+  const withSep = String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${sym}${withSep}`;
+};
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  UYU: 'UYU ',
+  USD: 'US$ ',
+  ARS: 'AR$ ',
+  BRL: 'R$ ',
+  CLP: 'CLP ',
+  MXN: 'MX$ ',
+  COP: 'COL$ ',
+  PEN: 'S/ ',
+};
 
 // El bucket viene como 'YYYY-MM-DD' en UTC. Para evitar que el
 // cambio de zona horaria (UTC-3 en Uruguay) corra el día hacia atrás

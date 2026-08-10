@@ -3,12 +3,11 @@
 import { useEffect, useState } from 'react';
 import type { OrderRow } from '@/lib/orders';
 
-const formatUY = (n: number) =>
-  new Intl.NumberFormat('es-UY', {
-    style: 'currency',
-    currency: 'UYU',
-    maximumFractionDigits: 0,
-  }).format(n);
+function formatUY(n: number): string {
+  const rounded = Math.round(n);
+  const withSep = String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `UYU ${withSep}`;
+}
 
 const statusColor: Record<OrderRow['status'], string> = {
   pending: 'bg-amber-500/20 text-amber-300',

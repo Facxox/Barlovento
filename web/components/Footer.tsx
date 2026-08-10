@@ -2,6 +2,9 @@ import { getSiteContent } from '@/lib/queries';
 
 export default async function Footer() {
   const { contacto: c } = await getSiteContent();
+  // Server-only: el año viene del server, no del cliente, así no hay
+  // mismatch si el render cruza la medianoche.
+  const currentYear = new Date().getFullYear();
   return (
     <footer className="border-t border-carbon-line bg-carbon pt-20 pb-10">
       <div className="mx-auto max-w-7xl px-6 lg:px-10">
@@ -50,7 +53,7 @@ export default async function Footer() {
         </div>
 
         <div className="mt-16 flex flex-col gap-2 border-t border-carbon-line pt-6 text-bone/50 text-xs font-body md:flex-row md:items-center md:justify-between">
-          <p>© {new Date().getFullYear()} Barlovento · Todos los derechos reservados.</p>
+          <p>© {currentYear} Barlovento · Todos los derechos reservados.</p>
           <p className="tracking-ultra uppercase">Trinidad · Flores · Uruguay</p>
         </div>
         <p className="mt-3 text-center font-body text-[11px] text-bone/40 md:text-right">

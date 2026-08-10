@@ -10,12 +10,11 @@ import {
 import type { AdminProfile, UsersStats } from '@/lib/admin-queries';
 import UserOrdersDrawer from './UserOrdersDrawer';
 
-const formatUY = (n: number) =>
-  new Intl.NumberFormat('es-UY', {
-    style: 'currency',
-    currency: 'UYU',
-    maximumFractionDigits: 0,
-  }).format(n);
+function formatUY(n: number): string {
+  const rounded = Math.round(n);
+  const withSep = String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `UYU ${withSep}`;
+}
 
 export default function UsuariosTable({
   initial,
