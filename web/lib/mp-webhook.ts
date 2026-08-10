@@ -201,7 +201,9 @@ export async function processPaymentResult(
 }
 
 /**
- * Versión para el simulador: busca por order_id en vez de preference_id.
+ * Versión admin: busca por order_id. Permite cualquier transición
+ * (incluyendo reversiones paid → cancelled). Usado por mark-paid
+ * y simulate-payment, ambos protegidos por requireAdminStrict.
  */
 export async function processOrderById(
   orderId: number,
@@ -221,10 +223,9 @@ export async function processOrderById(
         status: nextStatus,
         mp_payment_id: paymentId ?? order.mp_payment_id,
       })
-      .eq('id', order.id)
-      .in('status', ['pending']);
+      .eq('id', order.id);
     if (error) {
-      console.error('mp-webhook: simulate update failed', error.message);
+      console.error('mp-webhook: processOrderById failed', error.message);
       return null;
     }
   }

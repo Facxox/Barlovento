@@ -5,21 +5,26 @@ import { processOrderById } from '@/lib/mp-webhook';
 /**
  * POST /api/admin/orders/mark-paid
  *
- * Marca una orden como `paid` manualmente. Casos de uso:
- *   - El pago se confirmó en el panel de MP pero el webhook no llegó
- *     (IPN throttling, deploy caído en el momento, etc.).
- *   - Coordinación offline con el cliente (transferencia bancaria,
- *     pago coordinado, etc.) — la orden existe pero nunca pasó por MP.
+ * Cambia manualmente el estado de una orden. Acepta:
+ *   - status: 'paid'      → confirma cobro
+ *   - status: 'cancelled' → marca como cancelada / no pago
+ *   - status: 'fulfilled' → entregada
+ *   - status: 'pending'   → revertir a pendiente (sólo desde paid/cancelled)
  *
- * Body: { order_id: number, mp_payment_id?: string, note?: string }
+ * Body: { order_id: number, status: 'paid'|'cancelled'|'fulfilled'|'pending',
+ *         mp_payment_id?: string, note?: string }
  *
- * Side effects: si la orden tiene un cupón, lo redime igual que el
- * webhook real (idempotente).
+ * Side effects: si la orden pasa a `paid` y tiene un cupón, lo redime
+ * igual que el webhook real (idempotente). Si pasa de `paid` a
+ * `cancelled`, se marca la redención como refunded (rollback del cupón).
  *
  * Requiere sesión admin.
  */
 
 export const runtime = 'nodejs';
+
+type AdminStatus = 'paid' | 'cancelled' | 'fulfilled' | 'pending';
+const ALLOWED: readonly AdminStatus[] = ['paid', 'cancelled', 'fulfilled', 'pending'];
 
 export async function POST(req: NextRequest) {
   const { requireAdminStrict } = await import('@/lib/admin-actions');
@@ -30,7 +35,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 401 });
   }
 
-  let body: { order_id?: number; mp_payment_id?: string; note?: string };
+  let body: {
+    order_id?: number;
+    status?: string;
+    mp_payment_id?: string;
+    note?: string;
+  };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -42,19 +52,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'order_id_required' }, { status: 400 });
   }
 
+  const requested = String(body.status ?? '').toLowerCase();
+  if (!ALLOWED.includes(requested as AdminStatus)) {
+    return NextResponse.json(
+      { error: 'invalid_status', allowed: ALLOWED },
+      { status: 400 }
+    );
+  }
+  const nextStatus = requested as AdminStatus;
+
   const paymentId =
-    body.mp_payment_id ??
-    `manual-${Date.now()}`;
+    body.mp_payment_id ?? (nextStatus === 'paid' ? `manual-${Date.now()}` : null);
 
   // Anotamos el motivo en logs para auditoría.
-  console.log('[admin/mark-paid]', {
+  console.log('[admin/orders/set-status]', {
     orderId,
+    nextStatus,
     paymentId,
     note: body.note ?? null,
     at: new Date().toISOString(),
   });
 
-  const result = await processOrderById(orderId, 'paid', paymentId);
+  // Si estamos saliendo de paid → necesitamos revertir el cupón.
+  if (nextStatus !== 'paid') {
+    try {
+      const { refundRedemption } = await import('@/lib/coupons');
+      const { getServiceSupabase } = await import('@/lib/supabase-admin');
+      const supabase = getServiceSupabase();
+      if (supabase) {
+        await refundRedemption(supabase, orderId);
+      }
+    } catch (e) {
+      // No bloqueamos — el cupón se puede revertir manualmente.
+      console.error('refund redemption failed', e);
+    }
+  }
+
+  const result = await processOrderById(orderId, nextStatus, paymentId);
   if (!result) {
     return NextResponse.json(
       { error: 'order_not_found_or_update_failed' },

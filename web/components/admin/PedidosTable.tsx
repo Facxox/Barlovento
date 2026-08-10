@@ -31,7 +31,10 @@ export default function PedidosTable({ orders }: Props) {
   const filtered =
     filter === 'all' ? items : items.filter((o) => o.channel === filter);
 
-  async function markPaid(orderId: number) {
+  async function setStatus(
+    orderId: number,
+    status: 'paid' | 'cancelled' | 'fulfilled' | 'pending'
+  ) {
     setBusyId(orderId);
     setError(null);
     try {
@@ -40,8 +43,8 @@ export default function PedidosTable({ orders }: Props) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           order_id: orderId,
-          mp_payment_id: `manual-${Date.now()}`,
-          note: 'marcado manualmente desde el panel',
+          status,
+          note: 'cambiado desde el panel',
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -52,7 +55,7 @@ export default function PedidosTable({ orders }: Props) {
       startTransition(() => {
         setItems((prev) =>
           prev.map((o) =>
-            o.id === orderId ? { ...o, status: 'paid' as const } : o
+            o.id === orderId ? { ...o, status } : o
           )
         );
       });
@@ -61,6 +64,18 @@ export default function PedidosTable({ orders }: Props) {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function markPaid(orderId: number) {
+    await setStatus(orderId, 'paid');
+  }
+
+  async function markUnpaid(orderId: number) {
+    await setStatus(orderId, 'cancelled');
+  }
+
+  async function revertToPending(orderId: number) {
+    await setStatus(orderId, 'pending');
   }
 
   return (
@@ -156,16 +171,38 @@ export default function PedidosTable({ orders }: Props) {
                   {o.customer_email && <div>{o.customer_email}</div>}
                 </td>
                 <td className="p-3 text-right">
-                  {o.status === 'pending' && (
-                    <button
-                      type="button"
-                      onClick={() => markPaid(o.id)}
-                      disabled={busyId === o.id}
-                      className="rounded-full border border-gold bg-gold/10 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-gold transition hover:bg-gold hover:text-carbon disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {busyId === o.id ? 'Marcando…' : 'Marcar pagado'}
-                    </button>
-                  )}
+                  <div className="flex flex-wrap justify-end gap-1">
+                    {o.status === 'pending' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => markPaid(o.id)}
+                          disabled={busyId === o.id}
+                          className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-emerald-300 transition hover:bg-emerald-500 hover:text-carbon disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {busyId === o.id ? '…' : 'Marcar pagado'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => markUnpaid(o.id)}
+                          disabled={busyId === o.id}
+                          className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-red-300 transition hover:bg-red-500 hover:text-cream disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          No pago
+                        </button>
+                      </>
+                    )}
+                    {(o.status === 'paid' || o.status === 'cancelled') && (
+                      <button
+                        type="button"
+                        onClick={() => revertToPending(o.id)}
+                        disabled={busyId === o.id}
+                        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-amber-300 transition hover:bg-amber-500 hover:text-carbon disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Revertir a pendiente
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
