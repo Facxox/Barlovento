@@ -1,5 +1,5 @@
 import 'server-only';
-import { getServerSupabase } from './supabase-server';
+import { getServiceSupabase } from './supabase-admin';
 
 export type OrderRow = {
   id: number;
@@ -17,14 +17,15 @@ export type OrderRow = {
 };
 
 /**
- * Lista todos los pedidos. Solo accesible por admin autenticado.
+ * Lista todos los pedidos. Llamar SOLO desde rutas admin (que ya
+ * pasan requireAdminStrict). Usamos service role para bypassear RLS
+ * y garantizar visibilidad aunque las policies cambien.
+ *
  * Si Supabase no está configurado, devuelve [].
  */
 export async function listOrders(): Promise<OrderRow[]> {
-  const supabase = await getServerSupabase();
+  const supabase = getServiceSupabase();
   if (!supabase) return [];
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
 
   const { data, error } = await supabase
     .from('orders')
@@ -36,10 +37,9 @@ export async function listOrders(): Promise<OrderRow[]> {
 }
 
 export async function countPendingOrders(): Promise<number> {
-  const supabase = await getServerSupabase();
+  const supabase = getServiceSupabase();
   if (!supabase) return 0;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return 0;
+
   const { count, error } = await supabase
     .from('orders')
     .select('*', { count: 'exact', head: true })
@@ -92,10 +92,8 @@ export async function getOrderMetrics(): Promise<OrderMetrics> {
     daily: [],
   };
 
-  const supabase = await getServerSupabase();
+  const supabase = getServiceSupabase();
   if (!supabase) return empty;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return empty;
 
   const { data, error } = await supabase
     .from('orders')
@@ -202,12 +200,8 @@ export async function getTopProductsByChannel(
     wholesale: { items: [], totalQty: 0, totalRevenue: 0 },
   };
 
-  const supabase = await getServerSupabase();
+  const supabase = getServiceSupabase();
   if (!supabase) return empty;
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return empty;
 
   // Traemos sólo lo necesario para el ranking.
   let query = supabase
