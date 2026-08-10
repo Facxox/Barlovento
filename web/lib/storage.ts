@@ -18,7 +18,7 @@ export async function uploadImage(
 ): Promise<string> {
   const supabase = await getServerSupabase();
   if (!supabase) {
-    return fallbackLocalPath ?? '/Assets/placeholder.png';
+    return fallbackLocalPath ?? '';
   }
 
   const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';

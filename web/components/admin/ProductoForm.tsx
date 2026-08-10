@@ -33,7 +33,7 @@ export default function ProductoForm({
   const [currency, setCurrency] = useState(initial?.currency ?? 'UYU');
   const [category, setCategory] = useState(initial?.category ?? categories[0]?.id ?? '');
   const [existingImage, setExistingImage] = useState<string>(
-    initial?.image ?? '/Assets/placeholder.png'
+    initial?.image ?? ''
   );
   const [badge, setBadge] = useState(initial?.badge ?? '');
   const [isActive, setIsActive] = useState(initial?.is_active ?? true);
@@ -379,7 +379,7 @@ export default function ProductoForm({
           </p>
           <div className="aspect-square overflow-hidden border border-carbon-line bg-carbon-raised">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {(file || existingImage !== '/Assets/placeholder.png') ? (
+            {(file || existingImage) ? (
               <img
                 src={file ? URL.createObjectURL(file) : existingImage}
                 alt={name || 'preview'}
