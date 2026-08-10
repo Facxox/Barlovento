@@ -39,7 +39,8 @@ export type CheckoutCouponErr = {
     | 'customer_type_mismatch'
     | 'not_applicable'
     | 'empty_cart'
-    | 'not_combinable';
+    | 'not_combinable'
+    | 'already_applied';
 };
 
 export type CheckoutCouponResult = CheckoutCouponOk | CheckoutCouponErr;
