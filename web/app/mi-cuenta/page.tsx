@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { listMyOrders, type MyOrder } from '@/lib/profile-actions';
 import CuentaForm from './CuentaForm';
+import { formatLongDateEs } from '@/components/formatDate';
 
 export const metadata = { title: 'Mi cuenta · Barlovento' };
 export const dynamic = 'force-dynamic';
@@ -143,12 +144,7 @@ function OrderRow({ order }: { order: MyOrder }) {
         </span>
       </div>
       <p className="mt-1 font-body text-[11px] uppercase tracking-ultra text-bone/50">
-        {new Date(order.created_at).toLocaleDateString('es-UY', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
-        })}{' '}
-        · {order.status}
+        {formatLongDateEs(order.created_at)} · {order.status}
       </p>
       <ul className="mt-3 space-y-1 font-body text-sm text-bone/75">
         {items.map((it, idx) => (

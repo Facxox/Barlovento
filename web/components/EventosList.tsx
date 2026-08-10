@@ -4,15 +4,7 @@ import { useEffect, useState } from 'react';
 import type { BarloventoEvent } from '@/lib/queries';
 import { Reveal } from './Reveal';
 import EventLightbox from './EventLightbox';
-
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-UY', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
-}
+import { formatLongDateEs } from './formatDate';
 
 export default function EventosList({
   upcoming,
@@ -52,7 +44,7 @@ export default function EventosList({
                         </div>
                       )}
                       <p className="mt-4 font-display text-3xl text-bone leading-tight">
-                        {formatDate(e.date)}
+                        {formatLongDateEs(e.date)}
                       </p>
                     </div>
                     <div className="md:col-span-5">
@@ -97,7 +89,7 @@ export default function EventosList({
                       <img src={e.image} alt={e.title} className="h-full w-full object-cover" />
                       <div className="absolute inset-0 bg-carbon/30" />
                       <p className="absolute bottom-3 left-4 font-body text-xs uppercase tracking-ultra text-bone/90">
-                        {formatDate(e.date)}
+                        {formatLongDateEs(e.date)}
                       </p>
                     </div>
                     <div className="p-6">

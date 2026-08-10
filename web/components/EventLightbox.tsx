@@ -2,15 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { BarloventoEvent } from '@/lib/queries';
-
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-UY', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
-}
+import { formatLongDateEs } from './formatDate';
 
 /**
  * Lightbox fullscreen para ver todas las fotos de un evento.
@@ -79,7 +71,7 @@ export default function EventLightbox({
       {/* Header: título + fecha */}
       <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 text-center">
         <p className="font-body text-[10px] uppercase tracking-ultra text-bone/60">
-          {formatDate(event.date)} · {event.location}
+          {formatLongDateEs(event.date)} · {event.location}
         </p>
         <h3 className="mt-1 font-display text-xl text-bone">{event.title}</h3>
       </div>

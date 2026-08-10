@@ -3,12 +3,24 @@
 import { useState, useTransition } from 'react';
 import type { OrderRow } from '@/lib/orders';
 
-const formatUY = (n: number, currency: string) =>
-  new Intl.NumberFormat('es-UY', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(n);
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  UYU: 'UYU ',
+  USD: 'US$ ',
+  ARS: 'AR$ ',
+  BRL: 'R$ ',
+  CLP: 'CLP ',
+  MXN: 'MX$ ',
+  COP: 'COL$ ',
+  PEN: 'S/ ',
+};
+
+function formatUY(n: number, currency: string): string {
+  const sym = CURRENCY_SYMBOLS[currency] ?? `${currency} `;
+  const rounded = Math.round(n);
+  // Thousand separator manual (es-AR style).
+  const withSep = String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${sym}${withSep}`;
+}
 
 type Props = {
   orders: OrderRow[];

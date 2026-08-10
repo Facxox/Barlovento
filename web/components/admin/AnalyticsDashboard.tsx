@@ -67,17 +67,17 @@ const parseIsoLocal = (iso: string) => {
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 };
 
-const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const MONTHS_SHORT_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const WEEKDAYS_ES = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 
 const formatShortDay = (iso: string) => {
   const d = parseIsoLocal(iso);
-  return `${d.getDate()} ${MONTHS_ES[d.getMonth()]}`;
+  return `${d.getDate()} ${MONTHS_SHORT_ES[d.getMonth()]}`;
 };
 
 const formatFullDay = (iso: string) => {
   const d = parseIsoLocal(iso);
-  return `${WEEKDAYS_ES[d.getDay()]} ${d.getDate()} ${MONTHS_ES[d.getMonth()]}`;
+  return `${WEEKDAYS_ES[d.getDay()]} ${d.getDate()} ${MONTHS_SHORT_ES[d.getMonth()]}`;
 };
 
 export default function AnalyticsDashboard() {
