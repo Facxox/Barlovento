@@ -116,26 +116,12 @@ export default function CheckoutForm() {
 
     setSubmitting(true);
     try {
+      // Items crudos: sólo id y qty van al server. El server resuelve
+      // nombre, precio y currency desde la DB.
       const itemsToSend = items.map((i) => ({
         id: i.id,
-        name: i.name,
         qty: i.qty,
-        price: i.price,
-        currency: i.currency,
       }));
-
-      // Si hay cupón, lo agregamos como línea con precio negativo para que
-      // Mercado Pago muestre el descuento en el checkout. El registro de la
-      // redención se hace server-side al recibir el webhook de pago.
-      if (appliedCoupon && appliedCoupon.discount_total > 0) {
-        itemsToSend.push({
-          id: `coupon:${appliedCoupon.coupon_id}`,
-          name: `Cupón ${appliedCoupon.code}`,
-          qty: 1,
-          price: -appliedCoupon.discount_total,
-          currency: items[0]?.currency ?? 'UYU',
-        });
-      }
 
       const res = await fetch('/api/checkout', {
         method: 'POST',
@@ -148,6 +134,10 @@ export default function CheckoutForm() {
           customer_address: address.trim(),
           customer_city: city.trim(),
           customer_notes: notes.trim() || null,
+          coupon_code:
+            appliedCoupon && appliedCoupon.discount_total > 0
+              ? appliedCoupon.code
+              : null,
         }),
       });
       const data: { ok?: boolean; init_point?: string; error?: string } =
