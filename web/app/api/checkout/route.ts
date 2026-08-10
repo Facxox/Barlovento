@@ -88,6 +88,19 @@ export async function POST(req: NextRequest) {
     });
     initPoint = created.init_point ?? '';
     preferenceId = created.id ?? null;
+    // Diagnóstico temporal: loguear si la preference quedó en sandbox.
+    console.log('[checkout] preference created', {
+      id: preferenceId,
+      sandbox: created.sandbox_init_point ?? null,
+      init_point_host: (() => {
+        try {
+          return new URL(initPoint).host;
+        } catch {
+          return null;
+        }
+      })(),
+      token_prefix: (process.env.MERCADO_PAGO_ACCESS_TOKEN ?? '').slice(0, 8),
+    });
   } catch (err: any) {
     return NextResponse.json(
       { ok: false, error: err?.message ?? 'mp_error' },
