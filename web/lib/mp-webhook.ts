@@ -28,7 +28,7 @@ export type OrderRow = {
   status: 'pending' | 'paid' | 'fulfilled' | 'cancelled';
 };
 
-export type MpStatus = 'paid' | 'pending' | 'cancelled';
+export type MpStatus = 'paid' | 'pending' | 'cancelled' | 'fulfilled';
 
 export function mapMpStatus(mpStatus: string | undefined): MpStatus {
   switch (mpStatus) {
