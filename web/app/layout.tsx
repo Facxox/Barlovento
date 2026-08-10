@@ -25,7 +25,6 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Barlovento · Irresistibles',
     description: 'Alfajores artesanales de Trinidad. Medalla de Oro Pyme.',
-    images: ['/Assets/og-image.png'],
     type: 'website',
   },
 };
