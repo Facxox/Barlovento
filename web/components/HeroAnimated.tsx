@@ -39,7 +39,7 @@ export default function HeroAnimated({ hero }: { hero: HeroContent }) {
       {/* Contenido */}
       <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col justify-end px-6 pb-24 pt-32 lg:px-10 lg:pb-32">
         <div className="flex justify-end">
-          <div className="max-w-3xl">
+          <div className="max-w-3xl text-right">
             <p
               className={[
                 'text-eyebrow transition-opacity duration-1000 delay-700',
@@ -60,7 +60,7 @@ export default function HeroAnimated({ hero }: { hero: HeroContent }) {
 
             <p
               className={[
-                'mt-6 max-w-xl prose-editorial transition-opacity duration-1000 delay-[1100ms]',
+                'mt-6 ml-auto max-w-xl prose-editorial transition-opacity duration-1000 delay-[1100ms]',
                 inView ? 'opacity-100' : 'opacity-0',
               ].join(' ')}
             >
@@ -69,7 +69,7 @@ export default function HeroAnimated({ hero }: { hero: HeroContent }) {
 
             <div
               className={[
-                'mt-10 flex flex-col gap-3 sm:flex-row sm:items-center transition-opacity duration-1000 delay-[1300ms]',
+                'mt-10 flex flex-col items-end gap-3 sm:flex-row sm:justify-end sm:items-center transition-opacity duration-1000 delay-[1300ms]',
                 inView ? 'opacity-100' : 'opacity-0',
               ].join(' ')}
             >
