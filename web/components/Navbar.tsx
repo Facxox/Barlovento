@@ -7,7 +7,6 @@ import { useCart } from './CartContext';
 import { getBrowserSupabase } from '@/lib/types';
 
 const navLinks = [
-  { label: 'Productos', href: '/#productos' },
   { label: 'Tienda', href: '/#tienda' },
   { label: 'Historia', href: '/#historia' },
   { label: 'Eventos', href: '/#eventos' },
