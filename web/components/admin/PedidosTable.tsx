@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import type { OrderRow } from '@/lib/orders';
 
 const formatUY = (n: number, currency: string) =>
@@ -10,11 +10,58 @@ const formatUY = (n: number, currency: string) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-export default function PedidosTable({ orders }: { orders: OrderRow[] }) {
+type Props = {
+  orders: OrderRow[];
+};
+
+/**
+ * Tabla de pedidos del panel admin.
+ *
+ * La fecha la recibimos YA formateada del server (string ISO corto)
+ * para evitar hydration mismatch: toLocaleString depende del locale
+ * del runtime y rompe SSR vs client.
+ */
+export default function PedidosTable({ orders }: Props) {
   const [filter, setFilter] = useState<'all' | OrderRow['channel']>('all');
+  const [items, setItems] = useState<OrderRow[]>(orders);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   const filtered =
-    filter === 'all' ? orders : orders.filter((o) => o.channel === filter);
+    filter === 'all' ? items : items.filter((o) => o.channel === filter);
+
+  async function markPaid(orderId: number) {
+    setBusyId(orderId);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/orders/mark-paid', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          order_id: orderId,
+          mp_payment_id: `manual-${Date.now()}`,
+          note: 'marcado manualmente desde el panel',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setError(data?.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      startTransition(() => {
+        setItems((prev) =>
+          prev.map((o) =>
+            o.id === orderId ? { ...o, status: 'paid' as const } : o
+          )
+        );
+      });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'unknown error');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <div>
@@ -22,7 +69,7 @@ export default function PedidosTable({ orders }: { orders: OrderRow[] }) {
         <div>
           <h1 className="font-display text-3xl text-bone">Pedidos</h1>
           <p className="mt-1 font-body text-sm text-bone/60">
-            {orders.length} en total.
+            {items.length} en total.
           </p>
         </div>
         <div className="flex gap-2">
@@ -43,6 +90,15 @@ export default function PedidosTable({ orders }: { orders: OrderRow[] }) {
         </div>
       </header>
 
+      {error && (
+        <p
+          role="alert"
+          className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-2 font-body text-sm text-red-700"
+        >
+          {error}
+        </p>
+      )}
+
       <div className="overflow-x-auto border border-carbon-line bg-carbon">
         <table className="w-full text-left">
           <thead>
@@ -54,17 +110,18 @@ export default function PedidosTable({ orders }: { orders: OrderRow[] }) {
               <th className="p-3 text-right">Total</th>
               <th className="p-3">Estado</th>
               <th className="p-3">Cliente</th>
+              <th className="p-3"></th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((o) => (
-              <tr key={o.id} className="border-b border-carbon-line/40 last:border-0 align-top">
+              <tr
+                key={o.id}
+                className="border-b border-carbon-line/40 last:border-0 align-top"
+              >
                 <td className="p-3 font-body text-sm text-bone/60">#{o.id}</td>
                 <td className="p-3 font-body text-sm text-bone/80">
-                  {new Date(o.created_at).toLocaleString('es-UY', {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                  })}
+                  <FormattedDate iso={o.created_at} />
                 </td>
                 <td className="p-3">
                   <span
@@ -91,18 +148,33 @@ export default function PedidosTable({ orders }: { orders: OrderRow[] }) {
                   {formatUY(o.total, o.currency)}
                 </td>
                 <td className="p-3 font-body text-xs uppercase tracking-ultra text-bone/70">
-                  {o.status}
+                  <StatusBadge status={o.status} />
                 </td>
                 <td className="p-3 font-body text-xs text-bone/60">
                   {o.customer_name ?? '—'}
                   {o.customer_phone && <div>{o.customer_phone}</div>}
                   {o.customer_email && <div>{o.customer_email}</div>}
                 </td>
+                <td className="p-3 text-right">
+                  {o.status === 'pending' && (
+                    <button
+                      type="button"
+                      onClick={() => markPaid(o.id)}
+                      disabled={busyId === o.id}
+                      className="rounded-full border border-gold bg-gold/10 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-gold transition hover:bg-gold hover:text-carbon disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {busyId === o.id ? 'Marcando…' : 'Marcar pagado'}
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-12 text-center font-body text-sm text-bone/50">
+                <td
+                  colSpan={8}
+                  className="p-12 text-center font-body text-sm text-bone/50"
+                >
                   Sin pedidos.
                 </td>
               </tr>
@@ -111,5 +183,39 @@ export default function PedidosTable({ orders }: { orders: OrderRow[] }) {
         </table>
       </div>
     </div>
+  );
+}
+
+/**
+ * Formatea la fecha en cliente usando un format explícito (no locale
+ * del browser) para no introducir hydration mismatches.
+ * Como fallback si el string es inválido, devuelve el input crudo.
+ */
+function FormattedDate({ iso }: { iso: string }) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return <>{iso}</>;
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return <>{`${dd}/${mm}/${yy}, ${hh}:${mi}`}</>;
+}
+
+function StatusBadge({ status }: { status: OrderRow['status'] }) {
+  const cls =
+    status === 'paid'
+      ? 'bg-emerald-500/20 text-emerald-300'
+      : status === 'cancelled'
+      ? 'bg-red-500/20 text-red-300'
+      : status === 'fulfilled'
+      ? 'bg-blue-500/20 text-blue-300'
+      : 'bg-amber-500/20 text-amber-300';
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-ultra ${cls}`}
+    >
+      {status}
+    </span>
   );
 }

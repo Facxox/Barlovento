@@ -181,10 +181,7 @@ export default async function AdminDashboard() {
                     </td>
                     <td className="p-4 text-bone/70">{o.status}</td>
                     <td className="p-4 text-bone/60">
-                      {new Date(o.created_at).toLocaleString('es-UY', {
-                        dateStyle: 'short',
-                        timeStyle: 'short',
-                      })}
+                      <ShortDate iso={o.created_at} />
                     </td>
                   </tr>
                 ))}
@@ -195,4 +192,20 @@ export default async function AdminDashboard() {
       </section>
     </div>
   );
+}
+
+/**
+ * Formato fijo de fecha corta (no depende del locale del runtime).
+ * Usado en server components para evitar hydration mismatches con
+ * toLocaleString.
+ */
+function ShortDate({ iso }: { iso: string }) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return <>{iso}</>;
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return <>{`${dd}/${mm}/${yy}, ${hh}:${mi}`}</>;
 }
