@@ -45,7 +45,7 @@ export default function HeroAnimated({ hero }: { hero: HeroContent }) {
           <div className="max-w-3xl text-right">
             <p
               className={[
-                'text-eyebrow transition-opacity duration-1000 delay-700',
+                'text-eyebrow text-bone font-semibold transition-opacity duration-1000 delay-700',
                 inView ? 'opacity-100' : 'opacity-0',
               ].join(' ')}
             >
@@ -97,7 +97,7 @@ export default function HeroAnimated({ hero }: { hero: HeroContent }) {
             agrandar la foto en un lightbox. */}
         <div
           className={[
-            'absolute right-6 top-32 hidden lg:block transition-all duration-1000 delay-[1500ms]',
+            'absolute left-6 top-24 hidden lg:block transition-all duration-1000 delay-[1500ms]',
             inView ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2',
           ].join(' ')}
         >
