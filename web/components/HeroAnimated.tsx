@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useInView } from './useInView';
 
 type HeroContent = {
@@ -11,8 +12,12 @@ type HeroContent = {
   background_image: string;
 };
 
+const MEDAL_IMAGE = '/PremioPyme.png';
+const MEDAL_ALT = 'Medalla de Oro — Campeonato Mundial del Alfajor 2024';
+
 export default function HeroAnimated({ hero }: { hero: HeroContent }) {
   const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.1 });
+  const [medalOpen, setMedalOpen] = useState(false);
 
   return (
     <section
@@ -96,24 +101,53 @@ export default function HeroAnimated({ hero }: { hero: HeroContent }) {
             inView ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2',
           ].join(' ')}
         >
-          <div
-            aria-label="Medalla de Oro — Campeonato Mundial del Alfajor 2024"
-            className="flex items-center gap-3 rounded-full border border-gold/40 bg-carbon/70 px-4 py-2 animate-soft-pulse"
+          <button
+            type="button"
+            onClick={() => setMedalOpen(true)}
+            aria-label={MEDAL_ALT}
+            className="group flex items-center gap-3 rounded-full border border-gold/40 bg-carbon/70 px-4 py-2 animate-soft-pulse transition hover:border-gold hover:bg-carbon/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
           >
-            <div
-              aria-hidden
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-gold/60 bg-carbon text-gold text-xs font-display"
-            >
-              ★
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={MEDAL_IMAGE}
+              alt={MEDAL_ALT}
+              className="h-9 w-9 shrink-0 rounded-full object-cover transition-transform duration-500 group-hover:scale-110"
+              width={36}
+              height={36}
+            />
             <div className="font-body text-[11px] uppercase tracking-ultra text-bone">
               Medalla de Oro
               <span className="block text-gold/80 normal-case tracking-normal mt-0.5">
-                Mejor Alfajor Pyme · Mundial del Alfajor Argentina 2024
+                Mundial del Alfajor Argentina 2024
               </span>
             </div>
-          </div>
+          </button>
         </div>
+
+        {/* Lightbox de la medalla */}
+        {medalOpen && (
+          <div
+            onClick={() => setMedalOpen(false)}
+            className="fixed inset-0 z-50 grid place-items-center bg-carbon/95 backdrop-blur-md p-6 cursor-zoom-out"
+            role="dialog"
+            aria-label={MEDAL_ALT}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={MEDAL_IMAGE}
+              alt=""
+              className="max-h-[88vh] max-w-[92vw] object-contain shadow-2xl"
+            />
+            <button
+              type="button"
+              onClick={() => setMedalOpen(false)}
+              className="absolute top-6 right-6 grid h-10 w-10 place-items-center rounded-full border border-gold/40 text-bone hover:border-gold"
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Indicador de scroll */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
