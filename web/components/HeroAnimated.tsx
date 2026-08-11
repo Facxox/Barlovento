@@ -140,8 +140,11 @@ export default function HeroAnimated({ hero }: { hero: HeroContent }) {
             />
             <button
               type="button"
-              onClick={() => setMedalOpen(false)}
-              className="absolute top-6 right-6 grid h-10 w-10 place-items-center rounded-full border border-gold/40 text-bone hover:border-gold"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMedalOpen(false);
+              }}
+              className="absolute top-6 right-6 z-10 grid h-10 w-10 place-items-center rounded-full border border-gold/40 bg-carbon/80 text-bone hover:border-gold hover:text-gold transition"
               aria-label="Cerrar"
             >
               ✕
