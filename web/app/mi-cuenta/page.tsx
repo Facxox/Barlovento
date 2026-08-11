@@ -4,17 +4,10 @@ import { getServerSupabase } from '@/lib/supabase-server';
 import { listMyOrders, type MyOrder } from '@/lib/profile-actions';
 import CuentaForm from './CuentaForm';
 import { formatLongDateEs } from '@/components/formatDate';
+import { formatMoney } from '@/components/formatMoney';
 
 export const metadata = { title: 'Mi cuenta · Barlovento' };
 export const dynamic = 'force-dynamic';
-
-function formatUY(n: number) {
-  return new Intl.NumberFormat('es-UY', {
-    style: 'currency',
-    currency: 'UYU',
-    maximumFractionDigits: 0,
-  }).format(n);
-}
 
 export default async function MiCuentaPage() {
   const supabase = await getServerSupabase();
@@ -140,7 +133,7 @@ function OrderRow({ order }: { order: MyOrder }) {
           </span>
         </div>
         <span className="font-display text-lg text-gold">
-          {formatUY(Number(order.total))}
+          {formatMoney(Number(order.total), order.currency)}
         </span>
       </div>
       <p className="mt-1 font-body text-[11px] uppercase tracking-ultra text-bone/50">

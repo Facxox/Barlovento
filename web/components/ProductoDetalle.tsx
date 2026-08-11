@@ -6,10 +6,8 @@ import { useCart } from './CartContext';
 import NutritionTable from './NutritionTable';
 import GoldDivider from './GoldDivider';
 import { Reveal } from './Reveal';
+import { formatMoney } from './formatMoney';
 import type { Product, Category } from '@/lib/queries';
-
-const formatUY = (n: number) =>
-  new Intl.NumberFormat('es-UY', { style: 'currency', currency: 'UYU', maximumFractionDigits: 0 }).format(n);
 
 export default function ProductoDetalle({
   product,
@@ -78,7 +76,7 @@ export default function ProductoDetalle({
                 {product.name}
               </h1>
               <p className="mt-4 font-display text-3xl text-ink/90">
-                {formatUY(product.price)}
+                {formatMoney(product.price, product.currency)}
               </p>
 
               <p className="mt-8 max-w-xl font-body text-base leading-[1.85] text-ink/80">

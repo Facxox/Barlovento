@@ -5,10 +5,8 @@ import { useMemo, useState } from 'react';
 import { useCart } from './CartContext';
 import { Reveal } from './Reveal';
 import GoldDivider from './GoldDivider';
+import { formatMoney } from './formatMoney';
 import type { Product, Category } from '@/lib/queries';
-
-const formatUY = (n: number) =>
-  new Intl.NumberFormat('es-UY', { style: 'currency', currency: 'UYU', maximumFractionDigits: 0 }).format(n);
 
 export default function Tienda({
   products,
@@ -168,7 +166,7 @@ function ProductCard({
             </h3>
           </div>
           <p className="font-display text-2xl text-ink/90 whitespace-nowrap">
-            {formatUY(product.price)}
+            {formatMoney(product.price, product.currency)}
           </p>
         </div>
 

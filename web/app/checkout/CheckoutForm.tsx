@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useCart } from '@/components/CartContext';
 import GoldDivider from '@/components/GoldDivider';
 import CouponInput, { type AppliedCouponState } from '@/components/CouponInput';
+import { formatMoney } from '@/components/formatMoney';
 
 type Profile = {
   full_name?: string | null;
@@ -18,12 +19,7 @@ type FieldErrors = Partial<
   Record<'full_name' | 'email' | 'phone' | 'address' | 'city', string>
 >;
 
-const formatUY = (n: number) =>
-  new Intl.NumberFormat('es-UY', {
-    style: 'currency',
-    currency: 'UYU',
-    maximumFractionDigits: 0,
-  }).format(n);
+const formatUY = (n: number) => formatMoney(n);
 
 export default function CheckoutForm() {
   const { items, subtotal, isOpen, close } = useCart();

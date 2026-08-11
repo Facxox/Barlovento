@@ -3,14 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from './CartContext';
-
-function formatUY(n: number) {
-  return new Intl.NumberFormat('es-UY', {
-    style: 'currency',
-    currency: 'UYU',
-    maximumFractionDigits: 0,
-  }).format(n);
-}
+import { formatMoney } from './formatMoney';
 
 export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
   const { items, isOpen, close, setQty, remove, subtotal, clear } = useCart();
@@ -50,10 +43,10 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
 
   const buildWhatsAppLink = () => {
     const lines = items
-      .map((i) => `· ${i.qty} x ${i.name} — ${formatUY(i.price * i.qty)}`)
+      .map((i) => `· ${i.qty} x ${i.name} — ${formatMoney(i.price * i.qty, i.currency)}`)
       .join('\n');
     const msg = encodeURIComponent(
-      `Hola Barlovento! Quiero hacer este pedido:\n\n${lines}\n\nTotal: ${formatUY(subtotal)}\n\nGracias!`
+      `Hola Barlovento! Quiero hacer este pedido:\n\n${lines}\n\nTotal: ${formatMoney(subtotal, items[0]?.currency)}\n\nGracias!`
     );
     return `https://wa.me/${phone}?text=${msg}`;
   };
@@ -143,7 +136,7 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
                     </div>
                     <div className="flex-1">
                       <p className="font-display text-lg text-bone leading-tight">{i.name}</p>
-                      <p className="text-bone/60 font-body text-sm mt-1">{formatUY(i.price)}</p>
+                      <p className="text-bone/60 font-body text-sm mt-1">{formatMoney(i.price, i.currency)}</p>
                       <div className="mt-2 flex items-center gap-2">
                         <button
                           onClick={() => setQty(i.id, i.qty - 1)}
@@ -174,7 +167,9 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
             <footer className="border-t border-carbon-line px-6 py-5 space-y-4">
               <div className="flex items-baseline justify-between">
                 <span className="text-eyebrow">Subtotal</span>
-                <span className="font-display text-3xl text-gold">{formatUY(subtotal)}</span>
+                <span className="font-display text-3xl text-gold">
+                  {formatMoney(subtotal, items[0]?.currency)}
+                </span>
               </div>
 
               <a
