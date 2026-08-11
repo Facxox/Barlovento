@@ -109,7 +109,8 @@
     "requisitos": [
       "Tener un comercio habilitado (kiosko, almacén, cafetería, vinoteca, tienda).",
       "Una caja por sabor.",
-      "Espacio de góndola o exhibidor para el producto."
+      "Espacio de góndola o exhibidor para el producto.",
+      "Compromiso de compra mínima de 1 caja de 12 alfajores de cada gusto por mes."
     ]
   },
   "contacto": {
