@@ -102,7 +102,10 @@ export async function getTrafficMetrics(
     // saturar el chart.
     const { data: rows } = await service
       .from('visitas')
-      .select('fecha_hora,visitor_hash');
+      .select('fecha_hora,visitor_hash')
+      // PostgREST trunca a 1000 filas por default. Pedimos hasta 100k
+      // para que visitas históricas (todo el tiempo) entren completas.
+      .range(0, 99999);
 
     if (!rows || rows.length === 0) {
       return {
@@ -184,7 +187,9 @@ export async function getTrafficMetrics(
   const { data: rows } = await service
     .from('visitas')
     .select('fecha_hora,visitor_hash')
-    .gte('fecha_hora', previousStart.toISOString());
+    .gte('fecha_hora', previousStart.toISOString())
+    // PostgREST trunca a 1000 filas por default. Pedimos hasta 100k.
+    .range(0, 99999);
 
   const currentVisitors = new Set<string>();
   const previousVisitors = new Set<string>();
