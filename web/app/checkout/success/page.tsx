@@ -8,7 +8,6 @@ type SP = { [k: string]: string | string[] | undefined };
 
 function readId(sp: SP): number | null {
   const v = sp.external_reference ?? sp.order_id;
-  if (Array.isArray(v)) v[0];
   const raw = Array.isArray(v) ? v[0] : v;
   if (!raw) return null;
   const n = Number(raw);
