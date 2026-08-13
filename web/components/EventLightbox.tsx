@@ -26,10 +26,11 @@ export default function EventLightbox({
     setI(0);
   }, [event.id]);
 
-  // Lock scroll + atajos de teclado.
+  // Lock scroll + atajos de teclado. Usamos la clase `scroll-locked`
+  // (definida en globals.css) que aplica `overflow: clip` sin perder
+  // la posición del scroll, en vez de `overflow: hidden` que la resetea.
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    document.body.classList.add('scroll-locked');
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -42,7 +43,7 @@ export default function EventLightbox({
     };
     window.addEventListener('keydown', onKey);
     return () => {
-      document.body.style.overflow = prevOverflow;
+      document.body.classList.remove('scroll-locked');
       window.removeEventListener('keydown', onKey);
     };
   }, [images.length, onClose]);

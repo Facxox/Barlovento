@@ -5,6 +5,24 @@ import { useRouter } from 'next/navigation';
 import { useCart } from './CartContext';
 import { formatMoney } from './formatMoney';
 
+// Cuando el drawer está abierto, bloqueamos el scroll del body sin
+// perder la posición actual. Usamos `overflow: clip` (definido en
+// globals.css como `.scroll-locked`) en vez de `hidden` para mantener
+// la posición. Esto evita que el scroll "siga" al del drawer.
+function useBodyScrollLock(locked: boolean) {
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const body = document.body;
+    if (!locked) return;
+    const prev = body.style.overflow;
+    body.classList.add('scroll-locked');
+    return () => {
+      body.classList.remove('scroll-locked');
+      body.style.overflow = prev;
+    };
+  }, [locked]);
+}
+
 // Mismo cálculo que en CheckoutForm y /api/checkout: lo dejamos
 // duplicado aquí para mostrar la previsualización en el drawer sin
 // esperar a abrir el checkout.
@@ -31,6 +49,11 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
     [alfajores]
   );
   const totalWithShipping = subtotal + shippingPreview;
+
+  // El drawer queda fijo a la derecha en mobile y desktop; cuando
+  // está abierto bloqueamos el scroll del body para que el usuario
+  // no "scrollee" la página detrás del carrito.
+  useBodyScrollLock(isOpen);
 
   useEffect(() => {
     let cancelled = false;

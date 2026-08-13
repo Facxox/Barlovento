@@ -9,11 +9,44 @@
   html {
     scroll-behavior: smooth;
     background-color: #0B0B0B;
+    /* Cuando un anchor (#tienda, #eventos, #galeria) lleva al usuario
+       a una sección, dejamos aire arriba para que el navbar fijo no
+       tape el título de la sección. */
+    scroll-padding-top: 96px;
+    /* Evita el "scroll chaining": si el visitante llega al tope/final
+       de un panel (ej. CartDrawer) no propaga el scroll a la página. */
+    overscroll-behavior-y: none;
   }
   body {
     @apply text-bone font-body antialiased;
     font-feature-settings: 'ss01', 'cv11';
     background-color: #0B0B0B;
+  }
+  /* Cuando el CartDrawer está abierto, bloqueamos el scroll del body
+     SIN perder la posición (overflow:hidden la pierde). */
+  body.scroll-locked {
+    overflow: clip;
+  }
+  /* Scrollbar custom — sutil, alineada con la identidad oscura/dorada.
+     WebKit (Chrome/Safari/Edge) y Firefox por separado. */
+  html {
+    scrollbar-color: #D4AF37 #0B0B0B;
+    scrollbar-width: thin;
+  }
+  html::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  html::-webkit-scrollbar-track {
+    background: #0B0B0B;
+  }
+  html::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #8C6F1A 0%, #D4AF37 50%, #8C6F1A 100%);
+    border-radius: 999px;
+    border: 2px solid #0B0B0B;
+  }
+  html::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #C9A227 0%, #E8C766 50%, #C9A227 100%);
   }
   ::selection {
     background-color: #D4AF37;

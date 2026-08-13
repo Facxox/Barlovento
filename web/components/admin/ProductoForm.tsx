@@ -175,7 +175,7 @@ export default function ProductoForm({
             />
           </Field>
 
-          <div className="grid gap-5 sm:grid-cols-4">
+          <div className="grid gap-5 sm:grid-cols-3">
             <Field label={isWholesale ? 'Precio mayorista' : 'Precio'}>
               <input
                 type="number"
@@ -196,27 +196,120 @@ export default function ProductoForm({
                 <option value="USD">USD</option>
               </select>
             </Field>
-            <Field label="Alfajores por unidad">
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={unitsPerPack}
-                onChange={(e) => setUnitsPerPack(e.target.value)}
-                required
-                className={inputCls}
-              />
-              <p className="mt-1 font-body text-[11px] text-bone/55">
-                Si es una caja, indicá cuántos alfajores trae. Para
-                alfajores sueltos dejá 1.
-              </p>
-            </Field>
             <Field label="Orden">
               <p className="mt-2 font-body text-xs text-bone/60">
                 Editá el orden desde la lista de productos con las flechas ▲▼.
               </p>
             </Field>
           </div>
+
+          {/* Empaque — cuántos alfajores trae cada unidad del producto.
+              Define el envío en el checkout: ≤20 alfajores = $195,
+              >20 = $220. */}
+          <fieldset className="border border-carbon-line bg-carbon-raised/40 p-5">
+            <legend className="px-2 font-body text-[10px] uppercase tracking-ultra text-gold">
+              Empaque
+            </legend>
+
+            <div className="grid gap-5 sm:grid-cols-[1fr_auto] sm:items-end">
+              {/* Toggle Suelto / Caja */}
+              <div>
+                <p className="font-body text-[10px] uppercase tracking-ultra text-bone/50">
+                  Tipo de unidad
+                </p>
+                <div className="mt-2 inline-flex rounded-full border border-carbon-line bg-carbon p-1">
+                  <button
+                    type="button"
+                    onClick={() => setUnitsPerPack('1')}
+                    aria-pressed={unitsPerPack === '1'}
+                    className={[
+                      'rounded-full px-5 py-2 font-body text-xs uppercase tracking-ultra transition',
+                      unitsPerPack === '1'
+                        ? 'bg-gold text-carbon shadow-[0_0_0_1px_rgba(212,175,55,0.4)]'
+                        : 'text-bone/60 hover:text-bone',
+                    ].join(' ')}
+                  >
+                    Suelto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Si está en "Suelto" y eligen "Caja", sugerimos 12
+                      // como valor inicial. Si ya tenía >1, lo respetamos.
+                      if (unitsPerPack === '1') setUnitsPerPack('12');
+                    }}
+                    aria-pressed={unitsPerPack !== '1'}
+                    className={[
+                      'rounded-full px-5 py-2 font-body text-xs uppercase tracking-ultra transition',
+                      unitsPerPack !== '1'
+                        ? 'bg-gold text-carbon shadow-[0_0_0_1px_rgba(212,175,55,0.4)]'
+                        : 'text-bone/60 hover:text-bone',
+                    ].join(' ')}
+                  >
+                    Caja
+                  </button>
+                </div>
+                <p className="mt-2 font-body text-[11px] leading-relaxed text-bone/55">
+                  {unitsPerPack === '1'
+                    ? 'Vendés el producto por unidad (1 alfajor = 1 envío).'
+                    : 'Vendés el producto en una caja. Indicá cuántos alfajores trae cada una.'}
+                </p>
+              </div>
+
+              {/* Cantidad por unidad — visible solo si es Caja */}
+              <div className={unitsPerPack === '1' ? 'sm:opacity-30 sm:pointer-events-none' : ''}>
+                <label
+                  htmlFor="units_per_pack"
+                  className="block font-body text-[10px] uppercase tracking-ultra text-bone/50"
+                >
+                  Alfajores por unidad
+                </label>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setUnitsPerPack(
+                        String(Math.max(2, Number(unitsPerPack || 1) - 1))
+                      )
+                    }
+                    aria-label="Restar uno"
+                    disabled={unitsPerPack === '1'}
+                    className="grid h-10 w-10 place-items-center rounded-full border border-gold/30 text-gold transition hover:border-gold hover:bg-gold/10 disabled:cursor-not-allowed disabled:border-carbon-line disabled:text-bone/30 disabled:hover:bg-transparent"
+                  >
+                    −
+                  </button>
+                  <input
+                    id="units_per_pack"
+                    name="units_per_pack"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={unitsPerPack}
+                    onChange={(e) => setUnitsPerPack(e.target.value)}
+                    required
+                    className="w-20 border-b border-carbon-line bg-carbon px-3 py-2 text-center font-display text-2xl text-gold caret-gold outline-none transition focus:border-gold focus:bg-carbon-raised/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setUnitsPerPack(String(Number(unitsPerPack || 1) + 1))
+                    }
+                    aria-label="Sumar uno"
+                    className="grid h-10 w-10 place-items-center rounded-full border border-gold/30 text-gold transition hover:border-gold hover:bg-gold/10"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="mt-2 font-body text-[11px] leading-relaxed text-bone/55">
+                  Si es una caja, indicá cuántos alfajores trae. Si es un
+                  alfajor suelto, dejá 1.
+                </p>
+              </div>
+            </div>
+
+            {/* Preview del impacto en el envío */}
+            <PackPreview unitsPerPack={unitsPerPack} />
+          </fieldset>
 
           <Field label="Categoría">
             <select
@@ -465,5 +558,67 @@ function Field({
       </span>
       <div className="mt-1">{children}</div>
     </label>
+  );
+}
+
+// Misma regla de envío que en CheckoutForm y /api/checkout — la fuente
+// de verdad vive acá para que el preview coincida con lo que el cliente
+// verá al pagar. Sin inventar datos: el preview se calcula a partir del
+// valor que el admin cargó.
+function shippingFor(alfajores: number): number {
+  if (alfajores <= 0) return 0;
+  return alfajores > 20 ? 220 : 195;
+}
+
+/**
+ * Preview del impacto en el envío según el valor que el admin acaba de
+ * cargar. Solo lee `unitsPerPack` (lo que el admin tipeó) — no inventa
+ * ejemplos. Muestra dos casos concretos: con 1 unidad del producto y
+ * con 2 unidades, para que el admin vea dónde cae el umbral.
+ */
+function PackPreview({ unitsPerPack }: { unitsPerPack: string }) {
+  const n = Math.max(1, Math.floor(Number(unitsPerPack) || 1));
+  const a1 = n; // 1 unidad
+  const a2 = n * 2; // 2 unidades
+  const s1 = shippingFor(a1);
+  const s2 = shippingFor(a2);
+
+  const cases = [
+    { unidades: 1, alfajores: a1, envio: s1 },
+    { unidades: 2, alfajores: a2, envio: s2 },
+  ];
+
+  return (
+    <div className="mt-5 border-t border-carbon-line pt-4">
+      <p className="font-body text-[10px] uppercase tracking-ultra text-bone/50">
+        Impacto en el envío
+      </p>
+      <p className="mt-1 font-body text-[11px] leading-relaxed text-bone/55">
+        Con {n} alfajor{n === 1 ? '' : 'es'} por unidad, el envío se calcula así:
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {cases.map((c) => (
+          <div
+            key={c.unidades}
+            className="rounded-md border border-carbon-line bg-carbon/60 px-3 py-2 font-body text-xs text-bone/80"
+          >
+            <div className="flex items-baseline justify-between">
+              <span>
+                {c.unidades} unidad{c.unidades === 1 ? '' : 'es'}
+              </span>
+              <span className="text-bone/55">
+                {c.alfajores} alfajor{c.alfajores === 1 ? '' : 'es'}
+              </span>
+            </div>
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="text-bone/55">Envío</span>
+              <span className="font-display text-lg text-gold">
+                {c.envio === 0 ? '—' : `$${c.envio}`}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
