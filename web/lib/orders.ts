@@ -12,9 +12,30 @@ export type OrderRow = {
   customer_name: string | null;
   customer_phone: string | null;
   customer_email: string | null;
+  customer_address: string | null;
+  customer_city: string | null;
+  customer_notes: string | null;
+  shipping_cost: number | null;
+  shipping_currency: string | null;
   mp_payment_id: string | null;
+  mp_preference_id: string | null;
+  fulfillment: 'shipping' | 'pickup' | null;
+  pickup_status:
+    | 'awaiting_coordination'
+    | 'coordinated'
+    | 'delivered'
+    | 'cancelled'
+    | null;
   created_at: string;
 };
+
+export const PICKUP_STATUSES = [
+  'awaiting_coordination',
+  'coordinated',
+  'delivered',
+  'cancelled',
+] as const;
+export type PickupStatus = (typeof PICKUP_STATUSES)[number];
 
 /**
  * Lista todos los pedidos. Llamar SOLO desde rutas admin (que ya
@@ -34,6 +55,48 @@ export async function listOrders(): Promise<OrderRow[]> {
     .limit(100);
   if (error || !data) return [];
   return data as OrderRow[];
+}
+
+/**
+ * Lista los pedidos con retiro coordinado por WhatsApp. Sólo se usa
+ * en la sección admin de Retiros. Si Supabase no está configurado,
+ * devuelve [].
+ */
+export async function listPickupOrders(): Promise<OrderRow[]> {
+  const supabase = getServiceSupabase();
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('fulfillment', 'pickup')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error || !data) return [];
+  return data as OrderRow[];
+}
+
+/**
+ * Cambia el pickup_status de un pedido con retiro. Acepta sólo los
+ * valores de PICKUP_STATUSES. Devuelve { ok: true } o { ok: false,
+ * error } según el resultado de Supabase.
+ */
+export async function updatePickupStatus(
+  orderId: number,
+  status: PickupStatus
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = getServiceSupabase();
+  if (!supabase) {
+    return { ok: false, error: 'db_unavailable' };
+  }
+  const { error } = await supabase
+    .from('orders')
+    .update({ pickup_status: status })
+    .eq('id', orderId);
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }
 
 export async function countPendingOrders(): Promise<number> {

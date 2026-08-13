@@ -40,6 +40,12 @@ type Body = {
    */
   shipping_cost?: number | null;
   shipping_currency?: string | null;
+  /**
+   * Modalidad de entrega. 'shipping' (default) envía a domicilio.
+   * 'pickup' fuerza envío a 0 y marca la orden como retiro
+   * coordinado por WhatsApp.
+   */
+  fulfillment?: 'shipping' | 'pickup' | null;
 };
 
 const MAX_ITEMS = 50;
@@ -138,6 +144,14 @@ function validateBody(body: Body): string | null {
         return 'invalid_shipping_currency';
       }
     }
+  }
+
+  // Fulfillment: aceptamos sólo 'shipping' o 'pickup'. Default a
+  // 'shipping' si viene null/undefined.
+  if (body.fulfillment !== undefined && body.fulfillment !== null) {
+    if (typeof body.fulfillment !== 'string') return 'invalid_fulfillment';
+    const f = body.fulfillment.trim().toLowerCase();
+    if (f !== 'shipping' && f !== 'pickup') return 'invalid_fulfillment';
   }
   return null;
 }
@@ -268,7 +282,20 @@ const totalAlfajores = validated.reduce(
   (acc, v) => acc + v.qty * v.units_per_pack,
   0
 );
-const shippingCost = calcShippingCost(totalAlfajores);
+let shippingCost = calcShippingCost(totalAlfajores);
+
+// Modalidad: pickup fuerza envío = 0 y prepara la orden para la
+// coordinación por WhatsApp. Default 'shipping' si el cliente no
+// mandó el campo.
+const rawFulfillment =
+  typeof body.fulfillment === 'string'
+    ? body.fulfillment.trim().toLowerCase()
+    : 'shipping';
+const fulfillment: 'shipping' | 'pickup' =
+  rawFulfillment === 'pickup' ? 'pickup' : 'shipping';
+if (fulfillment === 'pickup') {
+  shippingCost = 0;
+}
 
   // 4) Resolver sesión y customer_type ANTES del cupón para poder pasar
   //    el userId a la validación de cupones.
@@ -391,6 +418,16 @@ const shippingCost = calcShippingCost(totalAlfajores);
       price: shippingCost,
       currency,
     });
+  } else if (fulfillment === 'pickup') {
+    // Línea informativa (precio 0) para que el admin vea la modalidad
+    // en la columna Items sin tener que abrir el detalle.
+    itemsForDb.push({
+      id: 'pickup',
+      name: 'Retiro coordinado por WhatsApp',
+      qty: 1,
+      price: 0,
+      currency,
+    });
   }
 
   let orderId: number | null = null;
@@ -414,6 +451,8 @@ const shippingCost = calcShippingCost(totalAlfajores);
       coupon_discount: couponDiscount > 0 ? couponDiscount : null,
       shipping_cost: shippingCost,
       shipping_currency: shippingCost > 0 ? currency : null,
+      fulfillment,
+      pickup_status: fulfillment === 'pickup' ? 'awaiting_coordination' : null,
     })
     .select('id')
     .single();
@@ -469,9 +508,14 @@ const shippingCost = calcShippingCost(totalAlfajores);
         auto_return: 'approved',
         notification_url: siteUrlFor('/api/webhook/mp'),
         statement_descriptor: 'Barlovento',
+        // external_reference permite que las páginas de retorno
+        // (/checkout/success, /pending) recuperen la orden sin
+        // depender de la metadata que se pierde en algunos flows.
+        external_reference: String(orderId),
         metadata: {
           source: 'web',
           order_id: orderId,
+          fulfillment,
           customer_address: customer.address,
           customer_city: customer.city,
           customer_notes: customer.notes,

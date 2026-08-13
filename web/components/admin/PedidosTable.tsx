@@ -34,14 +34,20 @@ type Props = {
  * del runtime y rompe SSR vs client.
  */
 export default function PedidosTable({ orders }: Props) {
-  const [filter, setFilter] = useState<'all' | OrderRow['channel']>('all');
+  const [filter, setFilter] = useState<
+    'all' | OrderRow['channel'] | 'pickup'
+  >('all');
   const [items, setItems] = useState<OrderRow[]>(orders);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   const filtered =
-    filter === 'all' ? items : items.filter((o) => o.channel === filter);
+    filter === 'all'
+      ? items
+      : filter === 'pickup'
+      ? items.filter((o) => o.fulfillment === 'pickup')
+      : items.filter((o) => o.channel === filter);
 
   async function setStatus(
     orderId: number,
@@ -100,7 +106,7 @@ export default function PedidosTable({ orders }: Props) {
           </p>
         </div>
         <div className="flex gap-2">
-          {(['all', 'mercadopago', 'whatsapp'] as const).map((f) => (
+          {(['all', 'mercadopago', 'whatsapp', 'pickup'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -111,7 +117,11 @@ export default function PedidosTable({ orders }: Props) {
                   : 'border-carbon-line text-bone/70 hover:border-bone/50',
               ].join(' ')}
             >
-              {f === 'all' ? 'Todos' : f}
+              {f === 'all'
+                ? 'Todos'
+                : f === 'pickup'
+                ? 'Retiro'
+                : f}
             </button>
           ))}
         </div>
@@ -133,6 +143,7 @@ export default function PedidosTable({ orders }: Props) {
               <th className="p-3">#</th>
               <th className="p-3">Fecha</th>
               <th className="p-3">Canal</th>
+              <th className="p-3">Modalidad</th>
               <th className="p-3">Items</th>
               <th className="p-3 text-right">Total</th>
               <th className="p-3">Estado</th>
@@ -160,6 +171,18 @@ export default function PedidosTable({ orders }: Props) {
                     ].join(' ')}
                   >
                     {o.channel}
+                  </span>
+                </td>
+                <td className="p-3">
+                  <span
+                    className={[
+                      'rounded-full px-2 py-0.5 text-[10px] uppercase tracking-ultra',
+                      o.fulfillment === 'pickup'
+                        ? 'bg-amber-500/20 text-amber-300'
+                        : 'bg-carbon-line text-bone/60',
+                    ].join(' ')}
+                  >
+                    {o.fulfillment === 'pickup' ? 'Retiro' : 'Envío'}
                   </span>
                 </td>
                 <td className="p-3 font-body text-xs text-bone/80">
@@ -221,7 +244,7 @@ export default function PedidosTable({ orders }: Props) {
             {filtered.length === 0 && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="p-12 text-center font-body text-sm text-bone/50"
                 >
                   Sin pedidos.

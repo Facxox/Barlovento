@@ -49,12 +49,17 @@ export default function CheckoutForm() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponState | null>(null);
+  // Modalidad: 'shipping' (envío a domicilio, default) o 'pickup'
+  // (retiro coordinado por WhatsApp).
+  const [fulfillment, setFulfillment] = useState<'shipping' | 'pickup'>(
+    'shipping'
+  );
 
   // El total final descuenta el cupón (si lo hay) del subtotal del carrito
 // y suma el envío fijo según la cantidad de alfajores.
   const shippingCost = useMemo(
-    () => calcShippingCost(alfajores),
-    [alfajores]
+    () => (fulfillment === 'pickup' ? 0 : calcShippingCost(alfajores)),
+    [alfajores, fulfillment]
   );
   const finalTotal = useMemo(() => {
     const discount = appliedCoupon ? appliedCoupon.discount_total : 0;
@@ -113,8 +118,10 @@ export default function CheckoutForm() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
       next.email = 'El email no parece válido.';
     if (!phone.trim()) next.phone = 'Ingresá tu teléfono.';
-    if (!address.trim()) next.address = 'Ingresá la dirección de envío.';
-    if (!city.trim()) next.city = 'Ingresá la ciudad o departamento.';
+    if (fulfillment === 'shipping') {
+      if (!address.trim()) next.address = 'Ingresá la dirección de envío.';
+      if (!city.trim()) next.city = 'Ingresá la ciudad o departamento.';
+    }
     return next;
   };
 
@@ -143,8 +150,8 @@ export default function CheckoutForm() {
           customer_name: fullName.trim(),
           customer_email: email.trim(),
           customer_phone: phone.trim(),
-          customer_address: address.trim(),
-          customer_city: city.trim(),
+          customer_address: fulfillment === 'shipping' ? address.trim() : '',
+          customer_city: fulfillment === 'shipping' ? city.trim() : '',
           customer_notes: notes.trim() || null,
           coupon_code:
             appliedCoupon && appliedCoupon.discount_total > 0
@@ -152,6 +159,7 @@ export default function CheckoutForm() {
               : null,
           shipping_cost: shippingCost,
           shipping_currency: items[0]?.currency ?? 'UYU',
+          fulfillment,
         }),
       });
       const data: { ok?: boolean; init_point?: string; error?: string } =
@@ -230,10 +238,16 @@ export default function CheckoutForm() {
 
         <div className="mt-2 flex items-baseline justify-between font-body text-sm">
           <span className="text-ink/80">
-            Envío ({alfajores} alfajor{alfajores === 1 ? '' : 'es'})
+            {fulfillment === 'pickup'
+              ? 'Retiro coordinado por WhatsApp'
+              : `Envío (${alfajores} alfajor${alfajores === 1 ? '' : 'es'})`}
           </span>
           <span className="text-ink/80">
-            {shippingCost > 0 ? formatUY(shippingCost) : '—'}
+            {fulfillment === 'pickup'
+              ? 'Gratis'
+              : shippingCost > 0
+              ? formatUY(shippingCost)
+              : '—'}
           </span>
         </div>
 
@@ -254,16 +268,46 @@ export default function CheckoutForm() {
         </div>
 
         <p className="mt-3 font-body text-xs text-ink/55">
-          El envío se cobra junto con tu pedido en Mercado Pago.
+          {fulfillment === 'pickup'
+            ? 'El retiro se coordina por WhatsApp después del pago.'
+            : 'El envío se cobra junto con tu pedido en Mercado Pago.'}
         </p>
+      </div>
+
+      {/* Modalidad de entrega */}
+      <div className="rounded-md border border-ink/15 bg-bone p-6">
+        <p className="text-eyebrow text-gold-deep">Modalidad de entrega</p>
+        <p className="mt-1 font-body text-xs text-ink/55">
+          Elegí cómo querés recibir tu pedido.
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <FulfillmentOption
+            value="shipping"
+            current={fulfillment}
+            onSelect={setFulfillment}
+            title="Envío a domicilio"
+            subtitle="Te lo mandamos a cualquier punto del país."
+          />
+          <FulfillmentOption
+            value="pickup"
+            current={fulfillment}
+            onSelect={setFulfillment}
+            title="Retiro coordinado por WhatsApp"
+            subtitle="Pagás online y coordinás día/hora por WhatsApp."
+          />
+        </div>
       </div>
 
       {/* Datos de contacto y envío */}
       <div className="rounded-md border border-ink/15 bg-bone p-6">
-        <p className="text-eyebrow text-gold-deep">Datos de envío</p>
+        <p className="text-eyebrow text-gold-deep">
+          {fulfillment === 'pickup' ? 'Datos de contacto' : 'Datos de envío'}
+        </p>
         <p className="mt-1 font-body text-xs text-ink/55">
-          Si tenés una cuenta, completamos estos campos con tus datos. Podés
-          modificarlos antes de pagar.
+          {fulfillment === 'pickup'
+            ? 'Necesitamos tu nombre, email y teléfono para coordinar el retiro por WhatsApp.'
+            : 'Si tenés una cuenta, completamos estos campos con tus datos. Podés modificarlos antes de pagar.'}
         </p>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -297,27 +341,31 @@ export default function CheckoutForm() {
             placeholder="+598…"
             required
           />
-          <Field
-            id="city"
-            label="Ciudad o departamento"
-            value={city}
-            onChange={setCity}
-            error={errors.city}
-            autoComplete="address-level2"
-            required
-          />
-          <div className="sm:col-span-2">
-            <Field
-              id="address"
-              label="Dirección de envío"
-              value={address}
-              onChange={setAddress}
-              error={errors.address}
-              autoComplete="street-address"
-              placeholder="Calle, número, apartamento"
-              required
-            />
-          </div>
+          {fulfillment === 'shipping' && (
+            <>
+              <Field
+                id="city"
+                label="Ciudad o departamento"
+                value={city}
+                onChange={setCity}
+                error={errors.city}
+                autoComplete="address-level2"
+                required
+              />
+              <div className="sm:col-span-2">
+                <Field
+                  id="address"
+                  label="Dirección de envío"
+                  value={address}
+                  onChange={setAddress}
+                  error={errors.address}
+                  autoComplete="street-address"
+                  placeholder="Calle, número, apartamento"
+                  required
+                />
+              </div>
+            </>
+          )}
           <div className="sm:col-span-2">
             <label
               htmlFor="notes"
@@ -330,33 +378,52 @@ export default function CheckoutForm() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              placeholder="Indicaciones para la entrega (opcional)"
+              placeholder={
+                fulfillment === 'pickup'
+                  ? 'Preferencias de día u horario para retirar (opcional)'
+                  : 'Indicaciones para la entrega (opcional)'
+              }
               className="mt-2 w-full rounded-md border border-ink/20 bg-cream px-4 py-3 font-body text-base text-ink placeholder:text-ink/40 focus:border-ink focus:outline-none focus:ring-2 focus:ring-gold/40"
             />
           </div>
         </div>
       </div>
 
-      {/* Aclaración envío */}
+      {/* Aclaración según modalidad */}
       <div className="rounded-md border border-gold/30 bg-gold/10 p-5">
         <p className="font-body text-[10px] uppercase tracking-ultra text-gold-deep">
-          Política de envío
+          {fulfillment === 'pickup' ? 'Cómo funciona el retiro' : 'Política de envío'}
         </p>
-        <p className="mt-2 font-body text-base leading-relaxed text-ink">
-          El envío va a ser:
-        </p>
-        <ul className="mt-2 space-y-1 font-body text-base text-ink">
-          <li>
-            <strong>Hasta 20 alfajores:</strong> $195
-          </li>
-          <li>
-            <strong>Más de 20 alfajores:</strong> $220
-          </li>
-        </ul>
-        <p className="mt-2 font-body text-sm text-ink/80">
-          A cualquier lugar del país. Se cobra junto con tu pedido en Mercado
-          Pago.
-        </p>
+        {fulfillment === 'pickup' ? (
+          <>
+            <p className="mt-2 font-body text-base leading-relaxed text-ink">
+              Pagás online con Mercado Pago y, apenas el pago se confirme, te
+              mostramos un botón para escribirnos por WhatsApp y coordinar el
+              retiro.
+            </p>
+            <p className="mt-2 font-body text-sm text-ink/80">
+              No cobramos envío. Coordinás día, hora y lugar con la marca.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 font-body text-base leading-relaxed text-ink">
+              El envío va a ser:
+            </p>
+            <ul className="mt-2 space-y-1 font-body text-base text-ink">
+              <li>
+                <strong>Hasta 20 alfajores:</strong> $195
+              </li>
+              <li>
+                <strong>Más de 20 alfajores:</strong> $220
+              </li>
+            </ul>
+            <p className="mt-2 font-body text-sm text-ink/80">
+              A cualquier lugar del país. Se cobra junto con tu pedido en Mercado
+              Pago.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Checkbox de aceptación */}
@@ -370,9 +437,9 @@ export default function CheckoutForm() {
             className="mt-1 h-5 w-5 shrink-0 rounded border-ink/40 text-ink focus:ring-2 focus:ring-gold"
           />
           <span className="font-body text-sm leading-relaxed text-ink">
-            Entiendo que el envío tiene un costo fijo de $195 o $220 según la
-            cantidad de alfajores y se cobra junto con el pedido. Confirmo que
-            los datos ingresados son correctos.
+            {fulfillment === 'pickup'
+              ? 'Entiendo que el retiro se coordina por WhatsApp después del pago y confirmo que los datos de contacto son correctos.'
+              : 'Entiendo que el envío tiene un costo fijo de $195 o $220 según la cantidad de alfajores y se cobra junto con el pedido. Confirmo que los datos ingresados son correctos.'}
           </span>
         </label>
       </div>
@@ -470,5 +537,46 @@ function Field({
         <p className="mt-1 font-body text-xs text-red-600">{error}</p>
       )}
     </div>
+  );
+}
+
+function FulfillmentOption({
+  value,
+  current,
+  onSelect,
+  title,
+  subtitle,
+}: {
+  value: 'shipping' | 'pickup';
+  current: 'shipping' | 'pickup';
+  onSelect: (v: 'shipping' | 'pickup') => void;
+  title: string;
+  subtitle: string;
+}) {
+  const active = value === current;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(value)}
+      aria-pressed={active}
+      className={[
+        'text-left rounded-md border px-4 py-4 transition focus:outline-none focus:ring-2 focus:ring-gold/40',
+        active
+          ? 'border-gold bg-gold/10'
+          : 'border-ink/20 bg-cream hover:border-ink/40',
+      ].join(' ')}
+    >
+      <span className="flex items-center gap-2 font-body text-xs uppercase tracking-ultra text-gold-deep">
+        <span
+          aria-hidden
+          className={[
+            'inline-flex h-3 w-3 rounded-full border',
+            active ? 'border-gold bg-gold' : 'border-ink/40 bg-transparent',
+          ].join(' ')}
+        />
+        {title}
+      </span>
+      <span className="mt-2 block font-body text-sm text-ink/80">{subtitle}</span>
+    </button>
   );
 }
