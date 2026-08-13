@@ -56,7 +56,15 @@ export default async function Footer() {
           <p className="tracking-ultra uppercase">Trinidad · Flores · Uruguay</p>
         </div>
         <p className="mt-3 text-center font-body text-[11px] text-bone/40 md:text-right">
-          Desarrollado por <span className="text-gold">Facundo Langone</span>
+          Desarrollado por{' '}
+          <a
+            href="https://zenathia.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gold transition-colors hover:text-bone"
+          >
+            Zenathia
+          </a>
         </p>
       </div>
     </footer>
