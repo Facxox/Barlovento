@@ -55,8 +55,16 @@ export default async function Footer() {
           <p>© {currentYear} Barlovento · Todos los derechos reservados.</p>
           <p className="tracking-ultra uppercase">Trinidad · Flores · Uruguay</p>
         </div>
-        <p className="mt-3 text-center font-body text-[11px] text-bone/40 md:text-right">
-          Desarrollado por <span className="text-gold">Facundo Langone</span>
+<p className="mt-3 text-center font-body text-[11px] text-bone/40 md:text-right">
+  Desarrollado por{" "}
+        <a
+        href="https://zenathia.vercel.app/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-gold hover:underline"
+        >
+          Zenathia
+        </a>
         </p>
       </div>
     </footer>
