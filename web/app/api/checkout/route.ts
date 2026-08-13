@@ -17,6 +17,7 @@ type ValidatedItem = {
   qty: number;
   unit_price: number;
   currency: string;
+  units_per_pack: number;
 };
 
 type Body = {
@@ -32,6 +33,13 @@ type Body = {
    * revalidamos server-side contra el carrito autoritativo.
    */
   coupon_code?: string | null;
+  /**
+   * Costo de envío propuesto por el cliente. Lo recalculamos
+   * server-side según la cantidad de alfajores y lo aceptamos solo si
+   * coincide con la política fija (0, 195, 220).
+   */
+  shipping_cost?: number | null;
+  shipping_currency?: string | null;
 };
 
 const MAX_ITEMS = 50;
@@ -39,6 +47,18 @@ const MAX_QTY = 99;
 const MAX_STRING = 500;
 const SUPPORTED_CURRENCIES = ['UYU', 'USD', 'ARS', 'BRL', 'CLP', 'MXN', 'COP', 'PEN'] as const;
 type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number];
+
+// Política de envío fijo (UYU). Coincide con la constante en
+// app/checkout/CheckoutForm.tsx. La fuente de verdad es el server.
+const SHIPPING_LE_20 = 195;
+const SHIPPING_MAS_20 = 220;
+const SHIPPING_THRESHOLD = 20;
+const VALID_SHIPPING_VALUES = new Set([0, SHIPPING_LE_20, SHIPPING_MAS_20]);
+
+function calcShippingCost(alfajores: number): number {
+  if (alfajores <= 0) return 0;
+  return alfajores > SHIPPING_THRESHOLD ? SHIPPING_MAS_20 : SHIPPING_LE_20;
+}
 
 function siteUrl(): string {
   const raw = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
@@ -99,6 +119,26 @@ function validateBody(body: Body): string | null {
       return 'invalid_price';
     }
   }
+
+  // Shipping enviado por el cliente: sólo aceptamos 0/195/220. El
+  // server recalcula de todas formas, pero cortamos temprano si el
+  // cliente manda algo fuera de la política.
+  if (body.shipping_cost !== undefined && body.shipping_cost !== null) {
+    if (
+      typeof body.shipping_cost !== 'number' ||
+      !Number.isFinite(body.shipping_cost) ||
+      !VALID_SHIPPING_VALUES.has(body.shipping_cost)
+    ) {
+      return 'invalid_shipping_cost';
+    }
+    if (body.shipping_currency !== undefined && body.shipping_currency !== null) {
+      if (typeof body.shipping_currency !== 'string') return 'invalid_shipping_currency';
+      const sc = body.shipping_currency.trim().toUpperCase();
+      if (!(SUPPORTED_CURRENCIES as readonly string[]).includes(sc)) {
+        return 'invalid_shipping_currency';
+      }
+    }
+  }
   return null;
 }
 
@@ -141,12 +181,12 @@ export async function POST(req: NextRequest) {
   const [retailRows, wholesaleRows] = await Promise.all([
     supabase
       .from('products')
-      .select('id, name, price, currency, is_active, category, image')
+      .select('id, name, price, currency, is_active, category, image, units_per_pack')
       .in('id', itemIds)
       .eq('is_active', true),
     supabase
       .from('wholesale_products')
-      .select('id, name, price, currency, is_active, category, image')
+      .select('id, name, price, currency, is_active, category, image, units_per_pack')
       .in('id', itemIds)
       .eq('is_active', true),
   ]);
@@ -158,6 +198,7 @@ export async function POST(req: NextRequest) {
     currency: string;
     category?: string;
     image?: string;
+    units_per_pack?: number | null;
   };
 
   const catalog = new Map<string, CatalogRow>();
@@ -200,6 +241,10 @@ export async function POST(req: NextRequest) {
       qty,
       unit_price: unitPrice,
       currency,
+      units_per_pack:
+        typeof row.units_per_pack === 'number' && row.units_per_pack > 0
+          ? row.units_per_pack
+          : 1,
     });
   }
 
@@ -215,6 +260,15 @@ export async function POST(req: NextRequest) {
   }
 
   const subtotal = validated.reduce((acc, v) => acc + v.qty * v.unit_price, 0);
+
+// Envío fijo: lo recalculamos siempre server-side según la cantidad de
+// alfajores. Si el cliente mandó un valor distinto (o no mandó), gana
+// el server. Sólo aceptamos 0/195/220 como valores válidos.
+const totalAlfajores = validated.reduce(
+  (acc, v) => acc + v.qty * v.units_per_pack,
+  0
+);
+const shippingCost = calcShippingCost(totalAlfajores);
 
   // 4) Resolver sesión y customer_type ANTES del cupón para poder pasar
   //    el userId a la validación de cupones.
@@ -286,7 +340,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const total = Math.max(0, subtotal - couponDiscount);
+  const total = Math.max(0, subtotal - couponDiscount + shippingCost);
 
   // 5) Datos del cliente saneados.
   const customer = {
@@ -329,6 +383,15 @@ export async function POST(req: NextRequest) {
       currency: currency,
     });
   }
+  if (shippingCost > 0) {
+    itemsForDb.push({
+      id: 'shipping',
+      name: 'Envío',
+      qty: 1,
+      price: shippingCost,
+      currency,
+    });
+  }
 
   let orderId: number | null = null;
   const { data: inserted, error: insertErr } = await supabase
@@ -349,6 +412,8 @@ export async function POST(req: NextRequest) {
       user_id: userId,
       coupon_code: couponCode,
       coupon_discount: couponDiscount > 0 ? couponDiscount : null,
+      shipping_cost: shippingCost,
+      shipping_currency: shippingCost > 0 ? currency : null,
     })
     .select('id')
     .single();
@@ -370,13 +435,27 @@ export async function POST(req: NextRequest) {
   try {
     const created = await preference.create({
       body: {
-        items: validated.map((v) => ({
-          id: v.id,
-          title: v.name,
-          quantity: v.qty,
-          unit_price: Number(v.unit_price),
-          currency_id: v.currency,
-        })),
+        items: [
+          ...validated.map((v) => ({
+            id: v.id,
+            title: v.name,
+            quantity: v.qty,
+            unit_price: Number(v.unit_price),
+            currency_id: v.currency,
+          })),
+          // Línea de envío (cobrada junto con el pedido). Sólo si > 0.
+          ...(shippingCost > 0
+            ? [
+                {
+                  id: 'shipping',
+                  title: 'Envío',
+                  quantity: 1,
+                  unit_price: Number(shippingCost),
+                  currency_id: currency,
+                },
+              ]
+            : []),
+        ],
         payer: {
           name: customer.name ?? undefined,
           phone: customer.phone ? { number: customer.phone } : undefined,

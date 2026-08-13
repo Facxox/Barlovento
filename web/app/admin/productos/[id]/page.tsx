@@ -12,7 +12,9 @@ async function getProduct(
   const supabase = await getServerSupabase();
   if (!supabase) {
     if (table === 'products') {
-      return (productsJson as Product[]).find((p) => p.id === id) ?? null;
+      return ((productsJson as unknown) as Product[]).find(
+        (p) => p.id === id
+      ) ?? null;
     }
     return null;
   }
@@ -22,7 +24,19 @@ async function getProduct(
     .eq('id', id)
     .maybeSingle();
   if (error) return null;
-  return (data as Product | WholesaleProduct) ?? null;
+  if (!data) return null;
+  // Normalizamos `units_per_pack` (la columna nueva puede no venir en
+  // filas previas a la migración 0016). Default 1.
+  const row = data as Record<string, unknown> & {
+    units_per_pack?: number | null;
+  };
+  return {
+    ...(row as unknown as Product | WholesaleProduct),
+    units_per_pack:
+      typeof row.units_per_pack === 'number' && row.units_per_pack > 0
+        ? row.units_per_pack
+        : 1,
+  };
 }
 
 export default async function AdminProductoEditPage({

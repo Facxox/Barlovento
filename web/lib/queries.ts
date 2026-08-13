@@ -22,6 +22,12 @@ export type Product = {
   badge: string | null;
   is_active: boolean;
   sort_order: number;
+  /**
+   * Cuántos alfajores trae cada unidad. Default 1 (suelto). Una caja
+   * de 12 tiene `units_per_pack = 12` y se multiplica por la cantidad
+   * del carrito para calcular el envío.
+   */
+  units_per_pack: number;
   nutrition: Nutrition | null;
 };
 
@@ -192,7 +198,17 @@ async function fromSupabase<T>(
 export async function getProducts(): Promise<Product[]> {
   const fallback = productsJson
     .filter((p) => p.is_active)
-    .sort((a, b) => a.sort_order - b.sort_order) as Product[];
+    .sort((a, b) => a.sort_order - b.sort_order)
+    // El JSON seed no trae `units_per_pack` aún. Asumimos 1 (suelto)
+    // para no romper el cast; las cajas se cargan desde el panel admin.
+    .map((p) => ({
+      ...p,
+      units_per_pack:
+        typeof (p as { units_per_pack?: unknown }).units_per_pack === 'number' &&
+        ((p as { units_per_pack?: unknown }).units_per_pack as number) > 0
+          ? ((p as { units_per_pack?: number }).units_per_pack as number)
+          : 1,
+    })) as Product[];
   return fromSupabase<Product[]>(
     'products',
     'sort_order',

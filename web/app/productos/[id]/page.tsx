@@ -10,7 +10,9 @@ type ProductLookup = { product: Product; variant: 'retail' | 'wholesale' };
 async function getProductById(id: string): Promise<ProductLookup | null> {
   const supabase = await getServerSupabase();
   if (!supabase) {
-    const fromJson = (productsJson as Product[]).find((p) => p.id === id);
+    const fromJson = ((productsJson as unknown) as Product[]).find(
+      (p) => p.id === id
+    );
     if (!fromJson) return null;
     return { product: fromJson, variant: 'retail' };
   }
@@ -24,7 +26,21 @@ async function getProductById(id: string): Promise<ProductLookup | null> {
     .eq('id', id)
     .maybeSingle();
   if (retailError) return null;
-  if (retail) return { product: retail as Product, variant: 'retail' };
+  if (retail) {
+    const row = retail as Record<string, unknown> & {
+      units_per_pack?: number | null;
+    };
+    return {
+      product: {
+        ...(row as unknown as Product),
+        units_per_pack:
+          typeof row.units_per_pack === 'number' && row.units_per_pack > 0
+            ? row.units_per_pack
+            : 1,
+      },
+      variant: 'retail',
+    };
+  }
 
   const { data: wholesale, error: wholesaleError } = await supabase
     .from('wholesale_products')
@@ -32,7 +48,19 @@ async function getProductById(id: string): Promise<ProductLookup | null> {
     .eq('id', id)
     .maybeSingle();
   if (wholesaleError || !wholesale) return null;
-  return { product: wholesale as Product, variant: 'wholesale' };
+  const wRow = wholesale as Record<string, unknown> & {
+    units_per_pack?: number | null;
+  };
+  return {
+    product: {
+      ...(wRow as unknown as Product),
+      units_per_pack:
+        typeof wRow.units_per_pack === 'number' && wRow.units_per_pack > 0
+          ? wRow.units_per_pack
+          : 1,
+    },
+    variant: 'wholesale',
+  };
 }
 
 export async function generateMetadata({

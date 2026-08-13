@@ -9,7 +9,7 @@ async function listAllProducts(): Promise<Product[]> {
   // filas. Como fallback (sin env vars), seguimos leyendo del JSON local.
   const supabase = getServiceSupabase();
   if (!supabase) {
-    return (productsJson as Product[]).sort(
+    return ((productsJson as unknown) as Product[]).sort(
       (a, b) => a.sort_order - b.sort_order
     );
   }
@@ -18,7 +18,14 @@ async function listAllProducts(): Promise<Product[]> {
     .select('*')
     .order('sort_order', { ascending: true });
   if (error || !data) return [];
-  return data as Product[];
+  return (data as Product[]).map((p) => ({
+    ...p,
+    units_per_pack:
+      typeof (p as { units_per_pack?: unknown }).units_per_pack === 'number' &&
+      ((p as { units_per_pack?: unknown }).units_per_pack as number) > 0
+        ? ((p as { units_per_pack?: number }).units_per_pack as number)
+        : 1,
+  }));
 }
 
 async function listAllWholesaleProducts(): Promise<WholesaleProduct[]> {
@@ -29,7 +36,14 @@ async function listAllWholesaleProducts(): Promise<WholesaleProduct[]> {
     .select('*')
     .order('sort_order', { ascending: true });
   if (error || !data) return [];
-  return data as WholesaleProduct[];
+  return (data as WholesaleProduct[]).map((p) => ({
+    ...p,
+    units_per_pack:
+      typeof (p as { units_per_pack?: unknown }).units_per_pack === 'number' &&
+      ((p as { units_per_pack?: unknown }).units_per_pack as number) > 0
+        ? ((p as { units_per_pack?: number }).units_per_pack as number)
+        : 1,
+  }));
 }
 
 export default async function AdminProductosPage({

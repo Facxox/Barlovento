@@ -21,8 +21,19 @@ type FieldErrors = Partial<
 
 const formatUY = (n: number) => formatMoney(n);
 
+// Política de envío fijo. Se cobra junto con el pedido en Mercado Pago.
+// Hasta 20 alfajores → $195. Más de 20 → $220. Aplica a cualquier destino.
+const SHIPPING_LE_20 = 195;
+const SHIPPING_MAS_20 = 220;
+const SHIPPING_THRESHOLD = 20;
+
+function calcShippingCost(alfajores: number): number {
+  if (alfajores <= 0) return 0;
+  return alfajores > SHIPPING_THRESHOLD ? SHIPPING_MAS_20 : SHIPPING_LE_20;
+}
+
 export default function CheckoutForm() {
-  const { items, subtotal, isOpen, close } = useCart();
+  const { items, subtotal, alfajores, isOpen, close } = useCart();
 
   // Form state
   const [fullName, setFullName] = useState('');
@@ -39,11 +50,16 @@ export default function CheckoutForm() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponState | null>(null);
 
-  // El total final descuenta el cupón (si lo hay) del subtotal del carrito.
+  // El total final descuenta el cupón (si lo hay) del subtotal del carrito
+// y suma el envío fijo según la cantidad de alfajores.
+  const shippingCost = useMemo(
+    () => calcShippingCost(alfajores),
+    [alfajores]
+  );
   const finalTotal = useMemo(() => {
-    if (!appliedCoupon) return subtotal;
-    return Math.max(0, subtotal - appliedCoupon.discount_total);
-  }, [subtotal, appliedCoupon]);
+    const discount = appliedCoupon ? appliedCoupon.discount_total : 0;
+    return Math.max(0, subtotal - discount + shippingCost);
+  }, [subtotal, appliedCoupon, shippingCost]);
 
   // Pre-rellenar desde /api/me si hay sesión
   useEffect(() => {
@@ -134,6 +150,8 @@ export default function CheckoutForm() {
             appliedCoupon && appliedCoupon.discount_total > 0
               ? appliedCoupon.code
               : null,
+          shipping_cost: shippingCost,
+          shipping_currency: items[0]?.currency ?? 'UYU',
         }),
       });
       const data: { ok?: boolean; init_point?: string; error?: string } =
@@ -210,14 +228,21 @@ export default function CheckoutForm() {
           </div>
         )}
 
-        {appliedCoupon && (
-          <div className="mt-3 flex items-baseline justify-between border-t border-ink/10 pt-3">
-            <span className="text-eyebrow text-ink/70">Total</span>
-            <span className="font-display text-2xl text-ink">
-              {formatUY(finalTotal)}
-            </span>
-          </div>
-        )}
+        <div className="mt-2 flex items-baseline justify-between font-body text-sm">
+          <span className="text-ink/80">
+            Envío ({alfajores} alfajor{alfajores === 1 ? '' : 'es'})
+          </span>
+          <span className="text-ink/80">
+            {shippingCost > 0 ? formatUY(shippingCost) : '—'}
+          </span>
+        </div>
+
+        <div className="mt-3 flex items-baseline justify-between border-t border-ink/10 pt-3">
+          <span className="text-eyebrow text-ink/70">Total</span>
+          <span className="font-display text-2xl text-ink">
+            {formatUY(finalTotal)}
+          </span>
+        </div>
 
         <div className="mt-5">
           <CouponInput
@@ -229,8 +254,7 @@ export default function CheckoutForm() {
         </div>
 
         <p className="mt-3 font-body text-xs text-ink/55">
-          El costo del envío se coordina por separado y se abona al recibir el
-          paquete.
+          El envío se cobra junto con tu pedido en Mercado Pago.
         </p>
       </div>
 
@@ -319,9 +343,19 @@ export default function CheckoutForm() {
           Política de envío
         </p>
         <p className="mt-2 font-body text-base leading-relaxed text-ink">
-          Los envíos se realizan por encomienda a todo el país.{' '}
-          <strong>El costo del envío lo abona el cliente cuando recibe el paquete.</strong>{' '}
-          Coordinamos el despacho apenas confirmamos el pago.
+          El envío va a ser:
+        </p>
+        <ul className="mt-2 space-y-1 font-body text-base text-ink">
+          <li>
+            <strong>Hasta 20 alfajores:</strong> $195
+          </li>
+          <li>
+            <strong>Más de 20 alfajores:</strong> $220
+          </li>
+        </ul>
+        <p className="mt-2 font-body text-sm text-ink/80">
+          A cualquier lugar del país. Se cobra junto con tu pedido en Mercado
+          Pago.
         </p>
       </div>
 
@@ -336,9 +370,9 @@ export default function CheckoutForm() {
             className="mt-1 h-5 w-5 shrink-0 rounded border-ink/40 text-ink focus:ring-2 focus:ring-gold"
           />
           <span className="font-body text-sm leading-relaxed text-ink">
-            Entiendo que mi pedido se enviará por encomienda a cargo del
-            cliente y que el envío se paga al recibirlo. Acepto las condiciones
-            del envío y confirmo que los datos ingresados son correctos.
+            Entiendo que el envío tiene un costo fijo de $195 o $220 según la
+            cantidad de alfajores y se cobra junto con el pedido. Confirmo que
+            los datos ingresados son correctos.
           </span>
         </label>
       </div>

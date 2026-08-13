@@ -16,6 +16,12 @@ export type CartItem = {
   currency: string;
   image: string;
   qty: number;
+  /**
+   * Cuántos alfajores trae cada unidad del producto (1 = suelto,
+   * 12 = caja de 12). Se multiplica por `qty` para calcular el envío.
+   * Default 1 al hidratar carritos existentes que no tienen el campo.
+   */
+  unitsPerPack: number;
 };
 
 type CartState = { items: CartItem[] };
@@ -60,6 +66,11 @@ type CartCtx = {
   items: CartItem[];
   count: number;
   subtotal: number;
+  /**
+   * Total de alfajores en el carrito (Σ qty × unitsPerPack).
+   * Usado por el checkout para calcular el envío fijo.
+   */
+  alfajores: number;
   add: (item: Omit<CartItem, 'qty'>, qty?: number) => void;
   remove: (id: string) => void;
   setQty: (id: string, qty: number) => void;
@@ -83,7 +94,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem('barlovento.cart');
       if (raw) {
         const parsed: CartItem[] = JSON.parse(raw);
-        dispatch({ type: 'hydrate', items: parsed });
+        // Carritos guardados antes del campo `unitsPerPack` lo tendrán
+        // undefined. Asumimos 1 para no romper el cálculo de envío.
+        const normalized = parsed.map((it) => ({
+          ...it,
+          unitsPerPack:
+            typeof it.unitsPerPack === 'number' && it.unitsPerPack > 0
+              ? it.unitsPerPack
+              : 1,
+        }));
+        dispatch({ type: 'hydrate', items: normalized });
       }
     } catch {}
     setHydrated(true);
@@ -101,6 +121,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     0
   );
   const count = state.items.reduce((acc, i) => acc + i.qty, 0);
+  const alfajores = state.items.reduce(
+    (acc, i) => acc + i.qty * (i.unitsPerPack ?? 1),
+    0
+  );
 
   return (
     <CartContext.Provider
@@ -108,6 +132,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         items: state.items,
         count,
         subtotal,
+        alfajores,
         add: (item, qty = 1) => {
           dispatch({ type: 'add', item, qty });
           // No abrimos el drawer automáticamente. El visitante puede

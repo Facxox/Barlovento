@@ -58,6 +58,7 @@ export type ProductoInput = {
   badge: string | null;
   is_active: boolean;
   sort_order: number;
+  units_per_pack: number;
   nutrition: Nutrition | null;
 };
 
@@ -107,6 +108,7 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
     badge: ((formData.get('badge') as string) || '').trim() || null,
     is_active: formData.get('is_active') === 'true',
     sort_order: Number(formData.get('sort_order') ?? 99),
+    units_per_pack: Number(formData.get('units_per_pack')) || 1,
     nutrition: parseNutritionField(formData.get('nutrition_json') as string | null),
   };
   const imageFile = formData.get('imageFile') as File | null;
@@ -127,6 +129,7 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
     badge: input.badge || null,
     is_active: input.is_active,
     sort_order: Number(input.sort_order),
+    units_per_pack: input.units_per_pack > 0 ? input.units_per_pack : 1,
     nutrition: input.nutrition,
   };
 
@@ -445,6 +448,7 @@ export async function upsertWholesaleProduct(
     badge: ((formData.get('badge') as string) || '').trim() || null,
     is_active: formData.get('is_active') === 'true',
     sort_order: Number(formData.get('sort_order') ?? 99),
+    units_per_pack: Number(formData.get('units_per_pack')) || 1,
     nutrition: parseNutritionField(formData.get('nutrition_json') as string | null),
   };
   const imageFile = formData.get('imageFile') as File | null;
@@ -465,6 +469,7 @@ export async function upsertWholesaleProduct(
     badge: input.badge || null,
     is_active: input.is_active,
     sort_order: Number(input.sort_order),
+    units_per_pack: input.units_per_pack > 0 ? input.units_per_pack : 1,
     nutrition: input.nutrition,
   };
 
@@ -576,6 +581,11 @@ export async function cloneProductToWholesale(
     badge: source.badge,
     is_active: true,
     sort_order: nextSort,
+    units_per_pack:
+      typeof (source as { units_per_pack?: unknown }).units_per_pack === 'number' &&
+      ((source as { units_per_pack?: unknown }).units_per_pack as number) > 0
+        ? ((source as { units_per_pack?: number }).units_per_pack as number)
+        : 1,
     nutrition: ((source as { nutrition?: unknown }).nutrition ??
       null) as WholesaleProduct['nutrition'] | null,
   };

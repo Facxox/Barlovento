@@ -38,6 +38,12 @@ export default function ProductoForm({
   const [badge, setBadge] = useState(initial?.badge ?? '');
   const [isActive, setIsActive] = useState(initial?.is_active ?? true);
   const [file, setFile] = useState<File | null>(null);
+  // Cuántos alfajores trae cada unidad (1 = suelto, 12 = caja de 12). Lo
+  // multiplicamos por la cantidad del carrito en el checkout para calcular
+  // el envío fijo ($195 / $220 según el total de alfajores).
+  const [unitsPerPack, setUnitsPerPack] = useState(
+    initial?.units_per_pack?.toString() ?? '1'
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -73,6 +79,7 @@ export default function ProductoForm({
         // dejamos el server action calcularlo al final de la lista si es
         // un producto nuevo.
         fd.append('sort_order', initial?.sort_order?.toString() ?? '9999');
+        fd.append('units_per_pack', unitsPerPack);
         // Información nutricional: serializamos a JSON. Si el toggle está
         // apagado mandamos string vacío para que el server guarde NULL.
         fd.append(
@@ -168,7 +175,7 @@ export default function ProductoForm({
             />
           </Field>
 
-          <div className="grid gap-5 sm:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-4">
             <Field label={isWholesale ? 'Precio mayorista' : 'Precio'}>
               <input
                 type="number"
@@ -188,6 +195,21 @@ export default function ProductoForm({
                 <option value="UYU">UYU</option>
                 <option value="USD">USD</option>
               </select>
+            </Field>
+            <Field label="Alfajores por unidad">
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={unitsPerPack}
+                onChange={(e) => setUnitsPerPack(e.target.value)}
+                required
+                className={inputCls}
+              />
+              <p className="mt-1 font-body text-[11px] text-bone/55">
+                Si es una caja, indicá cuántos alfajores trae. Para
+                alfajores sueltos dejá 1.
+              </p>
             </Field>
             <Field label="Orden">
               <p className="mt-2 font-body text-xs text-bone/60">

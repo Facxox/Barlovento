@@ -31,6 +31,7 @@ export default function ProductoDetalle({
       price: product.price,
       currency: product.currency,
       image: product.image,
+      unitsPerPack: product.units_per_pack ?? 1,
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 2200);

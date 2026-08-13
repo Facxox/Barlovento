@@ -110,6 +110,7 @@ export default function Tienda({
                   price: p.price,
                   currency: p.currency,
                   image: p.image,
+                  unitsPerPack: p.units_per_pack ?? 1,
                 })
               }
             />

@@ -1,18 +1,36 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from './CartContext';
 import { formatMoney } from './formatMoney';
 
+// Mismo cálculo que en CheckoutForm y /api/checkout: lo dejamos
+// duplicado aquí para mostrar la previsualización en el drawer sin
+// esperar a abrir el checkout.
+const SHIPPING_LE_20 = 195;
+const SHIPPING_MAS_20 = 220;
+const SHIPPING_THRESHOLD = 20;
+function calcShippingCost(alfajores: number): number {
+  if (alfajores <= 0) return 0;
+  return alfajores > SHIPPING_THRESHOLD ? SHIPPING_MAS_20 : SHIPPING_LE_20;
+}
+
 export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
-  const { items, isOpen, close, setQty, remove, subtotal, clear } = useCart();
+  const { items, isOpen, close, setQty, remove, subtotal, alfajores, clear } =
+    useCart();
   const router = useRouter();
   const phone = whatsapp.replace(/\D/g, '');
   // Si el usuario logueado es mayorista, no mostramos Mercado Pago.
   const [customerType, setCustomerType] = useState<'retail' | 'wholesale' | null>(
     null
   );
+
+  const shippingPreview = useMemo(
+    () => calcShippingCost(alfajores),
+    [alfajores]
+  );
+  const totalWithShipping = subtotal + shippingPreview;
 
   useEffect(() => {
     let cancelled = false;
@@ -45,8 +63,12 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
     const lines = items
       .map((i) => `· ${i.qty} x ${i.name} — ${formatMoney(i.price * i.qty, i.currency)}`)
       .join('\n');
+    const shippingLine =
+      shippingPreview > 0
+        ? `\n· Envío (${alfajores} alfajor${alfajores === 1 ? '' : 'es'}) — ${formatMoney(shippingPreview, items[0]?.currency ?? 'UYU')}`
+        : '';
     const msg = encodeURIComponent(
-      `Hola Barlovento! Quiero hacer este pedido:\n\n${lines}\n\nTotal: ${formatMoney(subtotal, items[0]?.currency)}\n\nGracias!`
+      `Hola Barlovento! Quiero hacer este pedido:\n\n${lines}${shippingLine}\n\nTotal: ${formatMoney(totalWithShipping, items[0]?.currency ?? 'UYU')}\n\nGracias!`
     );
     return `https://wa.me/${phone}?text=${msg}`;
   };
@@ -64,8 +86,10 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
             name: i.name,
             qty: i.qty,
             price: i.price,
+            unitsPerPack: i.unitsPerPack ?? 1,
           })),
-          total: subtotal,
+          total: totalWithShipping,
+          shipping_cost: shippingPreview,
           currency: items[0]?.currency ?? 'UYU',
           customer_type: isWholesale ? 'wholesale' : 'retail',
         }),
@@ -169,6 +193,22 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
                 <span className="text-eyebrow">Subtotal</span>
                 <span className="font-display text-3xl text-gold">
                   {formatMoney(subtotal, items[0]?.currency)}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between font-body text-sm">
+                <span className="text-bone/70">
+                  Envío ({alfajores} alfajor{alfajores === 1 ? '' : 'es'})
+                </span>
+                <span className="text-bone/70">
+                  {shippingPreview > 0
+                    ? formatMoney(shippingPreview, items[0]?.currency ?? 'UYU')
+                    : '—'}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between border-t border-carbon-line pt-3">
+                <span className="text-eyebrow">Total</span>
+                <span className="font-display text-2xl text-bone">
+                  {formatMoney(totalWithShipping, items[0]?.currency ?? 'UYU')}
                 </span>
               </div>
 
