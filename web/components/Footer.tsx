@@ -41,8 +41,7 @@ export default async function Footer() {
             <ul className="space-y-2 text-bone/80 font-body text-sm">
               <li>Mercado Pago</li>
               <li>Visa · Mastercard</li>
-              <li>Abitab</li>
-              <li>Redpagos</li>
+              <li>Transferencias Bancarias</li>
             </ul>
             <p className="text-eyebrow mt-8 mb-4">Redes</p>
             <ul className="space-y-2 text-bone/80 font-body text-sm">
