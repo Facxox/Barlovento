@@ -70,9 +70,34 @@ export async function generateMetadata({
 }) {
   const lookup = await getProductById(params.id);
   if (!lookup) return { title: 'Producto · Barlovento' };
+  const p = lookup.product;
   return {
-    title: `${lookup.product.name} · Barlovento`,
-    description: lookup.product.description,
+    title: `${p.name} · Barlovento`,
+    description: p.description,
+    alternates: {
+      canonical: `/productos/${params.id}`,
+      languages: { 'es-UY': `/productos/${params.id}` },
+    },
+    openGraph: {
+      title: `${p.name} · Barlovento`,
+      description: p.description,
+      type: 'website',
+      url: `https://barlovento.uy/productos/${params.id}`,
+      images: p.image
+        ? [
+            {
+              url: p.image,
+              alt: p.name,
+            },
+          ]
+        : undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${p.name} · Barlovento`,
+      description: p.description,
+      images: p.image ? [p.image] : ['/Logo.jpg'],
+    },
   };
 }
 
@@ -84,11 +109,40 @@ export default async function ProductoPage({
   const lookup = await getProductById(params.id);
   if (!lookup) notFound();
   const categories = await getCategories();
+  const p = lookup.product;
+
+  // JSON-LD Product. Precio y currency salen de la DB (no inventamos).
+  // availability=InStock es razonable para productos activos. seller
+  // apunta al Organization vía @id.
+  const productJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: p.name,
+    description: p.description,
+    image: p.image || 'https://barlovento.uy/Logo.jpg',
+    sku: p.id,
+    category: p.category,
+    offers: {
+      '@type': 'Offer',
+      price: Number(p.price).toFixed(2),
+      priceCurrency: p.currency,
+      availability: 'https://schema.org/InStock',
+      url: `https://barlovento.uy/productos/${params.id}`,
+      seller: { '@id': 'https://barlovento.uy/#business' },
+    },
+  };
+
   return (
-    <ProductoDetalle
-      product={lookup.product}
-      categories={categories}
-      isWholesale={lookup.variant === 'wholesale'}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+      <ProductoDetalle
+        product={p}
+        categories={categories}
+        isWholesale={lookup.variant === 'wholesale'}
+      />
+    </>
   );
 }
