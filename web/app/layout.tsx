@@ -10,7 +10,7 @@ import { CartProvider } from '@/components/CartContext';
 import { getSiteContent } from '@/lib/queries';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://barlovento.uy'),
+  metadataBase: new URL('https://barloventoirresistibles.com.uy'),
   title: 'Barlovento · Alfajores artesanales de Trinidad, Uruguay',
   description:
     'Alfajores artesanales hechos a mano en Trinidad, Uruguay. Medalla de Oro — Mejor Alfajor Pyme. Comprá online o por WhatsApp.',
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     title: 'Barlovento · Irresistibles',
     description: 'Alfajores artesanales de Trinidad. Medalla de Oro Pyme.',
     type: 'website',
-    url: 'https://barlovento.uy',
+    url: 'https://barloventoirresistibles.com.uy',
     siteName: 'Barlovento',
     locale: 'es_UY',
     images: [
@@ -83,8 +83,8 @@ export default async function RootLayout({
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: 'Barlovento',
-    url: 'https://barlovento.uy',
-    logo: 'https://barlovento.uy/Logo.jpg',
+    url: 'https://barloventoirresistibles.com.uy',
+    logo: 'https://barloventoirresistibles.com.uy/Logo.jpg',
     description:
       'Alfajores artesanales elaborados en Trinidad, Flores, Uruguay.',
     email: contacto.email,
@@ -100,10 +100,10 @@ export default async function RootLayout({
   const localBusinessJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
-    '@id': 'https://barlovento.uy/#business',
+    '@id': 'https://barloventoirresistibles.com.uy/#business',
     name: 'Barlovento',
-    url: 'https://barlovento.uy',
-    image: 'https://barlovento.uy/Logo.jpg',
+    url: 'https://barloventoirresistibles.com.uy',
+    image: 'https://barloventoirresistibles.com.uy/Logo.jpg',
     email: contacto.email,
     telephone: contacto.whatsapp,
     priceRange: 'UYU',

@@ -82,7 +82,7 @@ export async function generateMetadata({
       title: `${p.name} · Barlovento`,
       description: p.description,
       type: 'website',
-      url: `https://barlovento.uy/productos/${params.id}`,
+      url: `https://barloventoirresistibles.com.uy/productos/${params.id}`,
       images: p.image
         ? [
             {
@@ -119,7 +119,7 @@ export default async function ProductoPage({
     '@type': 'Product',
     name: p.name,
     description: p.description,
-    image: p.image || 'https://barlovento.uy/Logo.jpg',
+    image: p.image || 'https://barloventoirresistibles.com.uy/Logo.jpg',
     sku: p.id,
     category: p.category,
     offers: {
@@ -127,8 +127,8 @@ export default async function ProductoPage({
       price: Number(p.price).toFixed(2),
       priceCurrency: p.currency,
       availability: 'https://schema.org/InStock',
-      url: `https://barlovento.uy/productos/${params.id}`,
-      seller: { '@id': 'https://barlovento.uy/#business' },
+      url: `https://barloventoirresistibles.com.uy/productos/${params.id}`,
+      seller: { '@id': 'https://barloventoirresistibles.com.uy/#business' },
     },
   };
 

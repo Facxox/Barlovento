@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const SITE_URL = 'https://barlovento.uy';
+const SITE_URL = 'https://barloventoirresistibles.com.uy';
 
 export default function robots(): MetadataRoute.Robots {
   return {

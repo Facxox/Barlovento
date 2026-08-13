@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { getProducts } from '@/lib/queries';
 
 // Site URL canónico. Coincide con `metadataBase` en app/layout.tsx.
-const SITE_URL = 'https://barlovento.uy';
+const SITE_URL = 'https://barloventoirresistibles.com.uy';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const products = await getProducts();
