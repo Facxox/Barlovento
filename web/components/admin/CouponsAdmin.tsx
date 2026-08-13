@@ -149,6 +149,13 @@ export default function CouponsAdmin({ initialCoupons, products }: Props) {
       return;
     }
 
+    // El input de fecha devuelve "YYYY-MM-DD". Para que el cupón
+    // venza al final del día (en vez de a la medianoche), lo
+    // expandimos a "YYYY-MM-DD 23:59:59" antes de mandarlo al server.
+    const endsAtIso = endsAt && /^\d{4}-\d{2}-\d{2}$/.test(endsAt)
+      ? `${endsAt} 23:59:59`
+      : endsAt;
+
     const res = await fetch('/api/admin/coupons', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -163,7 +170,7 @@ export default function CouponsAdmin({ initialCoupons, products }: Props) {
         combinable,
         customer_type: customerType || null,
         starts_at: startsAt || null,
-        ends_at: endsAt || null,
+        ends_at: endsAtIso || null,
         rules: rules.map((r, i) => ({
           kind: r.kind,
           value: r.value,
@@ -335,15 +342,15 @@ export default function CouponsAdmin({ initialCoupons, products }: Props) {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Inicio" hint="Opcional. Si lo dejás vacío, empieza ahora.">
                   <input
-                    type="datetime-local"
+                    type="date"
                     value={startsAt}
                     onChange={(e) => setStartsAt(e.target.value)}
                     className={inputBase}
                   />
                 </Field>
-                <Field label="Fin" hint="Opcional. Si lo dejás vacío, no vence.">
+                <Field label="Fin" hint="Opcional. Si lo dejás vacío, no vence. Vence al final del día elegido.">
                   <input
-                    type="datetime-local"
+                    type="date"
                     value={endsAt}
                     onChange={(e) => setEndsAt(e.target.value)}
                     className={inputBase}
