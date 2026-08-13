@@ -46,6 +46,35 @@ function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Pagina sobre `service.from('visitas')` trayendo todas las filas que
+ * matchean el filtro. PostgREST trunca silenciosamente a 1000 filas
+ * por default; .range() tiene tope 100k. Iteramos de a 1000 hasta
+ * vaciar el set.
+ */
+type VisitaRow = { fecha_hora: string; visitor_hash: string | null };
+async function fetchAllVisitas(
+  service: NonNullable<ReturnType<typeof getServiceSupabase>>,
+  sinceIso: string | null
+): Promise<VisitaRow[]> {
+  const PAGE = 1000;
+  const MAX_PAGES = 1000; // safety: hasta 1M filas
+  const all: VisitaRow[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    let q = service
+      .from('visitas')
+      .select('fecha_hora,visitor_hash')
+      .order('fecha_hora', { ascending: true })
+      .range(page * PAGE, page * PAGE + PAGE - 1);
+    if (sinceIso) q = q.gte('fecha_hora', sinceIso);
+    const { data, error } = await q;
+    if (error || !data || data.length === 0) break;
+    all.push(...(data as VisitaRow[]));
+    if (data.length < PAGE) break;
+  }
+  return all;
+}
+
 /** Devuelve los N días previos a `from` (sin incluir `from`). */
 function daysBefore(from: Date, n: number): Date[] {
   const out: Date[] = [];
@@ -100,12 +129,7 @@ export async function getTrafficMetrics(
     // el historial (sin tope de 365d). Si la cantidad de días es
     // muy grande (>90), agrupamos en buckets semanales para no
     // saturar el chart.
-    const { data: rows } = await service
-      .from('visitas')
-      .select('fecha_hora,visitor_hash')
-      // PostgREST trunca a 1000 filas por default. Pedimos hasta 100k
-      // para que visitas históricas (todo el tiempo) entren completas.
-      .range(0, 99999);
+    const rows = await fetchAllVisitas(service, null);
 
     if (!rows || rows.length === 0) {
       return {
@@ -184,12 +208,7 @@ export async function getTrafficMetrics(
   const previousStart = new Date(currentStart);
   previousStart.setUTCDate(previousStart.getUTCDate() - days);
 
-  const { data: rows } = await service
-    .from('visitas')
-    .select('fecha_hora,visitor_hash')
-    .gte('fecha_hora', previousStart.toISOString())
-    // PostgREST trunca a 1000 filas por default. Pedimos hasta 100k.
-    .range(0, 99999);
+  const rows = await fetchAllVisitas(service, previousStart.toISOString());
 
   const currentVisitors = new Set<string>();
   const previousVisitors = new Set<string>();
