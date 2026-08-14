@@ -62,8 +62,10 @@ export default function CheckoutForm() {
   // poder mostrar el nombre antes de subirlo, y como receiptUrl con la URL
   // pública devuelta por /api/orders/bank-transfer/upload.
   const [receipt, setReceipt] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   // El total final descuenta el cupón (si lo hay) del subtotal del carrito
 // y suma el envío fijo según la cantidad de alfajores.
@@ -105,6 +107,13 @@ export default function CheckoutForm() {
   useEffect(() => {
     if (isOpen) close();
   }, [isOpen, close]);
+
+  // Liberamos el object URL del preview cuando cambia o al desmontar.
+  useEffect(() => {
+    return () => {
+      if (receiptPreview) URL.revokeObjectURL(receiptPreview);
+    };
+  }, [receiptPreview]);
 
   const summary = useMemo(
     () =>
@@ -402,24 +411,14 @@ export default function CheckoutForm() {
             </p>
 
             <div className="mt-5">
-              <label
-                htmlFor="receipt"
-                className="block font-body text-xs uppercase tracking-ultra text-ink/70"
-              >
-                Comprobante de transferencia (opcional)
-              </label>
-              <input
-                id="receipt"
-                name="receipt"
-                type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
+              <ReceiptDropzone
+                file={receipt}
+                preview={receiptPreview}
+                error={receiptError}
+                uploading={uploadingReceipt}
+                dragOver={dragOver}
+                onFile={(f) => {
                   setReceiptError(null);
-                  if (!f) {
-                    setReceipt(null);
-                    return;
-                  }
                   const allowed = [
                     'image/jpeg',
                     'image/png',
@@ -427,33 +426,40 @@ export default function CheckoutForm() {
                     'application/pdf',
                   ];
                   if (!allowed.includes(f.type)) {
-                    setReceiptError('Formato no soportado. Subí JPG, PNG o PDF.');
                     setReceipt(null);
-                    e.target.value = '';
+                    setReceiptPreview(null);
+                    setReceiptError(
+                      'Formato no soportado. Subí una imagen (JPG, PNG, WebP) o un PDF.'
+                    );
                     return;
                   }
                   if (f.size > 5 * 1024 * 1024) {
-                    setReceiptError('El archivo supera los 5 MB.');
                     setReceipt(null);
-                    e.target.value = '';
+                    setReceiptPreview(null);
+                    setReceiptError('El archivo supera los 5 MB. Probá con uno más liviano.');
                     return;
                   }
                   setReceipt(f);
+                  if (f.type.startsWith('image/')) {
+                    const url = URL.createObjectURL(f);
+                    setReceiptPreview(url);
+                  } else {
+                    setReceiptPreview(null);
+                  }
                 }}
-                className="mt-2 block w-full rounded-md border border-ink/20 bg-cream px-4 py-3 font-body text-sm text-ink file:mr-3 file:rounded-full file:border-0 file:bg-ink file:px-4 file:py-2 file:font-body file:text-xs file:uppercase file:tracking-ultra file:text-cream hover:file:bg-gold hover:file:text-carbon focus:border-ink focus:outline-none focus:ring-2 focus:ring-gold/40"
+                onClear={() => {
+                  if (receiptPreview) URL.revokeObjectURL(receiptPreview);
+                  setReceipt(null);
+                  setReceiptPreview(null);
+                  setReceiptError(null);
+                }}
+                onError={setReceiptError}
+                onDragChange={setDragOver}
               />
-              {receipt && !receiptError && (
-                <p className="mt-2 font-body text-xs text-ink/70">
-                  Adjuntaste: <strong>{receipt.name}</strong> (
-                  {(receipt.size / 1024).toFixed(0)} KB)
-                </p>
-              )}
-              {receiptError && (
-                <p className="mt-2 font-body text-xs text-red-600">{receiptError}</p>
-              )}
               <p className="mt-2 font-body text-xs text-ink/55">
-                Podés subir una foto o captura del comprobante (JPG, PNG) o el
-                PDF del home banking. Máximo 5 MB.
+                Opcional. Si ya hiciste la transferencia, subí una foto o captura
+                del comprobante (JPG, PNG, WebP) o el PDF del home banking.
+                Máximo 5 MB.
               </p>
             </div>
           </div>
@@ -813,5 +819,229 @@ function FulfillmentOption({
       </span>
       <span className="mt-2 block font-body text-sm text-ink/80">{subtitle}</span>
     </button>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function ReceiptDropzone({
+  file,
+  preview,
+  error,
+  uploading,
+  dragOver,
+  onFile,
+  onClear,
+  onError,
+  onDragChange,
+}: {
+  file: File | null;
+  preview: string | null;
+  error: string | null;
+  uploading: boolean;
+  dragOver: boolean;
+  onFile: (f: File) => void;
+  onClear: () => void;
+  onError: (msg: string | null) => void;
+  onDragChange: (v: boolean) => void;
+}) {
+  const inputId = 'receipt-input';
+  // Estado vacío: dropzone grande con icono + texto + botón "Elegir archivo"
+  if (!file) {
+    return (
+      <div>
+        <label
+          htmlFor={inputId}
+          onDragOver={(e) => {
+            e.preventDefault();
+            onDragChange(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            onDragChange(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            onDragChange(false);
+            const f = e.dataTransfer.files?.[0];
+            if (f) {
+              onError(null);
+              onFile(f);
+            }
+          }}
+          className={[
+            'group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-6 py-8 text-center transition focus-within:ring-2 focus-within:ring-gold/40',
+            dragOver
+              ? 'border-gold bg-gold/10'
+              : error
+              ? 'border-red-400 bg-red-50/40 hover:border-red-500'
+              : 'border-ink/30 bg-cream hover:border-gold/60 hover:bg-gold/5',
+          ].join(' ')}
+        >
+          <span
+            aria-hidden
+            className="grid h-12 w-12 place-items-center rounded-full border border-ink/20 bg-cream text-gold-deep transition group-hover:border-gold/60"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          </span>
+          <span className="font-body text-sm font-medium text-ink">
+            {dragOver
+              ? 'Soltá el archivo acá'
+              : 'Arrastrá tu comprobante o hacé click para elegir'}
+          </span>
+          <span className="font-body text-xs text-ink/55">
+            JPG, PNG, WebP o PDF · máximo 5 MB
+          </span>
+          <input
+            id={inputId}
+            name="receipt"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) {
+                onError(null);
+                onFile(f);
+              }
+              // Permite re-seleccionar el mismo archivo
+              e.target.value = '';
+            }}
+            className="sr-only"
+          />
+        </label>
+        {error && (
+          <p
+            role="alert"
+            className="mt-2 font-body text-xs text-red-600"
+          >
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // Estado con archivo: thumbnail + meta + botón cambiar/quitar
+  const isImage = file.type.startsWith('image/');
+  return (
+    <div>
+      <div
+        className={[
+          'flex items-center gap-4 rounded-md border bg-cream p-4',
+          uploading ? 'border-gold/60' : 'border-emerald-500/40',
+        ].join(' ')}
+        aria-live="polite"
+      >
+        {isImage && preview ? (
+          <img
+            src={preview}
+            alt="Vista previa del comprobante"
+            className="h-16 w-16 shrink-0 rounded-md border border-ink/15 object-cover"
+          />
+        ) : (
+          <span
+            aria-hidden
+            className="grid h-16 w-16 shrink-0 place-items-center rounded-md border border-ink/15 bg-bone text-gold-deep"
+          >
+            <svg
+              width="26"
+              height="26"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+          </span>
+        )}
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-body text-sm font-medium text-ink">
+            {file.name}
+          </p>
+          <p className="mt-0.5 font-body text-xs text-ink/60">
+            {formatBytes(file.size)} ·{' '}
+            {isImage ? 'Imagen' : file.type === 'application/pdf' ? 'PDF' : file.type}
+          </p>
+          <p
+            className={[
+              'mt-1 font-body text-xs',
+              uploading ? 'text-gold-deep' : 'text-emerald-700',
+            ].join(' ')}
+          >
+            {uploading ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className="inline-block h-2 w-2 animate-pulse rounded-full bg-gold-deep"
+                />
+                Subiendo comprobante…
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden>✓</span>
+                Listo para enviar con tu pedido
+              </span>
+            )}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 flex-col gap-1.5">
+          <label
+            htmlFor={inputId + '-replace'}
+            className="cursor-pointer rounded-full border border-ink/20 px-3 py-1 text-center font-body text-[10px] uppercase tracking-ultra text-ink/70 transition hover:border-ink hover:text-ink"
+          >
+            Cambiar
+            <input
+              id={inputId + '-replace'}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  onError(null);
+                  onFile(f);
+                }
+                e.target.value = '';
+              }}
+              className="sr-only"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded-full border border-red-500/40 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-red-700 transition hover:bg-red-500 hover:text-cream"
+          >
+            Quitar
+          </button>
+        </div>
+      </div>
+      {error && (
+        <p role="alert" className="mt-2 font-body text-xs text-red-600">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
