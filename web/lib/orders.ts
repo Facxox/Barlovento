@@ -6,7 +6,7 @@ export type OrderRow = {
   items: Array<{ id: string; name: string; qty: number; price: number; currency: string }>;
   total: number;
   currency: string;
-  channel: 'mercadopago' | 'whatsapp';
+  channel: 'mercadopago' | 'whatsapp' | 'bank_transfer';
   customer_type: 'retail' | 'wholesale';
   status: 'pending' | 'paid' | 'fulfilled' | 'cancelled';
   customer_name: string | null;
@@ -26,6 +26,7 @@ export type OrderRow = {
     | 'delivered'
     | 'cancelled'
     | null;
+  receipt_url: string | null;
   created_at: string;
 };
 

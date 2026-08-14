@@ -171,10 +171,12 @@ export default async function AdminDashboard() {
                           'rounded-full px-2 py-0.5 text-[10px] uppercase tracking-ultra',
                           o.channel === 'mercadopago'
                             ? 'bg-blue-500/20 text-blue-300'
+                            : o.channel === 'bank_transfer'
+                            ? 'bg-purple-500/20 text-purple-300'
                             : 'bg-emerald-500/20 text-emerald-300',
                         ].join(' ')}
                       >
-                        {o.channel}
+                        {o.channel === 'bank_transfer' ? 'transferencia' : o.channel}
                       </span>
                     </td>
                     <td className="p-4 text-bone">

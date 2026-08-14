@@ -129,7 +129,11 @@ function OrderRow({ order }: { order: MyOrder }) {
         <div className="font-display text-lg text-bone">
           #{order.id}{' '}
           <span className="ml-2 rounded-full border border-gold/40 px-2 py-0.5 font-body text-[10px] uppercase tracking-ultra text-gold">
-            {order.channel === 'mercadopago' ? 'Mercado Pago' : 'WhatsApp'}
+            {order.channel === 'mercadopago'
+              ? 'Mercado Pago'
+              : order.channel === 'bank_transfer'
+              ? 'Transferencia'
+              : 'WhatsApp'}
           </span>
         </div>
         <span className="font-display text-lg text-gold">

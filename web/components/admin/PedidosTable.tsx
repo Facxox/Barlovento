@@ -106,7 +106,7 @@ export default function PedidosTable({ orders }: Props) {
           </p>
         </div>
         <div className="flex gap-2">
-          {(['all', 'mercadopago', 'whatsapp', 'pickup'] as const).map((f) => (
+          {(['all', 'mercadopago', 'whatsapp', 'bank_transfer', 'pickup'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -121,6 +121,8 @@ export default function PedidosTable({ orders }: Props) {
                 ? 'Todos'
                 : f === 'pickup'
                 ? 'Retiro'
+                : f === 'bank_transfer'
+                ? 'Transferencia'
                 : f}
             </button>
           ))}
@@ -167,11 +169,24 @@ export default function PedidosTable({ orders }: Props) {
                       'rounded-full px-2 py-0.5 text-[10px] uppercase tracking-ultra',
                       o.channel === 'mercadopago'
                         ? 'bg-blue-500/20 text-blue-300'
+                        : o.channel === 'bank_transfer'
+                        ? 'bg-purple-500/20 text-purple-300'
                         : 'bg-emerald-500/20 text-emerald-300',
                     ].join(' ')}
                   >
-                    {o.channel}
+                    {o.channel === 'bank_transfer' ? 'transferencia' : o.channel}
                   </span>
+                  {o.channel === 'bank_transfer' && o.receipt_url && (
+                    <a
+                      href={o.receipt_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-0.5 font-body text-[10px] uppercase tracking-ultra text-purple-300 transition hover:bg-purple-500 hover:text-carbon"
+                      title="Ver comprobante de transferencia"
+                    >
+                      Comprobante ↗
+                    </a>
+                  )}
                 </td>
                 <td className="p-3">
                   <span
