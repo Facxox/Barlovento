@@ -589,13 +589,33 @@ export default function CheckoutForm() {
         {fulfillment === 'pickup' ? (
           <>
             <p className="mt-2 font-body text-base leading-relaxed text-ink">
-              Pagás online con Mercado Pago y, apenas el pago se confirme, te
-              mostramos un botón para escribirnos por WhatsApp y coordinar el
-              retiro.
+              Retirá tu pedido en <strong>Trinidad</strong> o coordiná la entrega
+              en <strong>Montevideo</strong>.
             </p>
-            <p className="mt-2 font-body text-sm text-ink/80">
-              No cobramos envío. Coordinás día, hora y lugar con la marca.
-            </p>
+            <ul className="mt-3 space-y-2 font-body text-sm text-ink">
+              <li className="flex gap-2">
+                <span aria-hidden className="font-body text-gold-deep">📍</span>
+                <span>
+                  <strong>Trinidad:</strong> podés retirar tu pedido coordinando
+                  previamente.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span aria-hidden className="font-body text-gold-deep">📦</span>
+                <span>
+                  <strong>Montevideo:</strong> viajamos aproximadamente cada 15
+                  días. Si estás en Montevideo, coordinamos la entrega de tu
+                  pedido con anticipación.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span aria-hidden className="font-body text-gold-deep">✨</span>
+                <span>
+                  ¿No sabés cuándo viajamos? Escribinos y te informamos la
+                  próxima fecha disponible.
+                </span>
+              </li>
+            </ul>
           </>
         ) : (
           <>
