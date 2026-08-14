@@ -185,17 +185,18 @@ export default function PedidosTable({ orders }: Props) {
                       className="ml-2 inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-0.5 font-body text-[10px] uppercase tracking-ultra text-purple-300 transition hover:bg-purple-500 hover:text-carbon"
                       title="Ver comprobante de transferencia"
                     >
-                      {receiptThumbUrl(o.receipt_url, 80) && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={receiptThumbUrl(o.receipt_url, 80)!}
-                          alt=""
-                          width={16}
-                          height={16}
-                          loading="lazy"
-                          className="h-4 w-4 rounded-full border border-purple-300/40 object-cover"
-                        />
-                      )}
+                      {!/\.pdf(\?|$)/i.test(o.receipt_url) &&
+                        receiptThumbUrl(o.receipt_url, 80) && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={receiptThumbUrl(o.receipt_url, 80)!}
+                            alt=""
+                            width={16}
+                            height={16}
+                            loading="lazy"
+                            className="h-4 w-4 rounded-full border border-purple-300/40 object-cover"
+                          />
+                        )}
                       Comprobante ↗
                     </a>
                   )}

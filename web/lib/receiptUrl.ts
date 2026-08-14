@@ -47,6 +47,16 @@ function pathFromPublicUrl(url: string): string | null {
   }
 }
 
+/**
+ * Detecta si la URL (o el path) apunta a un PDF.
+ * Image Transforms de Supabase no soporta PDFs, así que para esos
+ * devolvemos la URL original sin transformar.
+ */
+function isPdf(url: string, path: string | null): boolean {
+  const check = path ?? url;
+  return /\.pdf(\?|$)/i.test(check);
+}
+
 function safeTransform(
   receiptUrl: string,
   params: Parameters<typeof buildRenderUrl>[1]
@@ -54,6 +64,7 @@ function safeTransform(
   if (!SUPABASE_URL) return receiptUrl;
   const path = pathFromPublicUrl(receiptUrl);
   if (!path) return receiptUrl;
+  if (isPdf(receiptUrl, path)) return receiptUrl;
   return buildRenderUrl(path, params);
 }
 
