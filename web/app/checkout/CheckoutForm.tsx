@@ -54,6 +54,16 @@ export default function CheckoutForm() {
   const [fulfillment, setFulfillment] = useState<'shipping' | 'pickup'>(
     'shipping'
   );
+  // Método de pago: 'mercadopago' (default) o 'bank_transfer'.
+  const [paymentMethod, setPaymentMethod] = useState<'mercadopago' | 'bank_transfer'>(
+    'mercadopago'
+  );
+  // Comprobante de transferencia (opcional). Lo guardamos como File para
+  // poder mostrar el nombre antes de subirlo, y como receiptUrl con la URL
+  // pública devuelta por /api/orders/bank-transfer/upload.
+  const [receipt, setReceipt] = useState<File | null>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   // El total final descuenta el cupón (si lo hay) del subtotal del carrito
 // y suma el envío fijo según la cantidad de alfajores.
@@ -135,32 +145,96 @@ export default function CheckoutForm() {
 
     setSubmitting(true);
     try {
-      // Items crudos: sólo id y qty van al server. El server resuelve
-      // nombre, precio y currency desde la DB.
-      const itemsToSend = items.map((i) => ({
-        id: i.id,
-        qty: i.qty,
-      }));
+      // Items enriquecidos: id, qty, name, price y currency. Para
+      // transferencia los mandamos al server (no hay Preference de MP).
+      // Para MP mandamos sólo id+qty porque el server resuelve el resto.
+      const itemsToSend =
+        paymentMethod === 'bank_transfer'
+          ? items.map((i) => ({
+              id: i.id,
+              name: i.name,
+              qty: i.qty,
+              price: i.price,
+              currency: i.currency,
+            }))
+          : items.map((i) => ({ id: i.id, qty: i.qty }));
+
+      const body = {
+        items: itemsToSend,
+        customer_name: fullName.trim(),
+        customer_email: email.trim(),
+        customer_phone: phone.trim(),
+        customer_address: fulfillment === 'shipping' ? address.trim() : '',
+        customer_city: fulfillment === 'shipping' ? city.trim() : '',
+        customer_notes: notes.trim() || null,
+        coupon_code:
+          appliedCoupon && appliedCoupon.discount_total > 0
+            ? appliedCoupon.code
+            : null,
+        shipping_cost: shippingCost,
+        shipping_currency: items[0]?.currency ?? 'UYU',
+        fulfillment,
+      };
+
+      if (paymentMethod === 'bank_transfer') {
+        let receiptUrl: string | null = null;
+        if (receipt) {
+          setUploadingReceipt(true);
+          try {
+            const fd = new FormData();
+            fd.append('file', receipt);
+            const upRes = await fetch('/api/orders/bank-transfer/upload', {
+              method: 'POST',
+              body: fd,
+            });
+            const upData: { ok?: boolean; url?: string; error?: string } =
+              await upRes.json().catch(() => ({}));
+            if (!upRes.ok || !upData?.ok || !upData?.url) {
+              setMpError(
+                upData?.error === 'too_large'
+                  ? 'El comprobante supera los 5 MB.'
+                  : upData?.error === 'unsupported_type'
+                  ? 'Formato de comprobante no soportado. Subí JPG, PNG o PDF.'
+                  : 'No pudimos subir el comprobante. Probá de nuevo o continuá sin él.'
+              );
+              setSubmitting(false);
+              setUploadingReceipt(false);
+              return;
+            }
+            receiptUrl = upData.url;
+          } catch {
+            setMpError('No pudimos subir el comprobante. Probá de nuevo.');
+            setSubmitting(false);
+            setUploadingReceipt(false);
+            return;
+          }
+          setUploadingReceipt(false);
+        }
+
+        const res = await fetch('/api/orders/bank-transfer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...body, receipt_url: receiptUrl }),
+        });
+        const data: { ok?: boolean; order_id?: number; error?: string } =
+          await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok || !data?.order_id) {
+          setMpError(
+            data?.error
+              ? `No pudimos registrar tu pedido (${data.error}). Probá de nuevo.`
+              : 'No pudimos registrar tu pedido. Probá de nuevo.'
+          );
+          setSubmitting(false);
+          return;
+        }
+        window.location.href = `/checkout/success?order_id=${data.order_id}`;
+        return;
+      }
 
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: itemsToSend,
-          customer_name: fullName.trim(),
-          customer_email: email.trim(),
-          customer_phone: phone.trim(),
-          customer_address: fulfillment === 'shipping' ? address.trim() : '',
-          customer_city: fulfillment === 'shipping' ? city.trim() : '',
-          customer_notes: notes.trim() || null,
-          coupon_code:
-            appliedCoupon && appliedCoupon.discount_total > 0
-              ? appliedCoupon.code
-              : null,
-          shipping_cost: shippingCost,
-          shipping_currency: items[0]?.currency ?? 'UYU',
-          fulfillment,
-        }),
+        body: JSON.stringify(body),
       });
       const data: { ok?: boolean; init_point?: string; error?: string } =
         await res.json().catch(() => ({}));
@@ -270,8 +344,120 @@ export default function CheckoutForm() {
         <p className="mt-3 font-body text-xs text-ink/55">
           {fulfillment === 'pickup'
             ? 'El retiro se coordina por WhatsApp después del pago.'
+            : paymentMethod === 'bank_transfer'
+            ? 'El envío se coordina al confirmar la transferencia.'
             : 'El envío se cobra junto con tu pedido en Mercado Pago.'}
         </p>
+      </div>
+
+      {/* Método de pago */}
+      <div className="rounded-md border border-ink/15 bg-bone p-6">
+        <p className="text-eyebrow text-gold-deep">Método de pago</p>
+        <p className="mt-1 font-body text-xs text-ink/55">
+          Elegí cómo querés pagar tu pedido.
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <PaymentOption
+            value="mercadopago"
+            current={paymentMethod}
+            onSelect={setPaymentMethod}
+            title="Mercado Pago"
+            subtitle="Tarjeta, transferencia o saldo MP."
+          />
+          <PaymentOption
+            value="bank_transfer"
+            current={paymentMethod}
+            onSelect={setPaymentMethod}
+            title="Transferencia bancaria"
+            subtitle="BBVA · te pasamos los datos para depositar."
+          />
+        </div>
+
+        {paymentMethod === 'bank_transfer' && (
+          <div className="mt-5 rounded-md border border-gold/30 bg-gold/10 p-5">
+            <p className="font-body text-[10px] uppercase tracking-ultra text-gold-deep">
+              Datos para la transferencia
+            </p>
+            <dl className="mt-3 grid gap-2 font-body text-sm text-ink sm:grid-cols-[auto_1fr]">
+              <dt className="text-ink/70">Razón social</dt>
+              <dd className="font-medium">Barlovento Uruguay SAS</dd>
+
+              <dt className="text-ink/70">RUT</dt>
+              <dd className="font-medium">220411340015</dd>
+
+              <dt className="text-ink/70">Banco</dt>
+              <dd className="font-medium">BBVA — Cuentas Corrientes</dd>
+
+              <dt className="text-ink/70">Cuenta (UYU)</dt>
+              <dd className="font-medium">Consultar</dd>
+
+              <dt className="text-ink/70">Cuenta (USD)</dt>
+              <dd className="font-medium">26936976</dd>
+            </dl>
+            <p className="mt-4 font-body text-xs leading-relaxed text-ink/75">
+              Una vez confirmado tu pedido, te enviaremos el comprobante por
+              email y we'll acreditar el pago cuando lo veamos reflejado en la
+              cuenta. Si tenés dudas, escribinos por WhatsApp.
+            </p>
+
+            <div className="mt-5">
+              <label
+                htmlFor="receipt"
+                className="block font-body text-xs uppercase tracking-ultra text-ink/70"
+              >
+                Comprobante de transferencia (opcional)
+              </label>
+              <input
+                id="receipt"
+                name="receipt"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setReceiptError(null);
+                  if (!f) {
+                    setReceipt(null);
+                    return;
+                  }
+                  const allowed = [
+                    'image/jpeg',
+                    'image/png',
+                    'image/webp',
+                    'application/pdf',
+                  ];
+                  if (!allowed.includes(f.type)) {
+                    setReceiptError('Formato no soportado. Subí JPG, PNG o PDF.');
+                    setReceipt(null);
+                    e.target.value = '';
+                    return;
+                  }
+                  if (f.size > 5 * 1024 * 1024) {
+                    setReceiptError('El archivo supera los 5 MB.');
+                    setReceipt(null);
+                    e.target.value = '';
+                    return;
+                  }
+                  setReceipt(f);
+                }}
+                className="mt-2 block w-full rounded-md border border-ink/20 bg-cream px-4 py-3 font-body text-sm text-ink file:mr-3 file:rounded-full file:border-0 file:bg-ink file:px-4 file:py-2 file:font-body file:text-xs file:uppercase file:tracking-ultra file:text-cream hover:file:bg-gold hover:file:text-carbon focus:border-ink focus:outline-none focus:ring-2 focus:ring-gold/40"
+              />
+              {receipt && !receiptError && (
+                <p className="mt-2 font-body text-xs text-ink/70">
+                  Adjuntaste: <strong>{receipt.name}</strong> (
+                  {(receipt.size / 1024).toFixed(0)} KB)
+                </p>
+              )}
+              {receiptError && (
+                <p className="mt-2 font-body text-xs text-red-600">{receiptError}</p>
+              )}
+              <p className="mt-2 font-body text-xs text-ink/55">
+                Podés subir una foto o captura del comprobante (JPG, PNG) o el
+                PDF del home banking. Máximo 5 MB.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modalidad de entrega */}
@@ -468,7 +654,15 @@ export default function CheckoutForm() {
           aria-disabled={!canSubmit}
           className="rounded-full bg-ink px-7 py-3.5 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {submitting ? 'Conectando con Mercado Pago…' : 'Pagar con Mercado Pago'}
+          {submitting
+            ? paymentMethod === 'bank_transfer'
+              ? uploadingReceipt
+                ? 'Subiendo comprobante…'
+                : 'Registrando tu pedido…'
+              : 'Conectando con Mercado Pago…'
+            : paymentMethod === 'bank_transfer'
+            ? 'Confirmar pedido por transferencia'
+            : 'Pagar con Mercado Pago'}
         </button>
       </div>
 
@@ -537,6 +731,47 @@ function Field({
         <p className="mt-1 font-body text-xs text-red-600">{error}</p>
       )}
     </div>
+  );
+}
+
+function PaymentOption({
+  value,
+  current,
+  onSelect,
+  title,
+  subtitle,
+}: {
+  value: 'mercadopago' | 'bank_transfer';
+  current: 'mercadopago' | 'bank_transfer';
+  onSelect: (v: 'mercadopago' | 'bank_transfer') => void;
+  title: string;
+  subtitle: string;
+}) {
+  const active = value === current;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(value)}
+      aria-pressed={active}
+      className={[
+        'text-left rounded-md border px-4 py-4 transition focus:outline-none focus:ring-2 focus:ring-gold/40',
+        active
+          ? 'border-gold bg-gold/10'
+          : 'border-ink/20 bg-cream hover:border-ink/40',
+      ].join(' ')}
+    >
+      <span className="flex items-center gap-2 font-body text-xs uppercase tracking-ultra text-gold-deep">
+        <span
+          aria-hidden
+          className={[
+            'inline-flex h-3 w-3 rounded-full border',
+            active ? 'border-gold bg-gold' : 'border-ink/40 bg-transparent',
+          ].join(' ')}
+        />
+        {title}
+      </span>
+      <span className="mt-2 block font-body text-sm text-ink/80">{subtitle}</span>
+    </button>
   );
 }
 

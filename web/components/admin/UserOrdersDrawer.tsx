@@ -130,7 +130,11 @@ export default function UserOrdersDrawer({
                   <p className="mt-1 font-body text-[11px] uppercase tracking-ultra text-bone/50">
                     {formatLongDate(o.created_at)}
                     {' · '}
-                    {o.channel === 'mercadopago' ? 'Mercado Pago' : 'WhatsApp'}
+                    {o.channel === 'mercadopago'
+                      ? 'Mercado Pago'
+                      : o.channel === 'bank_transfer'
+                      ? 'Transferencia'
+                      : 'WhatsApp'}
                   </p>
                   <div className="mt-3 flex items-center justify-between">
                     <span

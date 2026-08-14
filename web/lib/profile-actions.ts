@@ -45,7 +45,7 @@ export type MyOrder = {
   items: Array<{ id?: string; name: string; qty: number; price: number }>;
   total: number;
   currency: string;
-  channel: 'mercadopago' | 'whatsapp';
+  channel: 'mercadopago' | 'whatsapp' | 'bank_transfer';
   status: string;
   created_at: string;
 };

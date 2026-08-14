@@ -34,6 +34,7 @@ export default async function CheckoutSuccessPage({
   const id = readId(searchParams ?? {});
   const order = id ? await fetchOrder(id) : null;
   const isPickup = order?.fulfillment === 'pickup';
+  const isTransfer = order?.channel === 'bank_transfer';
 
   const site = await getSiteContent();
   const whatsapp = site?.contacto?.whatsapp ?? '';
@@ -43,10 +44,14 @@ export default async function CheckoutSuccessPage({
   return (
     <section className="mx-auto max-w-2xl px-6 py-24 text-center">
       <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
-        Pago confirmado
+        {isTransfer ? 'Pedido registrado' : 'Pago confirmado'}
       </p>
       <h1 className="mt-3 font-display text-4xl text-bone">
-        {isPickup ? '¡Listo! Ya coordinamos el retiro' : 'Recibimos tu pedido'}
+        {isPickup
+          ? '¡Listo! Ya coordinamos el retiro'
+          : isTransfer
+          ? 'Tu pedido quedó registrado'
+          : 'Recibimos tu pedido'}
       </h1>
 
       {isPickup && pickupLink ? (
@@ -70,6 +75,43 @@ export default async function CheckoutSuccessPage({
           <p className="mt-3 font-body text-xs text-bone/50">
             Si el botón no se abre, copiá este link: {pickupLink}
           </p>
+        </>
+      ) : isTransfer ? (
+        <>
+          <p className="mt-6 font-body text-base leading-relaxed text-bone/70">
+            Guardá tu número de pedido. Cuando veamos la transferencia reflejada
+            en nuestra cuenta, te avisamos por email y preparamos el envío
+            (o coordinamos el retiro si elegiste esa opción).
+          </p>
+          <p className="mt-2 font-body text-sm text-bone/55">
+            Pedido #{order?.id} · {order?.customer_name ?? 'sin nombre'}
+          </p>
+
+          <div className="mt-8 mx-auto max-w-md rounded-2xl border border-gold/30 bg-gold/10 p-6 text-left">
+            <p className="font-body text-[10px] uppercase tracking-ultra text-gold">
+              Datos para la transferencia
+            </p>
+            <dl className="mt-4 grid gap-2 font-body text-sm text-bone sm:grid-cols-[auto_1fr]">
+              <dt className="text-bone/70">Razón social</dt>
+              <dd className="font-medium">Barlovento Uruguay SAS</dd>
+
+              <dt className="text-bone/70">RUT</dt>
+              <dd className="font-medium">220411340015</dd>
+
+              <dt className="text-bone/70">Banco</dt>
+              <dd className="font-medium">BBVA — Cuentas Corrientes</dd>
+
+              <dt className="text-bone/70">Cuenta (UYU)</dt>
+              <dd className="font-medium">Consultar</dd>
+
+              <dt className="text-bone/70">Cuenta (USD)</dt>
+              <dd className="font-medium">26936976</dd>
+            </dl>
+            <p className="mt-4 font-body text-xs leading-relaxed text-bone/70">
+              Una vez hecha la transferencia, envianos el comprobante por
+              WhatsApp o email para acreditar el pedido más rápido.
+            </p>
+          </div>
         </>
       ) : (
         <p className="mt-6 font-body text-base leading-relaxed text-bone/70">

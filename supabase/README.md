@@ -19,10 +19,15 @@
 | `site_content` | Textos editables key→jsonb (historia/misión/visión/contacto) | sí |
 | `orders` | Pedidos MP + WhatsApp | solo admin |
 
-## Bucket
+## Buckets
 
 - `barlovento-media` (público para lectura, escritura solo autenticado).
   Las imágenes del admin se suben acá y devuelven una URL pública.
+- `transfer-receipts` (público para lectura). El cliente sube el
+  comprobante de transferencia bancaria en el checkout y queda asociado
+  al pedido. Crearlo desde *Storage > New bucket* con nombre
+  `transfer-receipts` y tildar "Public bucket". La subida se hace desde
+  `POST /api/orders/bank-transfer/upload` usando el service role.
 
 ## Fase 3 (próxima)
 
