@@ -6,6 +6,7 @@ import { useCart } from '@/components/CartContext';
 import GoldDivider from '@/components/GoldDivider';
 import CouponInput, { type AppliedCouponState } from '@/components/CouponInput';
 import { formatMoney } from '@/components/formatMoney';
+import { compressImage } from '@/lib/imageCompress';
 
 type Profile = {
   full_name?: string | null;
@@ -65,6 +66,7 @@ export default function CheckoutForm() {
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
   // El total final descuenta el cupón (si lo hay) del subtotal del carrito
@@ -128,7 +130,7 @@ export default function CheckoutForm() {
   );
 
   const canSubmit =
-    accepted && items.length > 0 && !submitting && profileLoaded;
+    accepted && items.length > 0 && !submitting && !compressing && profileLoaded;
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
@@ -416,8 +418,9 @@ export default function CheckoutForm() {
                 preview={receiptPreview}
                 error={receiptError}
                 uploading={uploadingReceipt}
+                compressing={compressing}
                 dragOver={dragOver}
-                onFile={(f) => {
+                onFile={async (f) => {
                   setReceiptError(null);
                   const allowed = [
                     'image/jpeg',
@@ -433,18 +436,61 @@ export default function CheckoutForm() {
                     );
                     return;
                   }
-                  if (f.size > 5 * 1024 * 1024) {
-                    setReceipt(null);
+
+                  // PDFs: pasan tal cual (límite server-side 5 MB).
+                  if (f.type === 'application/pdf') {
+                    if (f.size > 5 * 1024 * 1024) {
+                      setReceipt(null);
+                      setReceiptPreview(null);
+                      setReceiptError('El PDF supera los 5 MB. Probá con uno más liviano.');
+                      return;
+                    }
+                    setReceipt(f);
                     setReceiptPreview(null);
-                    setReceiptError('El archivo supera los 5 MB. Probá con uno más liviano.');
                     return;
                   }
-                  setReceipt(f);
-                  if (f.type.startsWith('image/')) {
-                    const url = URL.createObjectURL(f);
-                    setReceiptPreview(url);
-                  } else {
+
+                  // Imágenes: cortamos primero a 15 MB para no bloquear el
+                  // navegador con fotos absurdas, después comprimimos.
+                  if (f.size > 15 * 1024 * 1024) {
+                    setReceipt(null);
                     setReceiptPreview(null);
+                    setReceiptError('La imagen es muy pesada (>15 MB). Sacale una foto más chica.');
+                    return;
+                  }
+
+                  setCompressing(true);
+                  try {
+                    const result = await compressImage(f, {
+                      maxWidth: 2000,
+                      maxHeight: 2000,
+                      quality: 0.8,
+                      mimeType: 'image/webp',
+                    });
+
+                    if (result.file.size > 5 * 1024 * 1024) {
+                      setReceipt(null);
+                      setReceiptPreview(null);
+                      setReceiptError(
+                        'No pudimos reducir la imagen lo suficiente. Probá con una foto más chica.'
+                      );
+                      return;
+                    }
+
+                    if (receiptPreview) URL.revokeObjectURL(receiptPreview);
+                    setReceipt(result.file);
+                    const url = URL.createObjectURL(result.file);
+                    setReceiptPreview(url);
+                  } catch (err) {
+                    setReceipt(null);
+                    setReceiptPreview(null);
+                    setReceiptError(
+                      err instanceof Error
+                        ? err.message
+                        : 'No pudimos procesar la imagen.'
+                    );
+                  } finally {
+                    setCompressing(false);
                   }
                 }}
                 onClear={() => {
@@ -686,6 +732,8 @@ export default function CheckoutForm() {
                 ? 'Subiendo comprobante…'
                 : 'Registrando tu pedido…'
               : 'Conectando con Mercado Pago…'
+            : compressing
+            ? 'Optimizando imagen…'
             : paymentMethod === 'bank_transfer'
             ? 'Confirmar pedido por transferencia'
             : 'Pagar con Mercado Pago'}
@@ -853,6 +901,7 @@ function ReceiptDropzone({
   preview,
   error,
   uploading,
+  compressing,
   dragOver,
   onFile,
   onClear,
@@ -863,6 +912,7 @@ function ReceiptDropzone({
   preview: string | null;
   error: string | null;
   uploading: boolean;
+  compressing: boolean;
   dragOver: boolean;
   onFile: (f: File) => void;
   onClear: () => void;
@@ -1089,10 +1139,10 @@ function ReceiptDropzone({
             aria-hidden
             className={[
               'absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full border-2 border-bone shadow-sm',
-              uploading ? 'bg-gold' : 'bg-emerald-500',
+              uploading || compressing ? 'bg-gold' : 'bg-emerald-500',
             ].join(' ')}
           >
-            {uploading ? (
+            {uploading || compressing ? (
               <span className="block h-2 w-2 animate-pulse rounded-full bg-cream" />
             ) : (
               <svg
@@ -1130,10 +1180,18 @@ function ReceiptDropzone({
           <p
             className={[
               'mt-1.5 inline-flex items-center gap-1.5 font-body text-xs font-medium',
-              uploading ? 'text-gold-deep' : 'text-emerald-700',
+              uploading || compressing ? 'text-gold-deep' : 'text-emerald-700',
             ].join(' ')}
           >
-            {uploading ? (
+            {compressing ? (
+              <>
+                <span
+                  aria-hidden
+                  className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-gold-deep"
+                />
+                Optimizando imagen…
+              </>
+            ) : uploading ? (
               <>
                 <span
                   aria-hidden
