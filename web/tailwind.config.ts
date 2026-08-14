@@ -52,12 +52,17 @@ const config: Config = {
           '0%':   { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
         },
+        'shimmer-slide': {
+          '0%':   { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(300%)' },
+        },
       },
       animation: {
         'gold-draw': 'gold-draw 1.2s cubic-bezier(0.65, 0, 0.35, 1) forwards',
         'fade-up':   'fade-up 0.9s ease-out forwards',
         'soft-pulse': 'soft-pulse 3.5s ease-in-out infinite',
         'shimmer':   'shimmer 6s linear infinite',
+        'shimmer-slide': 'shimmer-slide 1.2s ease-in-out infinite',
       },
     },
   },

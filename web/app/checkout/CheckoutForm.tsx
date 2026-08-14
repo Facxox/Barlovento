@@ -870,7 +870,8 @@ function ReceiptDropzone({
   onDragChange: (v: boolean) => void;
 }) {
   const inputId = 'receipt-input';
-  // Estado vacío: dropzone grande con icono + texto + botón "Elegir archivo"
+
+  // ───────── Empty state: card elevada con drop zone ─────────
   if (!file) {
     return (
       <div>
@@ -894,21 +895,38 @@ function ReceiptDropzone({
             }
           }}
           className={[
-            'group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-6 py-8 text-center transition focus-within:ring-2 focus-within:ring-gold/40',
+            // Layout: columna centrada, padding generoso, esquinas 14px
+            'group relative flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[14px] px-6 py-10 text-center',
+            // Surface: sombra multicapa Soft UI sobre cream
+            'border bg-bone shadow-[0_1px_2px_rgba(28,28,28,0.04),0_8px_24px_-8px_rgba(28,28,28,0.10)]',
+            'transition-all duration-200 ease-out motion-reduce:transition-none',
+            // Hover: lift + ring dorado
+            'hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(28,28,28,0.05),0_16px_32px_-10px_rgba(184,134,51,0.25)]',
+            // Focus: anillo dorado 3px
+            'focus-within:outline-none focus-within:ring-[3px] focus-within:ring-gold/40 focus-within:ring-offset-2 focus-within:ring-offset-cream',
+            // Estados de borde
             dragOver
-              ? 'border-gold bg-gold/10'
+              ? 'border-gold ring-[3px] ring-gold/30 ring-offset-2 ring-offset-cream'
               : error
-              ? 'border-red-400 bg-red-50/40 hover:border-red-500'
-              : 'border-ink/30 bg-cream hover:border-gold/60 hover:bg-gold/5',
+              ? 'border-red-300 bg-red-50/30 hover:border-red-400'
+              : 'border-ink/15 hover:border-gold/50',
           ].join(' ')}
         >
+          {/* Ícono: círculo con gradiente dorado y cloud-up SVG */}
           <span
             aria-hidden
-            className="grid h-12 w-12 place-items-center rounded-full border border-ink/20 bg-cream text-gold-deep transition group-hover:border-gold/60"
+            className={[
+              'grid h-14 w-14 place-items-center rounded-full',
+              'bg-gradient-to-br from-gold/25 via-gold/10 to-transparent',
+              'text-gold-deep',
+              'ring-1 ring-gold/20',
+              'transition-transform duration-200 ease-out group-hover:scale-105 group-hover:ring-gold/40 motion-reduce:transition-none motion-reduce:group-hover:scale-100',
+              dragOver ? 'scale-110 ring-gold/50' : '',
+            ].join(' ')}
           >
             <svg
-              width="22"
-              height="22"
+              width="24"
+              height="24"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -921,14 +939,54 @@ function ReceiptDropzone({
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
           </span>
-          <span className="font-body text-sm font-medium text-ink">
+
+          {/* Texto principal */}
+          <span className="font-display text-lg leading-tight text-ink">
             {dragOver
               ? 'Soltá el archivo acá'
-              : 'Arrastrá tu comprobante o hacé click para elegir'}
+              : 'Subí tu comprobante'}
           </span>
-          <span className="font-body text-xs text-ink/55">
-            JPG, PNG, WebP o PDF · máximo 5 MB
+          <span className="font-body text-sm text-ink/60">
+            {dragOver
+              ? 'Ya casi está…'
+              : 'Arrastrá una foto o PDF, o hacé click para elegir'}
           </span>
+
+          {/* Chips de tipos aceptados */}
+          <span className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+            {['JPG', 'PNG', 'WebP', 'PDF'].map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-ink/15 bg-cream/80 px-2.5 py-0.5 font-body text-[10px] uppercase tracking-ultra text-ink/60"
+              >
+                {t}
+              </span>
+            ))}
+            <span className="rounded-full border border-ink/15 bg-cream/80 px-2.5 py-0.5 font-body text-[10px] uppercase tracking-ultra text-ink/60">
+              máx. 5 MB
+            </span>
+          </span>
+
+          {/* CTA secundario */}
+          <span
+            aria-hidden
+            className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-1.5 font-body text-[10px] uppercase tracking-ultra text-cream transition-colors group-hover:bg-gold-deep group-hover:text-carbon"
+          >
+            Elegir archivo
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </span>
+
           <input
             id={inputId}
             name="receipt"
@@ -940,99 +998,180 @@ function ReceiptDropzone({
                 onError(null);
                 onFile(f);
               }
-              // Permite re-seleccionar el mismo archivo
               e.target.value = '';
             }}
             className="sr-only"
           />
         </label>
+
+        {/* Error inline accesible */}
         {error && (
-          <p
+          <div
             role="alert"
-            className="mt-2 font-body text-xs text-red-600"
+            className="mt-3 flex items-start gap-2 rounded-[10px] border border-red-200 bg-red-50/80 px-3 py-2 font-body text-xs text-red-700 shadow-[0_1px_2px_rgba(220,38,38,0.06)]"
           >
-            {error}
-          </p>
+            <svg
+              aria-hidden
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="mt-0.5 shrink-0"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{error}</span>
+          </div>
         )}
       </div>
     );
   }
 
-  // Estado con archivo: thumbnail + meta + botón cambiar/quitar
+  // ───────── Filled state: card elevada con thumbnail + meta + acciones ─────────
   const isImage = file.type.startsWith('image/');
   return (
     <div>
       <div
-        className={[
-          'flex items-center gap-4 rounded-md border bg-cream p-4',
-          uploading ? 'border-gold/60' : 'border-emerald-500/40',
-        ].join(' ')}
         aria-live="polite"
+        className={[
+          'relative flex items-stretch gap-4 overflow-hidden rounded-[14px] border bg-bone p-4',
+          'shadow-[0_1px_2px_rgba(28,28,28,0.04),0_8px_24px_-8px_rgba(28,28,28,0.10)]',
+          'transition-all duration-200 ease-out',
+          uploading ? 'border-gold/50' : 'border-emerald-500/30',
+        ].join(' ')}
       >
-        {isImage && preview ? (
-          <img
-            src={preview}
-            alt="Vista previa del comprobante"
-            className="h-16 w-16 shrink-0 rounded-md border border-ink/15 object-cover"
-          />
-        ) : (
+        {/* Barra de progreso shimmer durante upload */}
+        {uploading && (
           <span
             aria-hidden
-            className="grid h-16 w-16 shrink-0 place-items-center rounded-md border border-ink/15 bg-bone text-gold-deep"
+            className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden"
           >
-            <svg
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
+            <span className="block h-full w-1/3 animate-shimmer-slide bg-gradient-to-r from-transparent via-gold to-transparent" />
           </span>
         )}
 
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-body text-sm font-medium text-ink">
+        {/* Thumbnail */}
+        <div className="relative shrink-0">
+          {isImage && preview ? (
+            <img
+              src={preview}
+              alt="Vista previa del comprobante"
+              className="h-20 w-20 rounded-[10px] border border-ink/10 object-cover shadow-[0_2px_8px_rgba(28,28,28,0.08)]"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="grid h-20 w-20 place-items-center rounded-[10px] border border-ink/10 bg-gradient-to-br from-cream to-bone text-gold-deep shadow-[0_2px_8px_rgba(28,28,28,0.08)]"
+            >
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+            </span>
+          )}
+          {/* Status dot overlay */}
+          <span
+            aria-hidden
+            className={[
+              'absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full border-2 border-bone shadow-sm',
+              uploading ? 'bg-gold' : 'bg-emerald-500',
+            ].join(' ')}
+          >
+            {uploading ? (
+              <span className="block h-2 w-2 animate-pulse rounded-full bg-cream" />
+            ) : (
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-cream"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </span>
+        </div>
+
+        {/* Meta */}
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
+          <p
+            className="truncate font-body text-sm font-semibold text-ink"
+            title={file.name}
+          >
             {file.name}
           </p>
-          <p className="mt-0.5 font-body text-xs text-ink/60">
-            {formatBytes(file.size)} ·{' '}
-            {isImage ? 'Imagen' : file.type === 'application/pdf' ? 'PDF' : file.type}
-          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-body text-xs text-ink/55">
+            <span>{formatBytes(file.size)}</span>
+            <span aria-hidden className="h-1 w-1 rounded-full bg-ink/30" />
+            <span>
+              {isImage ? 'Imagen' : file.type === 'application/pdf' ? 'PDF' : file.type}
+            </span>
+          </div>
           <p
             className={[
-              'mt-1 font-body text-xs',
+              'mt-1.5 inline-flex items-center gap-1.5 font-body text-xs font-medium',
               uploading ? 'text-gold-deep' : 'text-emerald-700',
             ].join(' ')}
           >
             {uploading ? (
-              <span className="inline-flex items-center gap-1.5">
+              <>
                 <span
                   aria-hidden
-                  className="inline-block h-2 w-2 animate-pulse rounded-full bg-gold-deep"
+                  className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-gold-deep"
                 />
                 Subiendo comprobante…
-              </span>
+              </>
             ) : (
-              <span className="inline-flex items-center gap-1.5">
+              <>
                 <span aria-hidden>✓</span>
                 Listo para enviar con tu pedido
-              </span>
+              </>
             )}
           </p>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-1.5">
+        {/* Acciones: icon buttons con touch target ≥44px */}
+        <div className="flex shrink-0 items-center gap-1.5">
           <label
             htmlFor={inputId + '-replace'}
-            className="cursor-pointer rounded-full border border-ink/20 px-3 py-1 text-center font-body text-[10px] uppercase tracking-ultra text-ink/70 transition hover:border-ink hover:text-ink"
+            title="Cambiar archivo"
+            aria-label="Cambiar archivo"
+            className="grid h-11 w-11 cursor-pointer place-items-center rounded-full border border-ink/15 bg-cream text-ink/70 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-gold/60 hover:bg-gold/10 hover:text-gold-deep hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/40 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
           >
-            Cambiar
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
             <input
               id={inputId + '-replace'}
               type="file"
@@ -1051,16 +1190,52 @@ function ReceiptDropzone({
           <button
             type="button"
             onClick={onClear}
-            className="rounded-full border border-red-500/40 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-red-700 transition hover:bg-red-500 hover:text-cream"
+            title="Quitar archivo"
+            aria-label="Quitar archivo"
+            className="grid h-11 w-11 place-items-center rounded-full border border-ink/15 bg-cream text-ink/60 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-red-300 hover:bg-red-50 hover:text-red-600 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
           >
-            Quitar
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+            </svg>
           </button>
         </div>
       </div>
+
       {error && (
-        <p role="alert" className="mt-2 font-body text-xs text-red-600">
-          {error}
-        </p>
+        <div
+          role="alert"
+          className="mt-3 flex items-start gap-2 rounded-[10px] border border-red-200 bg-red-50/80 px-3 py-2 font-body text-xs text-red-700 shadow-[0_1px_2px_rgba(220,38,38,0.06)]"
+        >
+          <svg
+            aria-hidden
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mt-0.5 shrink-0"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>{error}</span>
+        </div>
       )}
     </div>
   );
