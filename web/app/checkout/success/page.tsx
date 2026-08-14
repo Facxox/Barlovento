@@ -102,7 +102,7 @@ export default async function CheckoutSuccessPage({
               <dd className="font-medium">BBVA — Cuentas Corrientes</dd>
 
               <dt className="text-bone/70">Cuenta (UYU)</dt>
-              <dd className="font-medium">Consultar</dd>
+              <dd className="font-medium">26936976</dd>
 
               <dt className="text-bone/70">Cuenta (USD)</dt>
               <dd className="font-medium">26936976</dd>

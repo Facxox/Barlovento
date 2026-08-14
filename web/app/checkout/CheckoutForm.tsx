@@ -399,7 +399,7 @@ export default function CheckoutForm() {
               <dd className="font-medium">BBVA — Cuentas Corrientes</dd>
 
               <dt className="text-ink/70">Cuenta (UYU)</dt>
-              <dd className="font-medium">Consultar</dd>
+              <dd className="font-medium">26936976</dd>
 
               <dt className="text-ink/70">Cuenta (USD)</dt>
               <dd className="font-medium">26936976</dd>
