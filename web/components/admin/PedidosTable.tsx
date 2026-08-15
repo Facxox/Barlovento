@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import type { OrderRow } from '@/lib/orders';
+import { receiptThumbUrl, receiptFullUrl } from '@/lib/receiptUrl';
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   UYU: 'UYU ',
@@ -178,12 +179,24 @@ export default function PedidosTable({ orders }: Props) {
                   </span>
                   {o.channel === 'bank_transfer' && o.receipt_url && (
                     <a
-                      href={o.receipt_url}
+                      href={receiptFullUrl(o.receipt_url) ?? o.receipt_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="ml-2 rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-0.5 font-body text-[10px] uppercase tracking-ultra text-purple-300 transition hover:bg-purple-500 hover:text-carbon"
+                      className="ml-2 inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-0.5 font-body text-[10px] uppercase tracking-ultra text-purple-300 transition hover:bg-purple-500 hover:text-carbon"
                       title="Ver comprobante de transferencia"
                     >
+                      {!/\.pdf(\?|$)/i.test(o.receipt_url) &&
+                        receiptThumbUrl(o.receipt_url, 80) && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={receiptThumbUrl(o.receipt_url, 80)!}
+                            alt=""
+                            width={16}
+                            height={16}
+                            loading="lazy"
+                            className="h-4 w-4 rounded-full border border-purple-300/40 object-cover"
+                          />
+                        )}
                       Comprobante ↗
                     </a>
                   )}
