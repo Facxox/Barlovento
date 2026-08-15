@@ -103,6 +103,12 @@ export default async function AdminDashboard() {
         ? `${coupons.total} configurado${coupons.total === 1 ? '' : 's'} · crear desde acá →`
         : 'Crear y gestionar promociones',
     },
+    {
+      href: '/admin/opiniones',
+      label: 'Opiniones',
+      value: '—',
+      hint: 'Moderar las reseñas que dejan los clientes.',
+    },
   ];
 
   return (

@@ -8,6 +8,7 @@ import Eventos from '@/components/Eventos';
 import RegalosEmpresariales from '@/components/RegalosEmpresariales';
 import GaleriaServer from '@/components/GaleriaServer';
 import ContactoServer from '@/components/ContactoServer';
+import Opiniones from '@/components/Opiniones';
 
 export default function Home() {
   return (
@@ -22,6 +23,7 @@ export default function Home() {
       <RegalosEmpresariales />
       <GaleriaServer />
       <ContactoServer />
+      <Opiniones />
     </>
   );
 }
