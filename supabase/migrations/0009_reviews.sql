@@ -12,8 +12,8 @@ create table if not exists public.reviews (
   rating      smallint not null check (rating between 1 and 5),
   body        text not null check (length(body) between 10 and 800),
   approved    boolean not null default true,
-  created_at  timestamstz not null default now(),
-  updated_at  timestamstz not null default now()
+  created_at  timestamp with time zone not null default now(),
+  updated_at  timestamp with time zone not null default now()
 );
 
 -- 1 opinión por usuario (puede editarla).
