@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import type { OrderRow } from '@/lib/orders';
 import { receiptThumbUrl, receiptFullUrl } from '@/lib/receiptUrl';
+import PedidoDetailDrawer, { type DrawerProduct } from './PedidoDetailDrawer';
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   UYU: 'UYU ',
@@ -25,6 +26,13 @@ function formatUY(n: number, currency: string): string {
 
 type Props = {
   orders: OrderRow[];
+  /**
+   * Mapa `productId → datos vigentes del producto`. Se usa para
+   * enriquecer cada item en el drawer de detalle (el snapshot del
+   * pedido no guarda imagen/descripción). Si no se pasa, el drawer
+   * funciona con sólo el snapshot.
+   */
+  productById?: Record<string, DrawerProduct>;
 };
 
 /**
@@ -34,13 +42,14 @@ type Props = {
  * para evitar hydration mismatch: toLocaleString depende del locale
  * del runtime y rompe SSR vs client.
  */
-export default function PedidosTable({ orders }: Props) {
+export default function PedidosTable({ orders, productById }: Props) {
   const [filter, setFilter] = useState<
     'all' | OrderRow['channel'] | 'pickup'
   >('all');
   const [items, setItems] = useState<OrderRow[]>(orders);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [openOrder, setOpenOrder] = useState<OrderRow | null>(null);
   const [, startTransition] = useTransition();
 
   const filtered =
@@ -160,7 +169,16 @@ export default function PedidosTable({ orders }: Props) {
                 key={o.id}
                 className="border-b border-carbon-line/40 last:border-0 align-top"
               >
-                <td className="p-3 font-body text-sm text-bone/60">#{o.id}</td>
+                <td className="p-3 font-body text-sm text-bone/60">
+                  <button
+                    type="button"
+                    onClick={() => setOpenOrder(o)}
+                    className="rounded text-left text-bone/60 underline-offset-2 transition hover:text-gold hover:underline focus:outline-none focus-visible:text-gold focus-visible:underline"
+                    title="Ver detalle del pedido"
+                  >
+                    #{o.id}
+                  </button>
+                </td>
                 <td className="p-3 font-body text-sm text-bone/80">
                   <FormattedDate iso={o.created_at} />
                 </td>
@@ -282,6 +300,13 @@ export default function PedidosTable({ orders }: Props) {
           </tbody>
         </table>
       </div>
+
+      <PedidoDetailDrawer
+        open={!!openOrder}
+        order={openOrder}
+        productById={productById ?? {}}
+        onClose={() => setOpenOrder(null)}
+      />
     </div>
   );
 }

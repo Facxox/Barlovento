@@ -27,6 +27,8 @@ export type OrderRow = {
     | 'cancelled'
     | null;
   receipt_url: string | null;
+  coupon_code: string | null;
+  coupon_discount: number | null;
   created_at: string;
 };
 
