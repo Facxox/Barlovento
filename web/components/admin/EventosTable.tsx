@@ -218,6 +218,134 @@ function SingleUploader({
   );
 }
 
+/**
+ * Picker multi-archivo para arrastrar/elegir varias fotos a la vez.
+ * Acumula `File[]` y muestra preview grid con botón ✕ individual.
+ * La primera foto del array será la portada.
+ */
+function MiniMultiPicker({
+  files,
+  onChange,
+  maxSizeMB = 8,
+}: {
+  files: File[];
+  onChange: (files: File[]) => void;
+  maxSizeMB?: number;
+}) {
+  const [error, setError] = useState<string | null>(null);
+
+  const ACCEPT = 'image/png,image/jpeg,image/webp,image/avif,image/gif';
+  const acceptList = ACCEPT.split(',');
+
+  const addFiles = (incoming: FileList | File[]) => {
+    setError(null);
+    const arr = Array.from(incoming);
+    const accepted: File[] = [];
+    for (const f of arr) {
+      if (!f.type.startsWith('image/') || !acceptList.includes(f.type)) {
+        setError(`"${f.name}" no es una imagen soportada.`);
+        continue;
+      }
+      const sizeMB = f.size / (1024 * 1024);
+      if (sizeMB > maxSizeMB) {
+        setError(`"${f.name}" pesa ${sizeMB.toFixed(1)} MB (máx ${maxSizeMB} MB).`);
+        continue;
+      }
+      accepted.push(f);
+    }
+    if (accepted.length > 0) onChange([...files, ...accepted]);
+  };
+
+  const removeAt = (idx: number) => {
+    const next = files.slice();
+    next.splice(idx, 1);
+    onChange(next);
+  };
+
+  const onDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addFiles(e.dataTransfer.files);
+  };
+  const onDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) addFiles(e.target.files);
+    // Reset para permitir re-seleccionar el mismo archivo.
+    e.target.value = '';
+  };
+
+  return (
+    <div>
+      <label
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        className="relative grid cursor-pointer place-items-center border-2 border-dashed border-carbon-line bg-carbon-raised/40 px-6 py-8 transition hover:border-gold/60 hover:bg-carbon-raised/60"
+      >
+        <div className="text-center">
+          <p className="font-display text-xl text-bone/80">
+            {files.length > 0
+              ? 'Sumá más fotos'
+              : 'Arrastrá una o varias fotos'}
+          </p>
+          <p className="mt-2 font-body text-xs text-bone/50">
+            o hacé click para elegir · máx {maxSizeMB} MB c/u
+          </p>
+          <p className="mt-1 font-body text-[10px] uppercase tracking-ultra text-bone/40">
+            PNG · JPG · WEBP · AVIF
+          </p>
+        </div>
+        <input
+          type="file"
+          accept={ACCEPT}
+          multiple
+          onChange={onPick}
+          className="absolute inset-0 cursor-pointer opacity-0"
+        />
+      </label>
+
+      {files.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-2 font-body text-[10px] uppercase tracking-ultra text-bone/50">
+            {files.length} {files.length === 1 ? 'foto lista' : 'fotos listas'} · la primera será la portada
+          </p>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+            {files.map((f, idx) => {
+              const url = URL.createObjectURL(f);
+              return (
+                <div
+                  key={`${f.name}-${idx}`}
+                  className="group relative aspect-square overflow-hidden border border-carbon-line bg-carbon-raised"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="" className="h-full w-full object-cover" />
+                  {idx === 0 && (
+                    <span className="absolute left-1 top-1 rounded bg-gold px-1.5 py-0.5 font-body text-[9px] uppercase tracking-ultra text-carbon">
+                      Portada
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeAt(idx)}
+                    className="absolute right-1 top-1 rounded-full bg-carbon/80 px-2 py-0.5 font-body text-[10px] text-red-300 hover:bg-red-500/80"
+                    aria-label={`Quitar ${f.name}`}
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {error && <p className="mt-2 font-body text-xs text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 export default function EventosTable({ events }: { events: BarloventoEvent[] }) {
   const router = useRouter();
   const [list, setList] = useState(events);
@@ -227,7 +355,7 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
   const [busyId, setBusyId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
 
   const onEdit = (e: BarloventoEvent) => {
     setEditing(e.id);
@@ -244,13 +372,13 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
   const onCancel = () => {
     setEditing(null);
     setDraft(empty);
-    setFile(null);
+    setFiles([]);
   };
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editing && !file && !draft.image) {
-      setError('Subí una imagen para el evento.');
+    if (!editing && files.length === 0 && !draft.image) {
+      setError('Subí al menos una foto para el evento.');
       return;
     }
     setBusy(true);
@@ -265,7 +393,7 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
         fd.append('description', draft.description);
         fd.append('image', draft.image);
         fd.append('kind', draft.kind);
-        if (file) fd.append('imageFile', file);
+        for (const f of files) fd.append('imageFiles', f);
         const saved = await upsertEvent(fd);
         setList((prev) => {
           const idx = prev.findIndex((p) => p.id === saved.id);
@@ -362,17 +490,11 @@ export default function EventosTable({ events }: { events: BarloventoEvent[] }) 
           {!editing && (
             <div className="sm:col-span-2">
               <p className="mb-1 font-body text-[10px] uppercase tracking-ultra text-bone/50">
-                Foto de portada
+                Fotos del evento
               </p>
-              <ImageDropzone
-                file={file}
-                onFile={setFile}
-                previewUrl={draft.image || undefined}
-                label="Subir primera foto"
-                aspect="video"
-              />
+              <MiniMultiPicker files={files} onChange={setFiles} maxSizeMB={8} />
               <p className="mt-1 font-body text-[11px] text-bone/50">
-                Después de crearlo podrás agregar más fotos desde la lista.
+                La primera foto será la portada. Después de crearlo podés agregar más o reordenar desde la lista.
               </p>
             </div>
           )}

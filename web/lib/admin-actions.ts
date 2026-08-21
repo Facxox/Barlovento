@@ -672,7 +672,12 @@ export async function deleteGalleryItem(id: number): Promise<void> {
  * Recibe los datos del evento dentro de FormData (File debe viajar
  * serializable). Campos:
  *   id (opcional), title, date, location, description, image (URL previa),
- *   kind, imageFile
+ *   kind, imageFile (single — retrocompatibilidad), imageFiles (multi)
+ *
+ * Si llegan varios archivos en `imageFiles`, el primero se usa como portada
+ * (events.image + event_images.position=0) y el resto se insertan como
+ * filas adicionales en event_images. Si llega también `imageFile` (single),
+ * tiene prioridad sobre el primero de `imageFiles`.
  */
 export async function upsertEvent(formData: FormData): Promise<BarloventoEvent> {
   const supabase = await requireAdmin();
@@ -686,11 +691,26 @@ export async function upsertEvent(formData: FormData): Promise<BarloventoEvent> 
     image: (formData.get('image') as string) ?? '',
     kind: (formData.get('kind') as 'upcoming' | 'past') ?? 'upcoming',
   };
-  const imageFile = formData.get('imageFile') as File | null;
+
+  // imageFile (single) tiene prioridad; si no está, tomamos imageFiles.
+  const singleFile = formData.get('imageFile') as File | null;
+  const manyFiles = ((formData.getAll('imageFiles') as File[]) ?? []).filter(
+    (f) => f && f.size > 0
+  );
+
+  let coverFile: File | null = null;
+  let extraFiles: File[] = [];
+  if (singleFile && singleFile.size > 0) {
+    coverFile = singleFile;
+    extraFiles = manyFiles;
+  } else if (manyFiles.length > 0) {
+    coverFile = manyFiles[0];
+    extraFiles = manyFiles.slice(1);
+  }
 
   let imageUrl = input.image;
-  if (imageFile && imageFile.size > 0) {
-    imageUrl = await uploadImage(imageFile, 'events', input.image);
+  if (coverFile) {
+    imageUrl = await uploadImage(coverFile, 'events', input.image);
   }
 
   const payload = {
@@ -709,8 +729,13 @@ export async function upsertEvent(formData: FormData): Promise<BarloventoEvent> 
     .single();
   if (error) throw new Error(`upsertEvent: ${error.message}`);
 
-  if (imageFile && imageFile.size > 0 && input.image && input.image !== imageUrl) {
+  if (coverFile && input.image && input.image !== imageUrl) {
     await deleteImageByUrl(input.image);
+  }
+
+  // Insertar el resto de las fotos como event_images adicionales.
+  if (extraFiles.length > 0 && data?.id) {
+    await insertEventImages(supabase, data.id, extraFiles);
   }
 
   revalidatePath('/');
@@ -740,7 +765,7 @@ export async function addEventImage(
 ): Promise<{ id: number; url: string }> {
   const supabase = await requireAdmin();
 
-  // Verificamos que el evento exista.
+  // Verificamos que el evento exista y leemos su portada actual.
   const { data: ev, error: evErr } = await supabase
     .from('events')
     .select('id,image')
@@ -748,10 +773,31 @@ export async function addEventImage(
     .single();
   if (evErr || !ev) throw new Error('Evento no encontrado.');
 
-  // Subimos al storage. Usamos el path del evento para mantener orden.
-  const url = await uploadImage(file, `events/${eventId}`);
+  // Subimos el archivo y devolvemos la fila recién creada.
+  const inserted = await insertEventImageRow(supabase, eventId, file);
+  const url = inserted.url;
 
-  // Calculamos position.
+  // Si no había portada, esta pasa a ser la portada.
+  if (!ev.image) {
+    await supabase.from('events').update({ image: url }).eq('id', eventId);
+  }
+
+  revalidatePath('/');
+  revalidatePath('/admin/eventos');
+  return inserted;
+}
+
+/**
+ * Sube un único archivo al storage del evento y crea la fila en
+ * event_images con position secuencial (max(position)+1). Devuelve la fila
+ * insertada (id + url).
+ */
+async function insertEventImageRow(
+  supabase: Awaited<ReturnType<typeof requireAdmin>>,
+  eventId: number,
+  file: File
+): Promise<{ id: number; url: string }> {
+  const url = await uploadImage(file, `events/${eventId}`);
   const { data: maxRow } = await supabase
     .from('event_images')
     .select('position')
@@ -766,16 +812,29 @@ export async function addEventImage(
     .insert({ event_id: eventId, url, position: nextPos })
     .select('id,url')
     .single();
-  if (error || !inserted) throw new Error(`addEventImage: ${error?.message ?? 'insert_failed'}`);
-
-  // Si no había portada, esta pasa a ser la portada.
-  if (!ev.image) {
-    await supabase.from('events').update({ image: url }).eq('id', eventId);
-  }
-
-  revalidatePath('/');
-  revalidatePath('/admin/eventos');
+  if (error || !inserted)
+    throw new Error(`insertEventImageRow: ${error?.message ?? 'insert_failed'}`);
   return inserted as { id: number; url: string };
+}
+
+/**
+ * Sube N archivos al storage del evento y crea filas en event_images con
+ * position secuencial a partir de max(position)+1.
+ *
+ * Usado por el flujo de creación de evento en `upsertEvent` (varios archivos
+ * a la vez). No maneja la promoción a portada — eso queda en `upsertEvent`,
+ * donde la portada se setea explícitamente vía `events.image`.
+ */
+async function insertEventImages(
+  supabase: Awaited<ReturnType<typeof requireAdmin>>,
+  eventId: number,
+  files: File[]
+): Promise<void> {
+  if (files.length === 0) return;
+
+  for (const file of files) {
+    await insertEventImageRow(supabase, eventId, file);
+  }
 }
 
 /**
