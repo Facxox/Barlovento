@@ -2,11 +2,19 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCart } from '@/components/CartContext';
 import GoldDivider from '@/components/GoldDivider';
 import CouponInput, { type AppliedCouponState } from '@/components/CouponInput';
 import { formatMoney } from '@/components/formatMoney';
 import { compressImage } from '@/lib/imageCompress';
+import {
+  buildCartWhatsAppLink,
+  calcShippingCost,
+  SHIPPING_LE_20,
+  SHIPPING_MAS_20,
+  SHIPPING_THRESHOLD,
+} from '@/lib/whatsapp-cart-link';
 
 type Profile = {
   full_name?: string | null;
@@ -14,6 +22,7 @@ type Profile = {
   phone?: string | null;
   address?: string | null;
   city?: string | null;
+  customer_type?: 'retail' | 'wholesale' | null;
 } | null;
 
 type FieldErrors = Partial<
@@ -22,19 +31,9 @@ type FieldErrors = Partial<
 
 const formatUY = (n: number) => formatMoney(n);
 
-// Política de envío fijo. Se cobra junto con el pedido en Mercado Pago.
-// Hasta 20 alfajores → $195. Más de 20 → $220. Aplica a cualquier destino.
-const SHIPPING_LE_20 = 195;
-const SHIPPING_MAS_20 = 220;
-const SHIPPING_THRESHOLD = 20;
-
-function calcShippingCost(alfajores: number): number {
-  if (alfajores <= 0) return 0;
-  return alfajores > SHIPPING_THRESHOLD ? SHIPPING_MAS_20 : SHIPPING_LE_20;
-}
-
-export default function CheckoutForm() {
-  const { items, subtotal, alfajores, isOpen, close } = useCart();
+export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
+  const { items, subtotal, alfajores, isOpen, close, clear } = useCart();
+  const router = useRouter();
 
   // Form state
   const [fullName, setFullName] = useState('');
@@ -50,6 +49,17 @@ export default function CheckoutForm() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponState | null>(null);
+  // Tipo de cliente. Lo usamos para derivar mayoristas a WhatsApp apenas
+  // entran a /checkout. null mientras se resuelve.
+  const [customerType, setCustomerType] = useState<'retail' | 'wholesale' | null>(null);
+  // order_id del último submit exitoso. Habilita el botón "Cancelar
+  // pedido" para órdenes que ya están en la DB pero que el cliente
+  // todavía no completó el pago (ej. volvió de MP sin pagar).
+  const [lastOrderId, setLastOrderId] = useState<number | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  // Teléfono de WhatsApp del sitio. Inyectado por la página padre.
+  const siteWhatsapp = whatsapp;
   // Modalidad: 'shipping' (envío a domicilio, default) o 'pickup'
   // (retiro coordinado por WhatsApp).
   const [fulfillment, setFulfillment] = useState<'shipping' | 'pickup'>(
@@ -94,11 +104,16 @@ export default function CheckoutForm() {
           setPhone(p.phone ?? '');
           setAddress(p.address ?? '');
           setCity(p.city ?? '');
+          const t = p.customer_type;
+          setCustomerType(t === 'wholesale' ? 'wholesale' : 'retail');
         }
         setProfileLoaded(true);
       })
       .catch(() => {
-        if (!cancelled) setProfileLoaded(true);
+        if (!cancelled) {
+          setCustomerType('retail');
+          setProfileLoaded(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -109,6 +124,38 @@ export default function CheckoutForm() {
   useEffect(() => {
     if (isOpen) close();
   }, [isOpen, close]);
+
+  // Mayoristas: en cuanto se detecta el tipo y hay items en el carrito,
+  // los derivamos a WhatsApp para coordinar el pedido por allá. No
+  // mostramos el form.
+  useEffect(() => {
+    if (!profileLoaded) return;
+    if (customerType !== 'wholesale') return;
+    if (items.length === 0) return;
+    if (!siteWhatsapp) return;
+    const link = buildCartWhatsAppLink({
+      items: items.map((i) => ({
+        qty: i.qty,
+        name: i.name,
+        price: i.price,
+        currency: i.currency,
+        unitsPerPack: i.unitsPerPack,
+      })),
+      shippingPreview: calcShippingCost(alfajores),
+      alfajores,
+      currency: items[0]?.currency ?? 'UYU',
+      phone: siteWhatsapp,
+      isWholesale: true,
+    });
+    window.location.href = link;
+  }, [profileLoaded, customerType, items, alfajores, siteWhatsapp]);
+
+  // Si el carrito cambia después de un submit, el lastOrderId ya no
+  // representa el carrito actual — lo reseteamos para evitar cancelar
+  // una orden vieja con un carrito nuevo.
+  useEffect(() => {
+    setLastOrderId(null);
+  }, [items.length]);
 
   // Liberamos el object URL del preview cuando cambia o al desmontar.
   useEffect(() => {
@@ -131,6 +178,59 @@ export default function CheckoutForm() {
 
   const canSubmit =
     accepted && items.length > 0 && !submitting && !compressing && profileLoaded;
+
+  // Cancelar pedido: si todavía no se mandó al server, vacía carrito y
+  // vuelve al home. Si ya se mandó (lastOrderId), llama al endpoint
+  // /api/orders/[id]/cancel para que el admin la vea como cancelled.
+  const onCancel = async () => {
+    if (cancelling) return;
+    if (!lastOrderId) {
+      // Todavía no se creó la orden. Sólo vaciamos el carrito.
+      if (
+        !window.confirm(
+          '¿Cancelar y vaciar el carrito? Tu pedido todavía no fue enviado.'
+        )
+      ) {
+        return;
+      }
+      clear();
+      router.push('/');
+      return;
+    }
+    setCancelling(true);
+    setMpError(null);
+    setSuccessMsg(null);
+    try {
+      const res = await fetch(`/api/orders/${lastOrderId}/cancel`, {
+        method: 'POST',
+      });
+      const data: {
+        ok?: boolean;
+        status?: string;
+        error?: string;
+        current_status?: string;
+      } = await res.json().catch(() => ({}));
+      if (res.ok && data?.ok) {
+        setSuccessMsg('Pedido cancelado.');
+        clear();
+        // Damos tiempo a leer el mensaje antes de irnos.
+        setTimeout(() => router.push('/'), 1200);
+        return;
+      }
+      if (res.status === 409) {
+        setMpError(
+          'Este pedido ya fue procesado y no se puede cancelar desde acá.'
+        );
+        setCancelling(false);
+        return;
+      }
+      setMpError('No pudimos cancelar el pedido. Probá de nuevo.');
+      setCancelling(false);
+    } catch {
+      setMpError('No pudimos cancelar el pedido. Probá de nuevo.');
+      setCancelling(false);
+    }
+  };
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
@@ -238,6 +338,11 @@ export default function CheckoutForm() {
           setSubmitting(false);
           return;
         }
+        // Guardamos el order_id para que el botón "Cancelar pedido"
+        // pueda cancelar la orden recién creada si el cliente se
+        // arrepiente antes de mandar el comprobante.
+        setLastOrderId(data.order_id);
+        clear();
         window.location.href = `/checkout/success?order_id=${data.order_id}`;
         return;
       }
@@ -247,7 +352,7 @@ export default function CheckoutForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data: { ok?: boolean; init_point?: string; error?: string } =
+      const data: { ok?: boolean; init_point?: string; order_id?: number; error?: string } =
         await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok || !data?.init_point) {
         setMpError(
@@ -258,6 +363,10 @@ export default function CheckoutForm() {
         setSubmitting(false);
         return;
       }
+      // Guardamos el order_id para que, si el cliente vuelve de MP sin
+      // haber pagado, pueda cancelar desde /checkout/pending o /failure.
+      if (data.order_id) setLastOrderId(data.order_id);
+      clear();
       window.location.href = data.init_point;
     } catch {
       setMpError('No pudimos iniciar el pago. Probá de nuevo.');
@@ -279,6 +388,49 @@ export default function CheckoutForm() {
         >
           Ir a la tienda
         </Link>
+      </div>
+    );
+  }
+
+  // Mayorista con carrito cargado: redirigimos a WhatsApp y mostramos
+  // un spinner mientras tanto. El useEffect de arriba es el que
+  // efectivamente hace el redirect.
+  if (customerType === 'wholesale') {
+    const waLink = siteWhatsapp
+      ? buildCartWhatsAppLink({
+          items: items.map((i) => ({
+            qty: i.qty,
+            name: i.name,
+            price: i.price,
+            currency: i.currency,
+            unitsPerPack: i.unitsPerPack,
+          })),
+          shippingPreview: calcShippingCost(alfajores),
+          alfajores,
+          currency: items[0]?.currency ?? 'UYU',
+          phone: siteWhatsapp,
+          isWholesale: true,
+        })
+      : '#';
+    return (
+      <div className="rounded-md border border-ink/15 bg-bone p-8 text-center">
+        <p className="font-display text-2xl text-ink">
+          Te llevamos a WhatsApp
+        </p>
+        <p className="mt-2 font-body text-sm text-ink/70">
+          Como mayorista, coordinamos tu pedido directamente por WhatsApp.
+        </p>
+        <p className="mt-6 font-body text-xs text-ink/55">
+          Si no se abre la conversación automáticamente, tocá el botón.
+        </p>
+        <a
+          href={waLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-6 inline-block rounded-full bg-emerald-500 px-7 py-3.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-emerald-400"
+        >
+          Abrir WhatsApp →
+        </a>
       </div>
     );
   }
@@ -711,6 +863,15 @@ export default function CheckoutForm() {
         </p>
       )}
 
+      {successMsg && (
+        <p
+          role="status"
+          className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 font-body text-sm text-emerald-800"
+        >
+          {successMsg}
+        </p>
+      )}
+
       <GoldDivider />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -720,15 +881,25 @@ export default function CheckoutForm() {
         >
           ← Seguir comprando
         </Link>
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          aria-disabled={!canSubmit}
-          className="rounded-full bg-ink px-7 py-3.5 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {submitting
-            ? paymentMethod === 'bank_transfer'
-              ? uploadingReceipt
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={cancelling}
+            aria-disabled={cancelling}
+            className="rounded-full border border-red-300 px-6 py-3.5 font-body text-xs uppercase tracking-ultra text-red-600 transition hover:bg-red-50 hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {cancelling ? 'Cancelando…' : 'Cancelar pedido'}
+          </button>
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            aria-disabled={!canSubmit}
+            className="rounded-full bg-ink px-7 py-3.5 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting
+              ? paymentMethod === 'bank_transfer'
+                ? uploadingReceipt
                 ? 'Subiendo comprobante…'
                 : 'Registrando tu pedido…'
               : 'Conectando con Mercado Pago…'
@@ -737,7 +908,8 @@ export default function CheckoutForm() {
             : paymentMethod === 'bank_transfer'
             ? 'Confirmar pedido por transferencia'
             : 'Pagar con Mercado Pago'}
-        </button>
+          </button>
+        </div>
       </div>
 
       {!accepted && items.length > 0 && (

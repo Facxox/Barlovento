@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 import CheckoutForm from './CheckoutForm';
+import { getSiteContent } from '@/lib/queries';
 
 export const metadata: Metadata = {
   title: 'Checkout · Barlovento',
   description: 'Revisá tus datos y aceptá las condiciones del envío antes de pagar.',
 };
 
-export default function CheckoutPage() {
+export default async function CheckoutPage() {
+  const { contacto } = await getSiteContent();
   return (
     <section className="bg-cream text-ink py-24 lg:py-32">
       <div className="mx-auto max-w-3xl px-6">
@@ -20,7 +22,7 @@ export default function CheckoutPage() {
         </p>
 
         <div className="mt-10">
-          <CheckoutForm />
+          <CheckoutForm whatsapp={contacto.whatsapp ?? ''} />
         </div>
       </div>
     </section>

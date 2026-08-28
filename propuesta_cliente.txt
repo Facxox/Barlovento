@@ -1,0 +1,125 @@
+Barlovento — qué puede hacer el administrador y qué ve el cliente
+================================================================
+
+
+LO QUE PUEDE HACER EL ADMINISTRADOR
+------------------------------------
+
+El dueño de la marca maneja todo desde un panel privado, sin tocar
+código, entrando con su usuario y contraseña.
+
+  Gestionar productos
+    - Crear alfajores nuevos con nombre, descripción, precio, foto y
+      categoría.
+    - Editar cualquier producto ya cargado.
+    - Subir o cambiar la foto arrastrándola desde la computadora.
+    - Borrar productos que ya no se vendan.
+    - Ponerlos en "Edición limitada", "Nuevo" o la etiqueta que quiera.
+    - Cargar la información nutricional de cada alfajor.
+    - Activar o desactivar un producto sin borrarlo (así deja de verse
+      en la tienda pero no se pierde).
+    - Definir el orden en que aparecen los productos en la tienda.
+    - Tener un catálogo aparte para mayoristas con precios
+      diferenciados, y clonarlos del minorista para no cargar dos veces.
+
+  Gestionar categorías
+    - Crear las categorías de productos (Clásicos, Chocolate,
+      Especiales, Saludables, etc.).
+    - Crear las categorías de la galería de fotos (elaboración,
+      producto, ferias, etc.).
+    - Editar, reordenar, activar y desactivar categorías.
+
+  Gestionar la galería de fotos
+    - Subir imágenes con su título y categoría.
+    - Reordenarlas y borrarlas cuando haga falta.
+
+  Gestionar eventos
+    - Publicar ferias y eventos próximos con fecha, lugar, foto y
+      descripción.
+    - Cargar varias fotos por evento.
+    - Mantener un archivo de eventos pasados.
+    - Editar, reordenar y borrar eventos.
+
+  Editar los textos de la marca
+    - Cambiar todos los textos del sitio (historia, portada, misión,
+      visión, valores, puntos de venta, regalos empresariales,
+      mayoristas y contacto) sin depender de un programador.
+
+  Ver y gestionar pedidos
+    - Ver todos los pedidos que entran, con los datos del cliente, lo
+      que compró, cuánto pagó y por dónde pagó.
+    - Cambiar el estado de un pedido cuando se confirma el pago, se
+      entrega o se cancela.
+    - Ver el detalle completo de cada pedido.
+
+  Crear cupones y promociones
+    - Armar códigos de descuento para los clientes.
+    - Definir si es un porcentaje o un monto fijo.
+    - Elegir a qué productos o categorías aplica.
+    - Ponerle fecha de inicio y de vencimiento.
+    - Limitar la cantidad de veces que se puede usar en total y por
+      cliente.
+    - Hacer cupones solo para minoristas, solo para mayoristas o para
+      todos.
+    - Activarlos y desactivarlos cuando quiera.
+
+  Gestionar usuarios
+    - Ver todos los clientes registrados con sus datos de contacto.
+    - Cambiar si un cliente es minorista o mayorista (así pasa a ver
+      el catálogo y los precios que le corresponden).
+    - Dar o quitar permiso de administrador a otras cuentas.
+    - Ver el historial de pedidos de cada cliente.
+
+  Ver estadísticas
+    - Ver cuánta gente entra al sitio.
+    - Ver los productos más vendidos.
+    - Ver las ventas por período y compararlas con meses anteriores.
+
+
+LO QUE VE Y PUEDE HACER EL CLIENTE FINAL
+----------------------------------------
+
+  Visitar la web sin registrarse
+    - Conocer la historia de la marca, su misión, visión y valores.
+    - Ver los puntos de venta físicos.
+    - Recorrer la galería de fotos.
+    - Ver los eventos próximos y los pasados.
+    - Conocer la propuesta de regalos empresariales.
+    - Ver el catálogo de productos con fotos, descripciones, precios e
+      información nutricional.
+    - Filtrar los productos por categoría.
+    - Escribir por WhatsApp desde el botón flotante para cualquier
+      consulta.
+
+  Crear su cuenta
+    - Registrarse con email y contraseña desde la web.
+    - Elegir si quiere ser cliente minorista o mayorista al registrarse
+      (también lo puede cambiar después el admin).
+    - Iniciar sesión cuando quiera para entrar a su cuenta.
+
+  Comprar
+    - Agregar alfajores al carrito.
+    - Ver el carrito y modificar cantidades.
+    - Pagar con Mercado Pago (pago online con tarjeta).
+    - O pedir por WhatsApp, que se abre con el detalle del pedido
+      listo para enviar.
+
+  Ser mayorista
+    - Ver un catálogo aparte con precios por mayor.
+    - Tener un pedido mínimo de 6 unidades por producto.
+    - Coordinar el pedido únicamente por WhatsApp.
+
+  Desde su cuenta ("Mi cuenta")
+    - Ver y actualizar sus datos personales (nombre, teléfono, dirección,
+      ciudad).
+    - Ver el historial de todos los pedidos que hizo.
+    - Cerrar sesión cuando quiera.
+
+
+SEGURIDAD
+---------
+
+  - Cada usuario del panel entra con email y contraseña.
+  - Solo las cuentas marcadas como administradoras pueden entrar al
+    panel.
+  - La sesión queda abierta hasta que el administrador la cierre.

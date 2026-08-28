@@ -3,6 +3,7 @@ import { getServiceSupabase } from '@/lib/supabase-admin';
 import { getSiteContent } from '@/lib/queries';
 import { buildPickupWaLink } from '@/lib/whatsapp-link';
 import type { OrderRow } from '@/lib/orders';
+import CancelButton from './CancelButton';
 
 type SP = { [k: string]: string | string[] | undefined };
 
@@ -34,6 +35,7 @@ export default async function CheckoutPendingPage({
   const id = readId(searchParams ?? {});
   const order = id ? await fetchOrder(id) : null;
   const isPickup = order?.fulfillment === 'pickup';
+  const canCancel = !!order && order.status === 'pending';
 
   const site = await getSiteContent();
   const whatsapp = site?.contacto?.whatsapp ?? '';
@@ -59,14 +61,17 @@ export default async function CheckoutPendingPage({
             Pedido #{order?.id} ·{' '}
             {order?.customer_name ?? 'sin nombre'}
           </p>
-          <a
-            href={pickupLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-7 py-3.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-emerald-400"
-          >
-            Coordiná tu retiro por WhatsApp →
-          </a>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href={pickupLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-7 py-3.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-emerald-400"
+            >
+              Coordiná tu retiro por WhatsApp →
+            </a>
+            {canCancel && order && <CancelButton orderId={order.id} />}
+          </div>
         </>
       ) : (
         <p className="mt-6 font-body text-base leading-relaxed text-bone/70">
@@ -89,6 +94,7 @@ export default async function CheckoutPendingPage({
         >
           Seguir comprando
         </Link>
+        {canCancel && order && <CancelButton orderId={order.id} />}
       </div>
     </section>
   );

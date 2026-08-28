@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from './CartContext';
 import { formatMoney } from './formatMoney';
+import {
+  buildCartWhatsAppLink,
+  calcShippingCost,
+} from '@/lib/whatsapp-cart-link';
 
 // Cuando el drawer está abierto, bloqueamos el scroll del body sin
 // perder la posición actual. Usamos `overflow: clip` (definido en
@@ -21,17 +25,6 @@ function useBodyScrollLock(locked: boolean) {
       body.style.overflow = prev;
     };
   }, [locked]);
-}
-
-// Mismo cálculo que en CheckoutForm y /api/checkout: lo dejamos
-// duplicado aquí para mostrar la previsualización en el drawer sin
-// esperar a abrir el checkout.
-const SHIPPING_LE_20 = 195;
-const SHIPPING_MAS_20 = 220;
-const SHIPPING_THRESHOLD = 20;
-function calcShippingCost(alfajores: number): number {
-  if (alfajores <= 0) return 0;
-  return alfajores > SHIPPING_THRESHOLD ? SHIPPING_MAS_20 : SHIPPING_LE_20;
 }
 
 export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
@@ -82,19 +75,15 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
     : [];
   const canCheckout = items.length > 0 && belowMin.length === 0;
 
-  const buildWhatsAppLink = () => {
-    const lines = items
-      .map((i) => `· ${i.qty} x ${i.name} — ${formatMoney(i.price * i.qty, i.currency)}`)
-      .join('\n');
-    const shippingLine =
-      shippingPreview > 0
-        ? `\n· Envío (${alfajores} alfajor${alfajores === 1 ? '' : 'es'}) — ${formatMoney(shippingPreview, items[0]?.currency ?? 'UYU')}`
-        : '';
-    const msg = encodeURIComponent(
-      `Hola Barlovento! Quiero hacer este pedido:\n\n${lines}${shippingLine}\n\nTotal: ${formatMoney(totalWithShipping, items[0]?.currency ?? 'UYU')}\n\nGracias!`
-    );
-    return `https://wa.me/${phone}?text=${msg}`;
-  };
+  const buildWhatsAppLink = () =>
+    buildCartWhatsAppLink({
+      items,
+      shippingPreview,
+      alfajores,
+      currency: items[0]?.currency ?? 'UYU',
+      phone,
+      isWholesale,
+    });
 
   // Captura el pedido por WhatsApp (fire-and-forget) sin bloquear el redirect.
   const captureWhatsAppOrder = () => {
