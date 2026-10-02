@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/components/CartContext';
 import GoldDivider from '@/components/GoldDivider';
 import CouponInput, { type AppliedCouponState } from '@/components/CouponInput';
+import MerchUpsellModal from '@/components/MerchUpsellModal';
 import { formatMoney } from '@/components/formatMoney';
 import { compressImage } from '@/lib/imageCompress';
 import {
@@ -78,6 +79,17 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // Modal de upsell de merch (Barlovento Momentos). Se muestra antes de
+  // ir a Mercado Pago para ofrecer 3 productos al azar de la categoría
+  // `merch`. Si el cliente agrega algo, vuelve al checkout. Si no,
+  // sigue al pago.
+  const [merchModalOpen, setMerchModalOpen] = useState(false);
+  const [addedMerch, setAddedMerch] = useState(false);
+  // Snapshot del carrito al momento de mostrar el modal, para detectar
+  // si el cliente agregó merch adentro del modal.
+  const merchModalCartSize = useRef(0);
+  // Continuamos el submit a MP después de cerrar el modal.
+  const pendingMpSubmit = useRef(false);
 
   // El total final descuenta el cupón (si lo hay) del subtotal del carrito
 // y suma el envío fijo según la cantidad de alfajores.
@@ -246,29 +258,11 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
     return next;
   };
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit) return;
-    setMpError(null);
-    const v = validate();
-    setErrors(v);
-    if (Object.keys(v).length > 0) return;
-
+  const submitMercadoPago = async () => {
     setSubmitting(true);
     try {
-      // Items enriquecidos: id, qty, name, price y currency. Para
-      // transferencia los mandamos al server (no hay Preference de MP).
       // Para MP mandamos sólo id+qty porque el server resuelve el resto.
-      const itemsToSend =
-        paymentMethod === 'bank_transfer'
-          ? items.map((i) => ({
-              id: i.id,
-              name: i.name,
-              qty: i.qty,
-              price: i.price,
-              currency: i.currency,
-            }))
-          : items.map((i) => ({ id: i.id, qty: i.qty }));
+      const itemsToSend = items.map((i) => ({ id: i.id, qty: i.qty }));
 
       const body = {
         items: itemsToSend,
@@ -286,66 +280,6 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
         shipping_currency: items[0]?.currency ?? 'UYU',
         fulfillment,
       };
-
-      if (paymentMethod === 'bank_transfer') {
-        let receiptUrl: string | null = null;
-        if (receipt) {
-          setUploadingReceipt(true);
-          try {
-            const fd = new FormData();
-            fd.append('file', receipt);
-            const upRes = await fetch('/api/orders/bank-transfer/upload', {
-              method: 'POST',
-              body: fd,
-            });
-            const upData: { ok?: boolean; url?: string; error?: string } =
-              await upRes.json().catch(() => ({}));
-            if (!upRes.ok || !upData?.ok || !upData?.url) {
-              setMpError(
-                upData?.error === 'too_large'
-                  ? 'El comprobante supera los 5 MB.'
-                  : upData?.error === 'unsupported_type'
-                  ? 'Formato de comprobante no soportado. Subí JPG, PNG o PDF.'
-                  : 'No pudimos subir el comprobante. Probá de nuevo o continuá sin él.'
-              );
-              setSubmitting(false);
-              setUploadingReceipt(false);
-              return;
-            }
-            receiptUrl = upData.url;
-          } catch {
-            setMpError('No pudimos subir el comprobante. Probá de nuevo.');
-            setSubmitting(false);
-            setUploadingReceipt(false);
-            return;
-          }
-          setUploadingReceipt(false);
-        }
-
-        const res = await fetch('/api/orders/bank-transfer', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...body, receipt_url: receiptUrl }),
-        });
-        const data: { ok?: boolean; order_id?: number; error?: string } =
-          await res.json().catch(() => ({}));
-        if (!res.ok || !data?.ok || !data?.order_id) {
-          setMpError(
-            data?.error
-              ? `No pudimos registrar tu pedido (${data.error}). Probá de nuevo.`
-              : 'No pudimos registrar tu pedido. Probá de nuevo.'
-          );
-          setSubmitting(false);
-          return;
-        }
-        // Guardamos el order_id para que el botón "Cancelar pedido"
-        // pueda cancelar la orden recién creada si el cliente se
-        // arrepiente antes de mandar el comprobante.
-        setLastOrderId(data.order_id);
-        clear();
-        window.location.href = `/checkout/success?order_id=${data.order_id}`;
-        return;
-      }
 
       const res = await fetch('/api/checkout', {
         method: 'POST',
@@ -372,6 +306,141 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
       setMpError('No pudimos iniciar el pago. Probá de nuevo.');
       setSubmitting(false);
     }
+  };
+
+  const submitBankTransfer = async () => {
+    // Items enriquecidos: id, qty, name, price y currency. Para
+    // transferencia los mandamos al server (no hay Preference de MP).
+    const itemsToSend = items.map((i) => ({
+      id: i.id,
+      name: i.name,
+      qty: i.qty,
+      price: i.price,
+      currency: i.currency,
+    }));
+
+    const body = {
+      items: itemsToSend,
+      customer_name: fullName.trim(),
+      customer_email: email.trim(),
+      customer_phone: phone.trim(),
+      customer_address: fulfillment === 'shipping' ? address.trim() : '',
+      customer_city: fulfillment === 'shipping' ? city.trim() : '',
+      customer_notes: notes.trim() || null,
+      coupon_code:
+        appliedCoupon && appliedCoupon.discount_total > 0
+          ? appliedCoupon.code
+          : null,
+      shipping_cost: shippingCost,
+      shipping_currency: items[0]?.currency ?? 'UYU',
+      fulfillment,
+    };
+
+    setSubmitting(true);
+    try {
+      let receiptUrl: string | null = null;
+      if (receipt) {
+        setUploadingReceipt(true);
+        try {
+          const fd = new FormData();
+          fd.append('file', receipt);
+          const upRes = await fetch('/api/orders/bank-transfer/upload', {
+            method: 'POST',
+            body: fd,
+          });
+          const upData: { ok?: boolean; url?: string; error?: string } =
+            await upRes.json().catch(() => ({}));
+          if (!upRes.ok || !upData?.ok || !upData?.url) {
+            setMpError(
+              upData?.error === 'too_large'
+                ? 'El comprobante supera los 5 MB.'
+                : upData?.error === 'unsupported_type'
+                ? 'Formato de comprobante no soportado. Subí JPG, PNG o PDF.'
+                : 'No pudimos subir el comprobante. Probá de nuevo o continuá sin él.'
+            );
+            setSubmitting(false);
+            setUploadingReceipt(false);
+            return;
+          }
+          receiptUrl = upData.url;
+        } catch {
+          setMpError('No pudimos subir el comprobante. Probá de nuevo.');
+          setSubmitting(false);
+          setUploadingReceipt(false);
+          return;
+        }
+        setUploadingReceipt(false);
+      }
+
+      const res = await fetch('/api/orders/bank-transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, receipt_url: receiptUrl }),
+      });
+      const data: { ok?: boolean; order_id?: number; error?: string } =
+        await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok || !data?.order_id) {
+        setMpError(
+          data?.error
+            ? `No pudimos registrar tu pedido (${data.error}). Probá de nuevo.`
+            : 'No pudimos registrar tu pedido. Probá de nuevo.'
+        );
+        setSubmitting(false);
+        return;
+      }
+      // Guardamos el order_id para que el botón "Cancelar pedido"
+      // pueda cancelar la orden recién creada si el cliente se
+      // arrepiente antes de mandar el comprobante.
+      setLastOrderId(data.order_id);
+      clear();
+      window.location.href = `/checkout/success?order_id=${data.order_id}`;
+    } catch {
+      setMpError('No pudimos registrar tu pedido. Probá de nuevo.');
+      setSubmitting(false);
+    }
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+    setMpError(null);
+    const v = validate();
+    setErrors(v);
+    if (Object.keys(v).length > 0) return;
+
+    // Mercado Pago: mostramos primero el upsell de Barlovento Momentos.
+    // Si el cliente cierra o sigue al pago, llamamos a submitMercadoPago.
+    // Si agregó merch, vuelve al checkout y el carrito se actualiza solo.
+    if (paymentMethod === 'mercadopago') {
+      merchModalCartSize.current = items.length;
+      setAddedMerch(false);
+      setMerchModalOpen(true);
+      return;
+    }
+
+    await submitBankTransfer();
+  };
+
+  // Cuando el modal se cierra después de agregar merch, el carrito ya
+  // está actualizado por el contexto. Si no agregó nada, procedemos a MP.
+  const handleMerchModalClose = () => {
+    // Si el carrito creció mientras el modal estaba abierto, el cliente
+    // agregó merch. Marcamos el flag para que el CTA del modal (en su
+    // próximo render antes de cerrarse) invite a "Seguir al pago" en
+    // vez de "Pagar con Mercado Pago".
+    if (items.length > merchModalCartSize.current) {
+      setAddedMerch(true);
+    }
+    setMerchModalOpen(false);
+  };
+
+  const handleMerchModalProceed = () => {
+    setMerchModalOpen(false);
+    pendingMpSubmit.current = true;
+    // Damos un tick para que se cierre el modal antes del redirect.
+    setTimeout(() => {
+      void submitMercadoPago();
+    }, 50);
   };
 
   // Carrito vacío → CTA volver a la tienda
@@ -436,6 +505,7 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
   }
 
   return (
+    <>
     <form onSubmit={onSubmit} noValidate className="space-y-8">
       {/* Resumen del pedido */}
       <div className="rounded-md border border-ink/15 bg-bone p-6">
@@ -918,6 +988,14 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
         </p>
       )}
     </form>
+
+    <MerchUpsellModal
+      open={merchModalOpen}
+      onClose={handleMerchModalClose}
+      onProceed={handleMerchModalProceed}
+      addedAny={addedMerch}
+    />
+    </>
   );
 }
 
