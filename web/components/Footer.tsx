@@ -58,12 +58,12 @@ export default async function Footer() {
         <p className="mt-3 text-left font-body text-sm text-bone/50">
           Desarrollado por{' '}
           <a
-            href="https://zenathia.vercel.app/"
+            href="https://www.lanzani.dev/"
             target="_blank"
             rel="noopener noreferrer"
             className="text-gold transition-colors hover:text-bone"
           >
-            Zenathia
+            Lanzani
           </a>
         </p>
       </div>
