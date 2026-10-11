@@ -40,41 +40,32 @@ export default function Tienda({
   >(null);
   const [pendingTotal, setPendingTotal] = useState<number>(0);
 
-  const openContainerModal = useCallback(
-    async (p: Product) => {
-      if (!p.is_container) {
-        add({
-          id: p.id,
-          name: p.name,
-          price: p.price,
-          currency: p.currency,
-          image: p.image,
-          unitsPerPack: p.units_per_pack ?? 1,
-        });
-        return;
-      }
-      setModalLoading(true);
-      setModalProduct(p);
-      setModalChildren([]);
-      const ctx = await fetchContainerContext(p.id);
-      setModalLoading(false);
-      if (!ctx || !ctx.product) {
-        // Sin contexto, agregamos como producto normal para no bloquear al cliente.
-        add({
-          id: p.id,
-          name: p.name,
-          price: p.price,
-          currency: p.currency,
-          image: p.image,
-          unitsPerPack: p.units_per_pack ?? 1,
-        });
-        setModalProduct(null);
-        return;
-      }
-      setModalChildren(ctx.containerChildren);
-    },
-    [add]
-  );
+  const openContainerModal = useCallback(async (p: Product) => {
+    if (!p.is_container) {
+      add({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        currency: p.currency,
+        image: p.image,
+        unitsPerPack: p.units_per_pack ?? 1,
+      });
+      return;
+    }
+    // Producto contenedor: abrir SIEMPRE el modal. La lista de hijos
+    // puede llegar tarde (request en vuelo); el configurador maneja el
+    // estado de carga internamente.
+    setModalLoading(true);
+    setModalProduct(p);
+    setModalChildren([]);
+    const ctx = await fetchContainerContext(p.id);
+    setModalLoading(false);
+    if (ctx && ctx.product) {
+      setModalChildren(ctx.containerChildren ?? []);
+    }
+    // Si ctx es null (red caída, RLS, etc.) el modal igual se abre y
+    // muestra el empty state "sin opciones configuradas".
+  }, [add]);
 
   const closeContainerModal = useCallback(() => {
     setModalProduct(null);
@@ -219,6 +210,7 @@ export default function Tienda({
           product={modalProduct}
           config={configFromProduct(modalProduct)}
           children={modalChildren}
+          loading={modalLoading}
           onConfirm={handleContainerConfirm}
         />
       )}

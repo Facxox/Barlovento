@@ -40,7 +40,9 @@ export async function GET(
       .order('sort_order', { ascending: true }),
     supabase
       .from('products')
-      .select('id, name, image, is_container, can_be_in_container')
+      .select(
+        'id, name, image, is_container, can_be_in_container, container_base_price, price_mode, container_capacity, container_min_units, container_max_units, container_require_full'
+      )
       .eq('id', productId)
       .maybeSingle(),
     supabase
@@ -74,6 +76,13 @@ export async function GET(
         name: string;
         image: string;
         is_container: boolean;
+        can_be_in_container: boolean;
+        container_base_price: number | null;
+        price_mode: string | null;
+        container_capacity: number | null;
+        container_min_units: number | null;
+        container_max_units: number | null;
+        container_require_full: boolean;
       }
     | null;
 

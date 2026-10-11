@@ -1,17 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ContainerCompositionList from './ContainerCompositionList';
 import { formatMoney } from './formatMoney';
 import {
   computeContainerPrice,
   effectiveCapacity,
+  effectiveMinUnits,
   validateComposition,
   type CompositionLine,
   type ContainerChild,
   type ContainerConfig,
 } from '@/lib/container';
 import type { Product, CartItemCompositionLine } from '@/lib/queries-client';
+import { totalUnits } from '@/lib/container-display';
 
 type Mode = 'add' | 'edit';
 
@@ -37,27 +39,37 @@ export type ContainerModalProps = {
    */
   parentLineId?: string;
   /**
-   * Confirmación. El padre (Tienda / CartDrawer) construye el CartItem
-   * con la composición final y llama a `addContainer` o a la action de
-   * update.
+   * Si true, muestra skeleton mientras se cargan los hijos.
+   * El modal abre igual; sólo bloquea la confirmación.
+   */
+  loading?: boolean;
+  /**
+   * Confirmación. El padre construye el CartItem con la composición
+   * final y llama a `addContainer` o a la action de update.
    */
   onConfirm: (composition: CompositionLine[], total: number) => void;
 };
 
 /**
- * Modal reusable para configurar el contenido de un producto contenedor.
+ * Modal reusable para personalizar el contenido de un producto
+ * contenedor. Inspirado en el configurador "Armá tu caja" de Guenoa:
+ *
+ *   - Layout 2-columnas en desktop (md+): catálogo a la izquierda,
+ *     resumen dinámico + CTA sticky a la derecha.
+ *   - En mobile: drawer bottom con CTA fijo abajo, accesible siempre.
+ *   - Barra de progreso superior, capacidad destacada, copy claro.
+ *   - Resumen lateral con line items, total y CTA "Confirmar y agregar".
+ *
  * Mismo shell visual que `MerchUpsellModal` (overlay `bg-carbon/70` +
  * panel `rounded-[18px]` + ESC + scroll lock + focus inicial en cerrar).
  *
- * El configurador interno (`ContainerCompositionList`) detecta solo el
- * modo single-select vs multi-qty según `container_capacity`.
- *
  * Casos cubiertos:
  *  - Sin hijos disponibles: mensaje amigable + CTA "Cerrar".
+ *  - Cargando (loading=true): skeleton; el CTA se mantiene deshabilitado.
  *  - Hijos sin selección inicial: arranca vacío; usuario elige.
  *  - Hijos con selección inicial (edit): se precarga.
- *  - Capacidad llena: CTA habilitado, validación server-side ya está
- *    garantizada por `lib/container-orders.ts`.
+ *  - El padre siempre recibe la composición al confirmar y arma el
+ *    CartItem. El modal NO agrega directo al carrito.
  */
 export default function ContainerModal({
   open,
@@ -67,7 +79,8 @@ export default function ContainerModal({
   config,
   children,
   initialComposition,
-  parentLineId,
+  parentLineId: _parentLineId,
+  loading = false,
   onConfirm,
 }: ContainerModalProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -121,8 +134,13 @@ export default function ContainerModal({
   if (!open) return null;
 
   const cap = effectiveCapacity(config);
+  const minU = effectiveMinUnits(config);
+  const maxU = config.container_max_units ?? cap;
+  const requireFull = !!config.container_require_full;
+  const total = totalUnits(lines);
   const validation = validateComposition(config, children, lines);
-  const isValid = validation.ok && lines.length > 0;
+  const isValid =
+    validation.ok && total >= minU && total <= maxU;
   const computed = computeContainerPrice(
     config,
     product.price,
@@ -135,22 +153,28 @@ export default function ContainerModal({
   const headingId = 'container-modal-title';
   const eyebrow =
     mode === 'edit'
-      ? 'Editar selección'
-      : 'Pack personalizable';
+      ? `Editar tu ${product.name.toLowerCase()}`
+      : product.name;
   const heading =
     mode === 'edit'
-      ? `Revisá el contenido de tu ${product.name.toLowerCase()}`
-      : `Personalizá tu ${product.name.toLowerCase()}`;
+      ? 'Revisá y editá tu selección'
+      : 'Armá tu caja con tus alfajores favoritos';
   const subheading =
     mode === 'edit'
-      ? 'Modificá la selección o confirmá para mantener lo que ya elegiste.'
-      : 'Elegí qué llevar adentro. Vas a poder cambiarlo desde el carrito las veces que quieras.';
+      ? 'Modificá lo que elegiste o confirmá para mantener tu configuración.'
+      : requireFull
+      ? `Elegí ${cap} unidades entre las variedades disponibles.`
+      : `Elegí entre ${minU} y ${cap} unidades. Combiná libremente las variedades.`;
   const ctaLabel =
     mode === 'edit'
       ? 'Guardar cambios'
-      : lines.length > 0
-      ? `Confirmar y agregar · ${formatMoney(displayPrice, product.currency)}`
-      : 'Elegí una opción para continuar';
+      : requireFull
+      ? total === cap
+        ? `Confirmar selección · ${formatMoney(displayPrice, product.currency)}`
+        : `Te falta${cap - total === 1 ? '' : 'n'} ${cap - total} para completar`
+      : isValid
+      ? `Confirmar selección · ${formatMoney(displayPrice, product.currency)}`
+      : `Elegí al menos ${minU}`;
 
   return (
     <div
@@ -170,11 +194,13 @@ export default function ContainerModal({
       {/* Panel */}
       <div
         className={[
-          'relative w-full max-w-3xl overflow-hidden bg-bone text-ink',
-          'rounded-t-[18px] sm:rounded-[18px]',
+          'relative w-full overflow-hidden bg-bone text-ink',
+          'rounded-t-[18px] sm:rounded-[18px] sm:max-w-4xl',
           'shadow-[0_1px_2px_rgba(0,0,0,0.06),0_24px_64px_-16px_rgba(0,0,0,0.35)]',
           'border border-gold/20',
-          'max-h-[92vh] overflow-y-auto',
+          // En mobile hacemos scroll al panel entero; en desktop el
+          // resumen lateral es sticky y el catálogo scrollea adentro.
+          'max-h-[92vh] flex flex-col',
         ].join(' ')}
       >
         <span
@@ -183,7 +209,7 @@ export default function ContainerModal({
         />
 
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 px-6 pt-7 sm:px-8">
+        <div className="flex items-start justify-between gap-4 border-b border-ink/10 px-5 pt-6 pb-4 sm:px-8 sm:pt-7 sm:pb-5 shrink-0">
           <div>
             <p className="text-eyebrow text-gold-deep">{eyebrow}</p>
             <h2
@@ -220,79 +246,159 @@ export default function ContainerModal({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 pb-6 pt-5 sm:px-8 sm:pb-8">
-          <ContainerCompositionList
-            product={product}
-            config={config}
-            children={children}
-            initialComposition={
-              initialComposition?.map((l) => ({
-                child_product_id: l.child_product_id,
-                qty: l.qty,
-              })) ?? []
-            }
-            onChange={handleChange}
-            showTotal={false}
-            showConfirmButton={false}
-            showFooterHint={false}
-            attemptSubmit={attempted}
-          />
-
-          {/* Errores visibles cuando el usuario intenta confirmar sin selección válida */}
-          {attempted && !isValid && children.length > 0 && (
-            <ul className="mt-4 space-y-1 rounded-md border border-red-200 bg-red-50/80 px-3 py-2 font-body text-xs text-red-700">
-              {validation.errors.length === 0 ? (
-                <li>• Elegí al menos una opción para continuar.</li>
-              ) : (
-                validation.errors.map((e, i) => <li key={i}>• {e}</li>)
-              )}
-            </ul>
-          )}
-
-          {/* Sin hijos disponibles */}
-          {children.length === 0 && (
-            <div className="rounded-[10px] border border-ink/10 bg-cream px-4 py-6 text-center font-body text-sm text-ink/70">
-              Este producto todavía no tiene opciones configuradas.
-              <br />
-              <a
-                href={`https://wa.me/59899366522?text=${encodeURIComponent(
-                  `Hola! Quiero consultar por ${product.name}.`
-                )}`}
-                target="_blank"
-                rel="noopener"
-                className="mt-3 inline-block font-body text-[10px] uppercase tracking-ultra text-gold-deep underline-offset-4 hover:underline"
-              >
-                Consultar por WhatsApp →
-              </a>
+        {/* Body — 2-col en md+; en mobile todo apilado */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="grid gap-4 px-5 py-5 sm:px-8 sm:py-6">
+              <div className="h-2 w-full animate-pulse rounded-full bg-ink/10" />
+              <div className="grid gap-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="flex animate-pulse items-center gap-4 rounded-md border border-ink/10 bg-cream px-4 py-3"
+                  >
+                    <div className="h-16 w-16 rounded-md bg-ink/10" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-1/3 rounded bg-ink/10" />
+                      <div className="h-2 w-1/4 rounded bg-ink/10" />
+                    </div>
+                    <div className="h-10 w-24 rounded-full bg-ink/10" />
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
-
-          {/* Footer con CTA */}
-          {children.length > 0 && (
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                type="button"
-                onClick={onClose}
-                className="font-body text-xs uppercase tracking-ultra text-ink/60 hover:text-ink focus:outline-none focus-visible:underline"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={!isValid}
-                onClick={() => {
-                  if (!isValid) {
-                    setAttempted(true);
-                    return;
+          ) : (
+            <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+              {/* COLUMNA IZQ — catálogo */}
+              <div className="border-b border-ink/10 px-5 py-5 sm:px-8 sm:py-6 md:border-b-0 md:border-r">
+                <ContainerCompositionList
+                  product={product}
+                  config={config}
+                  children={children}
+                  initialComposition={
+                    initialComposition?.map((l) => ({
+                      child_product_id: l.child_product_id,
+                      qty: l.qty,
+                    })) ?? []
                   }
-                  onConfirm(lines, displayPrice);
-                }}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-ink px-7 py-3.5 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon disabled:cursor-not-allowed disabled:bg-ink/30 disabled:text-ink/50 disabled:hover:bg-ink/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/40"
-              >
-                {ctaLabel}
-                <span aria-hidden>→</span>
-              </button>
+                  onChange={handleChange}
+                  showTotal={false}
+                  showConfirmButton={false}
+                  showFooterHint={false}
+                  attemptSubmit={attempted}
+                />
+                {attempted && !isValid && children.length > 0 && (
+                  <ul className="mt-4 space-y-1 rounded-md border border-red-200 bg-red-50/80 px-3 py-2 font-body text-xs text-red-700">
+                    {validation.errors.length === 0 ? (
+                      <li>
+                        • Elegí al menos {minU}{' '}
+                        {minU === 1 ? 'unidad' : 'unidades'} para confirmar.
+                      </li>
+                    ) : (
+                      validation.errors.map((e, i) => <li key={i}>• {e}</li>)
+                    )}
+                  </ul>
+                )}
+              </div>
+
+              {/* COLUMNA DER — resumen sticky */}
+              <div className="bg-cream/60 px-5 py-5 sm:px-8 sm:py-6 md:sticky md:top-0 md:max-h-[calc(92vh-120px)] md:overflow-y-auto">
+                <p className="font-body text-[10px] uppercase tracking-ultra text-gold-deep">
+                  Tu selección
+                </p>
+                {total === 0 ? (
+                  <p className="mt-3 font-body text-sm leading-relaxed text-ink/60">
+                    Todavía no elegiste nada. Sumá unidades desde el catálogo
+                    para empezar.
+                  </p>
+                ) : (
+                  <ul className="mt-3 space-y-2 font-body text-sm text-ink/85">
+                    {lines.map((l) => {
+                      const child = children.find(
+                        (c) => c.product.id === l.child_product_id
+                      );
+                      const amount =
+                        (child?.product.price ?? 0) * l.qty;
+                      return (
+                        <li
+                          key={l.child_product_id}
+                          className="flex items-center justify-between gap-3 border-b border-ink/10 pb-2 last:border-b-0 last:pb-0"
+                        >
+                          <span className="min-w-0">
+                            <span className="font-display text-base text-gold-deep">
+                              {l.qty} ×
+                            </span>{' '}
+                            {child?.product.name ?? l.child_product_id}
+                          </span>
+                          <span className="text-ink/70">
+                            {formatMoney(
+                              amount,
+                              child?.product.currency ?? product.currency
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                {/* Capacidad */}
+                <div
+                  className="mt-5 flex items-center justify-between rounded-md border border-gold/30 bg-bone px-3 py-2 font-body text-sm"
+                  aria-live="polite"
+                >
+                  <span className="text-ink/70">
+                    {requireFull
+                      ? 'Capacidad completa'
+                      : 'Unidades en la caja'}
+                  </span>
+                  <span
+                    className={[
+                      'font-display text-lg',
+                      total >= cap ? 'text-emerald-700' : 'text-gold-deep',
+                    ].join(' ')}
+                  >
+                    {Math.min(total, cap)} / {cap}
+                  </span>
+                </div>
+
+                {/* Total */}
+                <div className="mt-4 flex items-baseline justify-between border-t border-ink/15 pt-4">
+                  <span className="font-body text-[10px] uppercase tracking-ultra text-ink/55">
+                    Total
+                  </span>
+                  <span className="font-display text-2xl text-ink">
+                    {formatMoney(displayPrice, product.currency)}
+                  </span>
+                </div>
+
+                {/* CTA */}
+                {children.length > 0 && !loading && (
+                  <button
+                    type="button"
+                    disabled={!isValid || loading}
+                    onClick={() => {
+                      if (!isValid) {
+                        setAttempted(true);
+                        return;
+                      }
+                      onConfirm(lines, displayPrice);
+                    }}
+                    className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-ink px-7 py-3.5 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon disabled:cursor-not-allowed disabled:bg-ink/30 disabled:text-ink/50 disabled:hover:bg-ink/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/40"
+                  >
+                    {ctaLabel}
+                    <span aria-hidden>→</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="mt-3 block w-full text-center font-body text-xs uppercase tracking-ultra text-ink/55 hover:text-ink focus:outline-none focus-visible:underline"
+                >
+                  {mode === 'edit' ? 'Cancelar' : 'Seguir mirando'}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -302,9 +408,8 @@ export default function ContainerModal({
 }
 
 // Re-export útil: el padre puede computar el parentLineId estable.
-// Importante: usa el MISMO algoritmo que `ProductoDetalle.tsx:63-68`
-// y que `lib/container-orders.ts:360-368` (stableHash), para que las
-// ids coincidan entre cliente y server.
+// Usa el MISMO algoritmo que `ProductoDetalle.tsx` y `lib/container-orders.ts:stableHash`,
+// para que las ids coincidan entre cliente y server.
 export function containerParentLineId(
   productId: string,
   composition: ReadonlyArray<CompositionLine>
@@ -322,9 +427,13 @@ export function containerParentLineId(
   return `cont-${productId}-${(h >>> 0).toString(36)}`;
 }
 
-// Helper para mostrar la capacidad efectiva en headings del modal.
-export function describeModalCapacity(cap: number, isSingle: boolean): string {
-  if (cap <= 0) return 'sin tope';
-  if (isSingle) return 'elegí 1 producto';
-  return `hasta ${cap} unidades`;
+// Helper textual para el heading del modal.
+export function describeModalCapacity(
+  cap: number,
+  requireFull: boolean,
+  min: number
+): string {
+  if (requireFull) return `elegí ${cap} unidades`;
+  if (cap <= 1) return 'elegí 1 producto';
+  return `elegí entre ${min} y ${cap} unidades`;
 }
