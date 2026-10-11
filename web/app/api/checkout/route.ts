@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Preference } from 'mercadopago';
 import { getMercadoPago } from '@/lib/mercadopago';
 import { getServiceSupabase } from '@/lib/supabase-admin';
+import { validateContainerOrder, persistOrderCompositions } from '@/lib/container-orders';
 
 type ClientItem = {
   id?: string;
@@ -9,6 +10,8 @@ type ClientItem = {
   qty?: unknown;
   price?: unknown;
   currency?: string;
+  /** Si la línea es un contenedor, los hijos que el cliente eligió. */
+  composition?: Array<{ child_product_id: string; qty: number }>;
 };
 
 type ValidatedItem = {
@@ -18,6 +21,16 @@ type ValidatedItem = {
   unit_price: number;
   currency: string;
   units_per_pack: number;
+  kind?: 'container';
+  parentLineId?: string;
+  composition?: Array<{
+    child_product_id: string;
+    child_name: string;
+    qty: number;
+    unit_price: number;
+    currency: string;
+    child_image: string | null;
+  }>;
 };
 
 type Body = {
@@ -119,16 +132,29 @@ function validateBody(body: Body): string | null {
     if (id.startsWith('coupon:')) return 'coupon_line_not_allowed';
     const qty = asPositiveInt(it.qty);
     if (qty === null) return 'invalid_qty';
-    // precio NO se valida acá: viene del server-side lookup. Sólo
-    // descartamos negativos o NaN provistos por el cliente.
     if (typeof it.price === 'number' && (!Number.isFinite(it.price) || it.price < 0)) {
       return 'invalid_price';
     }
+    // Composición de contenedor: validar superficialmente, la
+    // validación dura la hace validateContainerOrder server-side.
+    if (Array.isArray(it.composition)) {
+      if (it.composition.length === 0) return 'empty_container_composition';
+      for (const line of it.composition) {
+        if (
+          !line ||
+          typeof line !== 'object' ||
+          typeof line.child_product_id !== 'string' ||
+          typeof line.qty !== 'number' ||
+          !Number.isInteger(line.qty) ||
+          line.qty < 1
+        ) {
+          return 'invalid_container_composition';
+        }
+      }
+    }
   }
 
-  // Shipping enviado por el cliente: sólo aceptamos 0/195/220. El
-  // server recalcula de todas formas, pero cortamos temprano si el
-  // cliente manda algo fuera de la política.
+  // Shipping enviado por el cliente: sólo aceptamos 0/195/220.
   if (body.shipping_cost !== undefined && body.shipping_cost !== null) {
     if (
       typeof body.shipping_cost !== 'number' ||
@@ -146,8 +172,7 @@ function validateBody(body: Body): string | null {
     }
   }
 
-  // Fulfillment: aceptamos sólo 'shipping' o 'pickup'. Default a
-  // 'shipping' si viene null/undefined.
+  // Fulfillment.
   if (body.fulfillment !== undefined && body.fulfillment !== null) {
     if (typeof body.fulfillment !== 'string') return 'invalid_fulfillment';
     const f = body.fulfillment.trim().toLowerCase();
@@ -185,82 +210,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 1) Resolver productos server-side. Los IDs vienen del cliente,
-  //    pero el nombre, precio y currency salen de la DB.
-  const itemIds = (body.items ?? []).map((it) => asNonEmptyString(it.id, 100)!).filter(Boolean);
+  // 1) Resolver todo el carrito contra la DB. Esta función valida
+  //    productos normales Y contenedores (incluido el cálculo de precio
+  //    server-side y de Σ unidades físicas para envío). Devuelve errores
+  //    específicos si algo no cuadra.
+  const clientItems = (body.items ?? []).map((it) => ({
+    id: asNonEmptyString(it.id, 100) ?? '',
+    name: typeof it.name === 'string' ? it.name : undefined,
+    qty: asPositiveInt(it.qty) ?? 1,
+    price: typeof it.price === 'number' ? it.price : undefined,
+    currency: typeof it.currency === 'string' ? it.currency : undefined,
+    composition: Array.isArray(it.composition) ? it.composition : undefined,
+  }));
 
-  //零售 minorista. Buscamos en ambas tablas (retail y wholesale) para
-  // aceptar pedidos de cualquier canal; el filtrado por canal lo hace
-  // la política del producto al elegir a cuál tabla pertenece.
-  const [retailRows, wholesaleRows] = await Promise.all([
-    supabase
-      .from('products')
-      .select('id, name, price, currency, is_active, category, image, units_per_pack')
-      .in('id', itemIds)
-      .eq('is_active', true),
-    supabase
-      .from('wholesale_products')
-      .select('id, name, price, currency, is_active, category, image, units_per_pack')
-      .in('id', itemIds)
-      .eq('is_active', true),
-  ]);
-
-  type CatalogRow = {
-    id: string;
-    name: string;
-    price: number;
-    currency: string;
-    category?: string;
-    image?: string;
-    units_per_pack?: number | null;
-  };
-
-  const catalog = new Map<string, CatalogRow>();
-  for (const r of (retailRows.data ?? []) as CatalogRow[]) {
-    catalog.set(r.id, r);
+  const validation = await validateContainerOrder(clientItems);
+  if (!validation.ok) {
+    return NextResponse.json(
+      { ok: false, error: 'invalid_cart', details: validation.errors },
+      { status: 400 }
+    );
   }
-  for (const r of (wholesaleRows.data ?? []) as CatalogRow[]) {
-    if (!catalog.has(r.id)) catalog.set(r.id, r); // retail tiene prioridad si está en ambas
-  }
-
-  // 2) Construir items validados.
-  const validated: ValidatedItem[] = [];
-  for (const it of body.items ?? []) {
-    const id = asNonEmptyString(it.id, 100)!;
-    const row = catalog.get(id);
-    if (!row) {
-      return NextResponse.json(
-        { ok: false, error: 'product_not_found', product_id: id },
-        { status: 400 }
-      );
-    }
-    const qty = asPositiveInt(it.qty)!;
-    const currency = row.currency || 'UYU';
-    if (!(SUPPORTED_CURRENCIES as readonly string[]).includes(currency)) {
-      return NextResponse.json(
-        { ok: false, error: 'unsupported_currency', currency },
-        { status: 400 }
-      );
-    }
-    const unitPrice = Number(row.price);
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-      return NextResponse.json(
-        { ok: false, error: 'invalid_catalog_price', product_id: id },
-        { status: 500 }
-      );
-    }
-    validated.push({
-      id: row.id,
-      name: row.name,
-      qty,
-      unit_price: unitPrice,
-      currency,
-      units_per_pack:
-        typeof row.units_per_pack === 'number' && row.units_per_pack > 0
-          ? row.units_per_pack
-          : 1,
-    });
-  }
+  const validated = validation.validated as ValidatedItem[];
+  const subtotal = validation.totals.subtotal;
+  const totalAlfajores = validation.totals.alfajores;
+  let shippingCost = validation.totals.shippingCost;
+  const persistableCompositions = validation.persistableCompositions;
 
   // 3) Forzar una sola moneda en todo el carrito.
   const currency = validated[0]?.currency ?? 'UYU';
@@ -273,20 +247,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const subtotal = validated.reduce((acc, v) => acc + v.qty * v.unit_price, 0);
-
-// Envío fijo: lo recalculamos siempre server-side según la cantidad de
-// alfajores. Si el cliente mandó un valor distinto (o no mandó), gana
-// el server. Sólo aceptamos 0/195/220 como valores válidos.
-const totalAlfajores = validated.reduce(
-  (acc, v) => acc + v.qty * v.units_per_pack,
-  0
-);
-let shippingCost = calcShippingCost(totalAlfajores);
-
 // Modalidad: pickup fuerza envío = 0 y prepara la orden para la
-// coordinación por WhatsApp. Default 'shipping' si el cliente no
-// mandó el campo.
+// coordinación por WhatsApp.
 const rawFulfillment =
   typeof body.fulfillment === 'string'
     ? body.fulfillment.trim().toLowerCase()
@@ -333,10 +295,13 @@ if (fulfillment === 'pickup') {
 
   if (body.coupon_code) {
     const { validateCouponForCheckout } = await import('@/lib/coupon-checkout');
+    // Categoría: para los contenedores no la seteamos (los cupones no
+    // aplican sobre líneas custom). Si hace falta, el admin puede
+    // crear un cupón específico que matchee por id.
     const cartForCoupon = validated.map((v) => ({
       id: v.id,
       name: v.name,
-      category: catalog.get(v.id)?.category ?? '',
+      category: v.kind === 'container' ? '' : '',
       qty: v.qty,
       price: v.unit_price,
       currency: v.currency,
@@ -394,12 +359,27 @@ if (fulfillment === 'pickup') {
   // 7) Pre-persisto la orden (status=pending, sin mp_preference_id).
   //    Si falla la persistencia, NO creamos preference en MP — eso
   //    evita preferences huérfanas sin orden que matchear.
-  const itemsForDb = validated.map((v) => ({
+  const itemsForDb: Array<{
+    id: string;
+    name: string;
+    qty: number;
+    price: number;
+    currency: string;
+    composition?: Array<{
+      child_product_id: string;
+      child_name: string;
+      qty: number;
+      unit_price: number;
+      currency: string;
+      child_image: string | null;
+    }>;
+  }> = validated.map((v) => ({
     id: v.id,
     name: v.name,
     qty: v.qty,
     price: v.unit_price,
     currency: v.currency,
+    composition: v.composition,
   }));
   if (couponCode && couponId) {
     itemsForDb.push({
@@ -419,8 +399,6 @@ if (fulfillment === 'pickup') {
       currency,
     });
   } else if (fulfillment === 'pickup') {
-    // Línea informativa (precio 0) para que el admin vea la modalidad
-    // en la columna Items sin tener que abrir el detalle.
     itemsForDb.push({
       id: 'pickup',
       name: 'Retiro coordinado por WhatsApp',
@@ -466,22 +444,82 @@ if (fulfillment === 'pickup') {
   }
   orderId = (inserted as { id: number }).id;
 
+  // 7b) Persistir las composiciones de contenedores en la tabla
+  //     order_container_items. Esta tabla snapshot nombre/precio del
+  //     hijo en el momento de la compra. Si falla, NO cancelamos la
+  //     orden — los datos siguen vivos dentro de orders.items (jsonb).
+  if (orderId && persistableCompositions.length > 0) {
+    await persistOrderCompositions(orderId, persistableCompositions);
+  }
+
   // 8) Crear preference en MP.
   const preference = new Preference(mp);
   let initPoint = '';
   let preferenceId: string | null = null;
 
   try {
+    // Para MP, los contenedores se "aplanan" a líneas por child item
+    // (MP no soporta líneas con sub-ítems). Sumamos base (si la hay en
+    // modo replace) como una línea separada, y cada hijo se cobra
+    // multiplicando unit_price × qty dentro del contenedor, escalado
+    // por la qty del contenedor.
+    const mpItems: Array<{
+      id: string;
+      title: string;
+      quantity: number;
+      unit_price: number;
+      currency_id: string;
+    }> = [];
+    for (const v of validated) {
+      if (v.kind === 'container' && v.composition && v.composition.length > 0) {
+        // Si parte del precio es "base" (config.base_plus_content),
+        // emitimos esa línea aparte.
+        // Para no replicar pricing acá, simplemente emitimos 1 línea
+        // con title descriptivo y unit_price=total. El detalle real se
+        // persistió en order_container_items.
+        // Sumamos una línea por hijo, quantity = contenedor.qty * child.qty
+        for (const child of v.composition) {
+          mpItems.push({
+            id: `${v.id}::${child.child_product_id}`,
+            title: `${v.name} — ${child.child_name}`,
+            quantity: v.qty * child.qty,
+            unit_price: Number(child.unit_price),
+            currency_id: v.currency,
+          });
+        }
+        // Si quedó una base no cubierta por los hijos (replace /
+        // base_plus_content con base>0 cuando los hijos suman 0),
+        // emitimos esa diferencia como línea para que cuadre con
+        // orders.total. La persistencia sigue mostrando el desglose.
+        const covered = v.composition.reduce(
+          (a, c) => a + c.unit_price * c.qty,
+          0
+        );
+        const rest = Math.max(0, Number(v.unit_price) - covered);
+        if (rest > 0.0001) {
+          mpItems.push({
+            id: `${v.id}::base`,
+            title: `${v.name} — base`,
+            quantity: v.qty,
+            unit_price: Number(rest.toFixed(2)),
+            currency_id: v.currency,
+          });
+        }
+      } else {
+        mpItems.push({
+          id: v.id,
+          title: v.name,
+          quantity: v.qty,
+          unit_price: Number(v.unit_price),
+          currency_id: v.currency,
+        });
+      }
+    }
+
     const created = await preference.create({
       body: {
         items: [
-          ...validated.map((v) => ({
-            id: v.id,
-            title: v.name,
-            quantity: v.qty,
-            unit_price: Number(v.unit_price),
-            currency_id: v.currency,
-          })),
+          ...mpItems,
           // Línea de envío (cobrada junto con el pedido). Sólo si > 0.
           ...(shippingCost > 0
             ? [

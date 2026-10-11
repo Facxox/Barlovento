@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCart } from '@/components/CartContext';
+import { useCart, isContainerItem } from '@/components/CartContext';
 import GoldDivider from '@/components/GoldDivider';
 import CouponInput, { type AppliedCouponState } from '@/components/CouponInput';
 import MerchUpsellModal from '@/components/MerchUpsellModal';
@@ -152,6 +152,14 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
         price: i.price,
         currency: i.currency,
         unitsPerPack: i.unitsPerPack,
+        composition:
+          isContainerItem(i)
+            ? i.composition.map((l) => ({
+                child_product_id: l.child_product_id,
+                child_name: l.child_name,
+                qty: l.qty,
+              }))
+            : undefined,
       })),
       shippingPreview: calcShippingCost(alfajores),
       alfajores,
@@ -262,7 +270,13 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
     setSubmitting(true);
     try {
       // Para MP mandamos sólo id+qty porque el server resuelve el resto.
-      const itemsToSend = items.map((i) => ({ id: i.id, qty: i.qty }));
+      // Para MP mandamos id+qty (+ composición si es contenedor) porque
+      // el server resuelve el resto y re-valida el precio.
+      const itemsToSend = items.map((i) => ({
+        id: i.id,
+        qty: i.qty,
+        composition: isContainerItem(i) ? i.composition : undefined,
+      }));
 
       const body = {
         items: itemsToSend,
@@ -317,6 +331,7 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
       qty: i.qty,
       price: i.price,
       currency: i.currency,
+      composition: isContainerItem(i) ? i.composition : undefined,
     }));
 
     const body = {
@@ -473,6 +488,14 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
             price: i.price,
             currency: i.currency,
             unitsPerPack: i.unitsPerPack,
+            composition:
+              i && isContainerItem(i)
+                ? i.composition.map((l) => ({
+                    child_product_id: l.child_product_id,
+                    child_name: l.child_name,
+                    qty: l.qty,
+                  }))
+                : undefined,
           })),
           shippingPreview: calcShippingCost(alfajores),
           alfajores,

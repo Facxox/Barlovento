@@ -7,10 +7,22 @@ import eventsJson from '@/data/events.json';
 import siteContentJson from '@/data/site-content.json';
 import categoriesJson from '@/data/categories.json';
 
+import type { ProductImage } from './gallery';
+import type {
+  ContainerChild,
+  ContainerConfig,
+  PriceMode as ContainerPriceMode,
+} from './container';
+
 // ----------------------------------------------------------------
 // Tipos — alineados 1:1 al esquema SQL en supabase/migrations/0001_init.sql
 // ----------------------------------------------------------------
 
+/**
+ * Producto del catálogo retail. Las columnas nuevas que no estén
+ * presentes en productos previos a 0018/0019 quedan como `undefined`,
+ * por eso son opcionales en el tipado.
+ */
 export type Product = {
   id: string;
   name: string;
@@ -29,6 +41,16 @@ export type Product = {
    */
   units_per_pack: number;
   nutrition: Nutrition | null;
+  /** Config del producto contenedor (0019). Optional porque la columna
+   *  puede no existir en productos previos a la migración. */
+  is_container?: boolean;
+  container_base_price?: number | null;
+  price_mode?: PriceMode;
+  container_capacity?: number | null;
+  container_min_units?: number;
+  container_max_units?: number | null;
+  container_require_full?: boolean;
+  can_be_in_container?: boolean;
 };
 
 /**
@@ -349,3 +371,195 @@ export async function getSiteContent(): Promise<SiteContent> {
     return fallback;
   }
 }
+
+// ----------------------------------------------------------------
+// Galería de imágenes (0018_product_images.sql)
+// ----------------------------------------------------------------
+
+/**
+ * Trae la galería completa de un producto (ordenada por sort_order).
+ * Si Supabase no está disponible, devuelve lista vacía y el caller
+ * debe caer al campo legacy `image`.
+ */
+export async function getProductImages(
+  productId: string
+): Promise<ProductImage[]> {
+  const supabase = await getServerSupabase();
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from('product_images')
+      .select('id, url, alt, sort_order, is_primary')
+      .eq('product_id', productId)
+      .order('sort_order', { ascending: true });
+    if (error || !data) return [];
+    return data as ProductImage[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Trae la galería de TODOS los productos en una sola consulta. Sirve
+ * para no hacer N+1 en la cuadrícula de Tienda.
+ * Devuelve un Map<product_id, ProductImage[]> con orden asc.
+ */
+export async function getAllProductImages(): Promise<
+  Map<string, ProductImage[]>
+> {
+  const out = new Map<string, ProductImage[]>();
+  const supabase = await getServerSupabase();
+  if (!supabase) return out;
+  try {
+    const { data, error } = await supabase
+      .from('product_images')
+      .select('id, product_id, url, alt, sort_order, is_primary')
+      .order('product_id', { ascending: true })
+      .order('sort_order', { ascending: true });
+    if (error || !data) return out;
+    for (const row of data as (ProductImage & { product_id: string })[]) {
+      const arr = out.get(row.product_id) ?? [];
+      arr.push({
+        id: row.id,
+        url: row.url,
+        alt: row.alt,
+        sort_order: row.sort_order,
+        is_primary: row.is_primary,
+      });
+      out.set(row.product_id, arr);
+    }
+    return out;
+  } catch {
+    return out;
+  }
+}
+
+// ----------------------------------------------------------------
+// Container products (0019_container_products.sql)
+// ----------------------------------------------------------------
+
+/**
+ * Normaliza un objeto `Product` a un `ContainerConfig`. Si las columnas
+ * no existen (producto legacy), devuelve defaults seguros (no es
+ * contenedor).
+ */
+export function asContainerConfig(p: Product): ContainerConfig {
+  return {
+    is_container: !!p.is_container,
+    container_base_price: p.container_base_price ?? null,
+    price_mode: (p.price_mode ?? 'base_plus_content') as ContainerPriceMode,
+    container_capacity: p.container_capacity ?? null,
+    container_min_units: p.container_min_units ?? 1,
+    container_max_units: p.container_max_units ?? null,
+    container_require_full: !!p.container_require_full,
+  };
+}
+
+// Re-export para que los callers externos usen un único namespace.
+export type { ProductImage, ContainerChild, ContainerConfig };
+export type PriceMode = ContainerPriceMode;
+
+/**
+ * Trae los productos habilitados como contenido de un contenedor.
+ * Cada item incluye la fila minima/maxima del propio hijo.
+ *
+ * Devuelve lista vacía si Supabase no está configurado o si el producto
+ * no es contenedor — los callers caen con elegancia al "no es
+ * contenedor" sin romper render.
+ */
+export async function getContainerChildren(
+  containerProductId: string
+): Promise<ContainerChild[]> {
+  const supabase = await getServerSupabase();
+  if (!supabase) return [];
+  try {
+    // Items permitidos (con min/max del admin)
+    const { data: rows, error } = await supabase
+      .from('product_container_items')
+      .select(
+        'child_product_id, min_qty, max_qty, sort_order, child:products!product_container_items_child_product_id_fkey(id, name, price, currency, image, is_active, can_be_in_container)'
+      )
+      .eq('container_product_id', containerProductId)
+      .order('sort_order', { ascending: true });
+    if (error || !rows) return [];
+    const out: ContainerChild[] = [];
+    type ItemRow = {
+      child_product_id: string;
+      min_qty: number;
+      max_qty: number | null;
+      sort_order: number;
+      child: {
+        id: string;
+        name: string;
+        price: number;
+        currency: string;
+        image: string | null;
+        is_active: boolean;
+        can_be_in_container: boolean;
+      } | Array<{
+        id: string;
+        name: string;
+        price: number;
+        currency: string;
+        image: string | null;
+        is_active: boolean;
+        can_be_in_container: boolean;
+      }> | null;
+    };
+    for (const r of rows as unknown as ItemRow[]) {
+      const child = Array.isArray(r.child) ? r.child[0] : r.child;
+      if (!child) continue;
+      if (!child.is_active) continue;
+      if (!child.can_be_in_container) continue;
+      out.push({
+        product: {
+          id: child.id,
+          name: child.name,
+          price: Number(child.price),
+          currency: child.currency,
+          image: child.image ?? null,
+          is_active: true,
+        },
+        min_qty: r.min_qty ?? 0,
+        max_qty: r.max_qty ?? null,
+        sort_order: r.sort_order ?? 0,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Trae la composición persistida del carrito (si existe en Supabase).
+ * Útil para que el drawer del carrito pueda mostrar el desglose
+ * incluso después de un refresh — la fuente de verdad sigue siendo
+ * localStorage, pero la tabla da un punto de sincronización si
+ * quisiéramos extender el flujo.
+ */
+export async function getCartComposition(
+  cartSessionId: string,
+  parentLineId: string
+): Promise<CompositionLine[]> {
+  const supabase = await getServerSupabase();
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from('cart_container_compositions')
+      .select('child_product_id, qty')
+      .eq('cart_session_id', cartSessionId)
+      .eq('parent_line_id', parentLineId);
+    if (error || !data) return [];
+    return (data as { child_product_id: string; qty: number }[]).map(
+      (r) => ({
+        child_product_id: r.child_product_id,
+        qty: r.qty,
+      })
+    );
+  } catch {
+    return [];
+  }
+}
+
+type CompositionLine = { child_product_id: string; qty: number };

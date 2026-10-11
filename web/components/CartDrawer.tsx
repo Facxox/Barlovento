@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCart } from './CartContext';
+import { useCart, isContainerItem } from './CartContext';
 import { formatMoney } from './formatMoney';
 import {
   buildCartWhatsAppLink,
@@ -77,7 +77,21 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
 
   const buildWhatsAppLink = () =>
     buildCartWhatsAppLink({
-      items,
+      items: items.map((i) => ({
+        qty: i.qty,
+        name: i.name,
+        price: i.price,
+        currency: i.currency,
+        unitsPerPack: i.unitsPerPack,
+        composition:
+          isContainerItem(i)
+            ? i.composition.map((l) => ({
+                child_product_id: l.child_product_id,
+                child_name: l.child_name,
+                qty: l.qty,
+              }))
+            : undefined,
+      })),
       shippingPreview,
       alfajores,
       currency: items[0]?.currency ?? 'UYU',
@@ -99,6 +113,7 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
             qty: i.qty,
             price: i.price,
             unitsPerPack: i.unitsPerPack ?? 1,
+            composition: isContainerItem(i) ? i.composition : undefined,
           })),
           total: totalWithShipping,
           shipping_cost: shippingPreview,
@@ -173,6 +188,17 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
                     <div className="flex-1">
                       <p className="font-display text-lg text-bone leading-tight">{i.name}</p>
                       <p className="text-bone/60 font-body text-sm mt-1">{formatMoney(i.price, i.currency)}</p>
+                      {isContainerItem(i) && i.composition.length > 0 && (
+                        <ul className="mt-1 space-y-0.5 text-[11px] text-bone/55">
+                          {i.composition
+                            .filter((l) => l.qty > 0)
+                            .map((l) => (
+                              <li key={l.child_product_id}>
+                                {l.qty} × {l.child_name}
+                              </li>
+                            ))}
+                        </ul>
+                      )}
                       <div className="mt-2 flex items-center gap-2">
                         <button
                           onClick={() => setQty(i.id, i.qty - 1)}

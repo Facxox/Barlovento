@@ -6,15 +6,19 @@ import { useCart } from './CartContext';
 import { Reveal } from './Reveal';
 import GoldDivider from './GoldDivider';
 import { formatMoney } from './formatMoney';
+import { resolveGallery } from '@/lib/gallery';
 import type { Product, Category } from '@/lib/queries';
+import type { ProductImage } from '@/lib/gallery';
 
 export default function Tienda({
   products,
   categories: allCategories,
+  galleryByProduct,
   isWholesale = false,
 }: {
   products: Product[];
   categories: Category[];
+  galleryByProduct?: Record<string, ProductImage[]>;
   isWholesale?: boolean;
 }) {
   const { add } = useCart();
@@ -100,6 +104,7 @@ export default function Tienda({
             <ProductCard
               key={p.id}
               product={p}
+              galleryImages={galleryByProduct?.[p.id] ?? []}
               labelById={labelById}
               delay={i * 100}
               isWholesale={isWholesale}
@@ -123,17 +128,21 @@ export default function Tienda({
 
 function ProductCard({
   product,
+  galleryImages,
   labelById,
   delay,
   onAdd,
   isWholesale,
 }: {
   product: Product;
+  galleryImages: ProductImage[];
   labelById: Map<string, string>;
   delay: number;
   onAdd: () => void;
   isWholesale: boolean;
 }) {
+  const gallery = resolveGallery(galleryImages, product.image);
+  const coverUrl = gallery.primary?.url ?? product.image;
   return (
     <Reveal delay={delay}>
       <article className="group">
@@ -145,10 +154,15 @@ function ProductCard({
           <div className="relative aspect-[4/5] overflow-hidden bg-ink/5 hover-zoom">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={product.image}
+              src={coverUrl}
               alt={product.name}
               className="block h-full w-full object-cover"
             />
+            {gallery.ordered.length > 1 && (
+              <span className="absolute right-3 top-3 rounded-full bg-ink/65 px-2 py-0.5 font-body text-[10px] uppercase tracking-ultra text-cream">
+                +{gallery.ordered.length - 1}
+              </span>
+            )}
             {product.badge && (
               <span className="absolute left-4 top-4 inline-flex items-center rounded-full border border-gold/70 bg-cream/90 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-ink">
                 {product.badge}

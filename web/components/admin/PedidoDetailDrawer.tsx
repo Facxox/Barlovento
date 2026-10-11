@@ -21,11 +21,30 @@ export type DrawerProduct = {
   nutrition: Nutrition | null;
 };
 
+/**
+ * Composición de un contenedor persistida en `order_container_items`.
+ * El admin ve cada lata con sus contenidos incluso si después se
+ * borra o renombra el producto hijo.
+ */
+export type OrderContainerRow = {
+  container_item_id: string;
+  container_product_id: string;
+  child_product_id: string;
+  child_name: string;
+  child_price: number;
+  child_image: string | null;
+  qty: number;
+};
+
 type Props = {
   open: boolean;
   order: OrderRow | null;
   onClose: () => void;
   productById: Record<string, DrawerProduct>;
+  /** Composiciones de contenedores: agrupadas por container_item_id.
+   *  Server agrupa en /admin/pedidos/page.tsx. Si la orden no tiene
+   *  contenedores, queda undefined y el drawer no muestra la sección. */
+  containerCompositions?: OrderContainerRow[];
 };
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -105,6 +124,7 @@ export default function PedidoDetailDrawer({
   order,
   onClose,
   productById,
+  containerCompositions,
 }: Props) {
   // Cerrar con tecla Escape.
   useEffect(() => {
@@ -286,6 +306,16 @@ export default function PedidoDetailDrawer({
                   const lineSubtotal =
                     Number(it.qty || 0) * Number(it.price || 0);
 
+                  // Composición embebida dentro del item (jsonb snapshot
+                  // en orders.items). NO usamos la tabla persistente
+                  // acá — esa se muestra aparte más abajo.
+                  const inlineComp = Array.isArray(
+                    (it as { composition?: unknown[] }).composition
+                  )
+                    ? ((it as { composition?: Array<Record<string, unknown>> })
+                        .composition ?? [])
+                    : null;
+
                   return (
                     <li
                       key={`${order.id}-${idx}-${it.id}`}
@@ -331,6 +361,11 @@ export default function PedidoDetailDrawer({
                                   producto eliminado
                                 </span>
                               )}
+                              {inlineComp && inlineComp.length > 0 && (
+                                <span className="rounded-full bg-amber-500/20 px-2 py-0.5 font-body text-[10px] uppercase tracking-ultra text-amber-300">
+                                  contenedor personalizado
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="text-right font-body text-xs text-bone/70">
@@ -362,6 +397,117 @@ export default function PedidoDetailDrawer({
               </ul>
             )}
           </Section>
+
+          {/* COMPOSICIONES DE CONTENEDORES (persistidas en order_container_items).
+              Esta es la fuente de verdad histórica: aunque después se borre
+              o renombre un producto hijo, el admin ve exactamente qué llevó
+              el cliente. */}
+          {containerCompositions && containerCompositions.length > 0 && (
+            <Section title="Contenedores personalizados">
+              {(() => {
+                // Agrupamos por container_product_id + parent_line (vía
+                // container_item_id) para mostrar una sola caja por configuración.
+                type Group = {
+                  key: string;
+                  container_product_id: string;
+                  container_name: string;
+                  container_image: string | null;
+                  items: OrderContainerRow[];
+                  physical_units: number;
+                };
+                const grouped = new Map<string, Group>();
+                for (const row of containerCompositions) {
+                  const containerMeta =
+                    productById[row.container_product_id];
+                  const key = `${row.container_item_id}`;
+                  const cur = grouped.get(key);
+                  if (!cur) {
+                    grouped.set(key, {
+                      key,
+                      container_product_id: row.container_product_id,
+                      container_name: containerMeta
+                        ? containerMeta.description
+                          ? // no tenemos name acá; usamos el id como label
+                            ''
+                          : ''
+                        : '',
+                      container_image: containerMeta?.image ?? null,
+                      items: [row],
+                      physical_units: row.qty,
+                    });
+                  } else {
+                    cur.items.push(row);
+                    cur.physical_units += row.qty;
+                  }
+                }
+                // Si no tenemos los nombres via productById (DrawerProduct
+                // no incluye name), los derivamos de containerItemId o
+                // usamos el nombre embebido en rows de order items.
+                // En cualquier caso, los nombres de children sí los tenemos
+                // (row.child_name). Para el contenedor en sí usamos el
+                // nombre del item de orders.items si está disponible.
+                for (const g of grouped.values()) {
+                  const it = items.find(
+                    (i) => i.id === g.container_product_id
+                  );
+                  g.container_name = it?.name ?? g.container_product_id;
+                }
+                return (
+                  <ul className="space-y-3">
+                    {Array.from(grouped.values()).map((g) => (
+                      <li
+                        key={g.key}
+                        className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4"
+                      >
+                        <div className="mb-3 flex items-center gap-3">
+                          {g.container_image && (
+                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded border border-amber-500/30 bg-carbon">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={g.container_image}
+                                alt={g.container_name}
+                                loading="lazy"
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-display text-base text-bone">
+                              {g.container_name}
+                            </p>
+                            <p className="font-body text-xs text-bone/60">
+                              {g.physical_units} unidad
+                              {g.physical_units === 1 ? '' : 'es'} en
+                              {' '}{g.items.length} línea
+                              {g.items.length === 1 ? '' : 's'} de selección
+                            </p>
+                          </div>
+                        </div>
+                        <ul className="space-y-1 border-t border-amber-500/20 pt-3">
+                          {g.items.map((c, i) => (
+                            <li
+                              key={`${g.key}-${c.child_product_id}-${i}`}
+                              className="flex items-center justify-between gap-3 font-body text-sm text-bone/85"
+                            >
+                              <span className="min-w-0 truncate">
+                                {c.qty} × {c.child_name}
+                              </span>
+                              <span className="font-body text-xs text-bone/55">
+                                {formatMoney(
+                                  c.qty * Number(c.child_price),
+                                  order.currency
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
+            </Section>
+          )}
 
           {/* COSTOS */}
           <Section title="Costos">

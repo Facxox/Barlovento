@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import {
   upsertProduct,
@@ -8,6 +9,17 @@ import {
 } from '@/lib/admin-actions';
 import type { Product, WholesaleProduct, Category, Nutrition } from '@/lib/queries';
 import ImageDropzone from './ImageDropzone';
+
+// Componentes pesados (galería + container config) van lazy. Mantiene
+// el bundle inicial del form chico; ambos sólo se montan en modo edit.
+const ProductGalleryManagerLazy = dynamic(
+  () => import('./ProductGalleryManager'),
+  { ssr: false }
+);
+const ContainerConfigManagerLazy = dynamic(
+  () => import('./ContainerConfigManager'),
+  { ssr: false }
+);
 
 type Mode = 'create' | 'edit';
 type Variant = 'retail' | 'wholesale';
@@ -486,6 +498,43 @@ export default function ProductoForm({
             />
             <span className="font-body text-sm text-bone">Visible en el sitio</span>
           </label>
+
+          {/* Galería múltiple — sólo en modo edición, ya que el id del
+              producto existe recién al guardar. Se carga vía props desde
+              /admin/productos/[id] con getProductImages. */}
+          {mode === 'edit' && initial?.id && (
+            <fieldset className="border border-carbon-line bg-carbon-raised/40 p-5">
+              <legend className="px-2 font-body text-[10px] uppercase tracking-ultra text-gold">
+                Galería de imágenes
+              </legend>
+              {/* El componente client se importa dinámicamente vía wrapper
+                  para no meter 'use client' en este form. */}
+              <ProductGalleryManagerLazy
+                productId={initial.id}
+                initialImages={(initial as unknown as { galleryImages?: import('@/lib/gallery').ProductImage[] }).galleryImages ?? []}
+              />
+            </fieldset>
+          )}
+
+          {/* Config de contenedor — sólo retail por ahora, igual que el
+              configurador del storefront. */}
+          {!isWholesale && mode === 'edit' && initial?.id && (
+            <ContainerConfigManagerLazy
+              productId={initial.id}
+              initial={{
+                is_container: !!(initial as unknown as { is_container?: boolean }).is_container,
+                container_base_price: (initial as unknown as { container_base_price?: number | null }).container_base_price ?? null,
+                price_mode: ((initial as unknown as { price_mode?: 'replace' | 'base_plus_content' | 'content_only' }).price_mode ?? 'base_plus_content'),
+                container_capacity: (initial as unknown as { container_capacity?: number | null }).container_capacity ?? null,
+                container_min_units: (initial as unknown as { container_min_units?: number }).container_min_units ?? 1,
+                container_max_units: (initial as unknown as { container_max_units?: number | null }).container_max_units ?? null,
+                container_require_full: !!(initial as unknown as { container_require_full?: boolean }).container_require_full,
+                can_be_in_container: !!(initial as unknown as { can_be_in_container?: boolean }).can_be_in_container,
+              }}
+              availableProducts={(initial as unknown as { availableProducts?: Array<{ id: string; name: string; image: string | null; can_be_in_container: boolean }> }).availableProducts ?? []}
+              initialContainerItems={(initial as unknown as { containerItems?: import('@/lib/admin-product-extras').ContainerItemInput[] }).containerItems ?? []}
+            />
+          )}
         </div>
 
         <aside className="space-y-3">

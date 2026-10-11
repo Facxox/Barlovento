@@ -3,7 +3,10 @@
 import { useState, useTransition } from 'react';
 import type { OrderRow } from '@/lib/orders';
 import { receiptThumbUrl, receiptFullUrl } from '@/lib/receiptUrl';
-import PedidoDetailDrawer, { type DrawerProduct } from './PedidoDetailDrawer';
+import PedidoDetailDrawer, {
+  type DrawerProduct,
+  type OrderContainerRow,
+} from './PedidoDetailDrawer';
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   UYU: 'UYU ',
@@ -33,6 +36,12 @@ type Props = {
    * funciona con sólo el snapshot.
    */
   productById?: Record<string, DrawerProduct>;
+  /**
+   * Composiciones de contenedores por order_id. Server las agrega en
+   * /admin/pedidos/page.tsx cargando order_container_items. Si no se
+   * pasa, el drawer no muestra la sección de composiciones.
+   */
+  containerCompositionsByOrder?: Record<number, OrderContainerRow[]>;
 };
 
 /**
@@ -42,7 +51,11 @@ type Props = {
  * para evitar hydration mismatch: toLocaleString depende del locale
  * del runtime y rompe SSR vs client.
  */
-export default function PedidosTable({ orders, productById }: Props) {
+export default function PedidosTable({
+  orders,
+  productById,
+  containerCompositionsByOrder,
+}: Props) {
   const [filter, setFilter] = useState<
     'all' | OrderRow['channel'] | 'pickup'
   >('all');
@@ -305,6 +318,11 @@ export default function PedidosTable({ orders, productById }: Props) {
         open={!!openOrder}
         order={openOrder}
         productById={productById ?? {}}
+        containerCompositions={
+          openOrder
+            ? containerCompositionsByOrder?.[openOrder.id] ?? []
+            : undefined
+        }
         onClose={() => setOpenOrder(null)}
       />
     </div>

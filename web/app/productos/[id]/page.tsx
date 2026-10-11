@@ -1,11 +1,23 @@
 import { notFound } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase-server';
 import ProductoDetalle from '@/components/ProductoDetalle';
-import { getCategories } from '@/lib/queries';
+import {
+  getCategories,
+  getProductImages,
+  getContainerChildren,
+  asContainerConfig,
+} from '@/lib/queries';
 import productsJson from '@/data/products.json';
 import type { Product } from '@/lib/queries';
+import type { ProductImage } from '@/lib/gallery';
+import type { ContainerChild } from '@/lib/container';
 
-type ProductLookup = { product: Product; variant: 'retail' | 'wholesale' };
+type ProductLookup = {
+  product: Product;
+  variant: 'retail' | 'wholesale';
+  images: ProductImage[];
+  containerChildren: ContainerChild[];
+};
 
 async function getProductById(id: string): Promise<ProductLookup | null> {
   const supabase = await getServerSupabase();
@@ -14,12 +26,15 @@ async function getProductById(id: string): Promise<ProductLookup | null> {
       (p) => p.id === id
     );
     if (!fromJson) return null;
-    return { product: fromJson, variant: 'retail' };
+    return {
+      product: fromJson,
+      variant: 'retail',
+      images: [],
+      containerChildren: [],
+    };
   }
 
-  // Buscamos primero en el catálogo retail. Si no está, probamos en
-  // mayorista. Así un cliente mayorista puede abrir el detalle del
-  // producto clonado (id terminado en `-ws`) sin 404.
+  // Retail
   const { data: retail, error: retailError } = await supabase
     .from('products')
     .select('*')
@@ -30,18 +45,22 @@ async function getProductById(id: string): Promise<ProductLookup | null> {
     const row = retail as Record<string, unknown> & {
       units_per_pack?: number | null;
     };
-    return {
-      product: {
-        ...(row as unknown as Product),
-        units_per_pack:
-          typeof row.units_per_pack === 'number' && row.units_per_pack > 0
-            ? row.units_per_pack
-            : 1,
-      },
-      variant: 'retail',
+    const product: Product = {
+      ...(row as unknown as Product),
+      units_per_pack:
+        typeof row.units_per_pack === 'number' && row.units_per_pack > 0
+          ? row.units_per_pack
+          : 1,
     };
+    const [images, containerChildren] = await Promise.all([
+      getProductImages(product.id),
+      product.is_container ? getContainerChildren(product.id) : Promise.resolve([] as ContainerChild[]),
+    ]);
+    void asContainerConfig(product); // tipo-coerce: la config ya vive en product
+    return { product, variant: 'retail', images, containerChildren };
   }
 
+  // Wholesale (no usa containers ni galería por ahora)
   const { data: wholesale, error: wholesaleError } = await supabase
     .from('wholesale_products')
     .select('*')
@@ -60,6 +79,8 @@ async function getProductById(id: string): Promise<ProductLookup | null> {
           : 1,
     },
     variant: 'wholesale',
+    images: [],
+    containerChildren: [],
   };
 }
 
@@ -111,9 +132,6 @@ export default async function ProductoPage({
   const categories = await getCategories();
   const p = lookup.product;
 
-  // JSON-LD Product. Precio y currency salen de la DB (no inventamos).
-  // availability=InStock es razonable para productos activos. seller
-  // apunta al Organization vía @id.
   const productJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -141,6 +159,8 @@ export default async function ProductoPage({
       <ProductoDetalle
         product={p}
         categories={categories}
+        images={lookup.images}
+        containerChildren={lookup.containerChildren}
         isWholesale={lookup.variant === 'wholesale'}
       />
     </>

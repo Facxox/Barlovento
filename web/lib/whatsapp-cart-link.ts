@@ -20,6 +20,12 @@ export type CartLineForWa = {
   price: number;
   currency?: string;
   unitsPerPack?: number;
+  /** Si la línea es un contenedor customizado, detalle por child. */
+  composition?: Array<{
+    child_product_id: string;
+    child_name: string;
+    qty: number;
+  }>;
 };
 
 export type BuildCartWaParams = {
@@ -46,10 +52,17 @@ export function buildCartWhatsAppLink(params: BuildCartWaParams): string {
     params;
   const cleanPhone = phone.replace(/\D/g, '');
   const lines = items
-    .map(
-      (i) =>
-        `· ${i.qty} x ${i.name} — ${formatMoney(i.price * i.qty, i.currency ?? currency)}`
-    )
+    .map((i) => {
+      const base = `· ${i.qty} x ${i.name} — ${formatMoney(i.price * i.qty, i.currency ?? currency)}`;
+      if (i.composition && i.composition.length > 0) {
+        const details = i.composition
+          .filter((c) => c.qty > 0)
+          .map((c) => `      · ${c.qty} x ${c.child_name}`)
+          .join('\n');
+        return `${base}\n${details}`;
+      }
+      return base;
+    })
     .join('\n');
   const shippingLine =
     shippingPreview > 0

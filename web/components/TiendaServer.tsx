@@ -1,4 +1,4 @@
-import { getProducts, getWholesaleProducts, getCategories } from '@/lib/queries';
+import { getProducts, getWholesaleProducts, getCategories, getAllProductImages } from '@/lib/queries';
 import { getServerSupabase } from '@/lib/supabase-server';
 import Tienda from './Tienda';
 
@@ -17,15 +17,22 @@ export default async function TiendaServer() {
     }
   }
 
-  const [products, categories] = await Promise.all([
+  const [products, categories, galleryMap] = await Promise.all([
     isWholesale ? getWholesaleProducts() : getProducts(),
     getCategories(),
+    getAllProductImages(),
   ]);
+
+  const galleryByProduct: Record<string, import('@/lib/gallery').ProductImage[]> = {};
+  if (galleryMap instanceof Map) {
+    for (const [k, v] of galleryMap) galleryByProduct[k] = v;
+  }
 
   return (
     <Tienda
       products={products}
       categories={categories}
+      galleryByProduct={galleryByProduct}
       isWholesale={isWholesale}
     />
   );

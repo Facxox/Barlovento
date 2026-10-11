@@ -60,6 +60,15 @@ export type ProductoInput = {
   sort_order: number;
   units_per_pack: number;
   nutrition: Nutrition | null;
+  /** Container config (0019). Opcionales: si no vienen, no cambian. */
+  is_container?: boolean;
+  container_base_price?: number | null;
+  price_mode?: 'replace' | 'base_plus_content' | 'content_only';
+  container_capacity?: number | null;
+  container_min_units?: number;
+  container_max_units?: number | null;
+  container_require_full?: boolean;
+  can_be_in_container?: boolean;
 };
 
 export type GalleryInput = {
@@ -94,6 +103,18 @@ export type EventoInput = {
  * Nutrition: se envía como JSON string en el campo `nutrition_json`.
  * Si el JSON está vacío o no se puede parsear, se guarda como NULL.
  */
+
+/** Helper: parsea un entero opcional desde un FormData entry. Si el
+ *  value es null, string vacío, o no-numérico, devuelve null. */
+function nullableInt(v: FormDataEntryValue | null): number | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (s === '') return null;
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  return Math.trunc(n);
+}
+
 export async function upsertProduct(formData: FormData): Promise<Product> {
   const supabase = await requireAdmin();
 
@@ -110,6 +131,28 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
     sort_order: Number(formData.get('sort_order') ?? 99),
     units_per_pack: Number(formData.get('units_per_pack')) || 1,
     nutrition: parseNutritionField(formData.get('nutrition_json') as string | null),
+    // Container config (0019). Si el campo no viene, lo dejamos intacto
+    // en DB (sólo aplica en updates; en create defaults a false/null).
+    is_container: formData.has('is_container') ? formData.get('is_container') === 'true' : undefined,
+    container_base_price:
+      formData.get('container_base_price') != null &&
+      String(formData.get('container_base_price')).trim() !== ''
+        ? Number(formData.get('container_base_price'))
+        : null,
+    price_mode:
+      (formData.get('price_mode') as
+        | 'replace'
+        | 'base_plus_content'
+        | 'content_only'
+        | null) ?? undefined,
+    container_capacity: nullableInt(formData.get('container_capacity')),
+    container_min_units: nullableInt(formData.get('container_min_units')) ?? 1,
+    container_max_units: nullableInt(formData.get('container_max_units')),
+    container_require_full: formData.get('container_require_full') === 'true',
+    can_be_in_container:
+      formData.has('can_be_in_container')
+        ? formData.get('can_be_in_container') === 'true'
+        : undefined,
   };
   const imageFile = formData.get('imageFile') as File | null;
 
@@ -118,7 +161,7 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
     imageUrl = await uploadImage(imageFile, 'products', input.image);
   }
 
-  const payload: Product = {
+  const payload: Record<string, unknown> = {
     id: input.id ?? slugify(input.name),
     name: input.name,
     description: input.description,
@@ -132,6 +175,21 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
     units_per_pack: input.units_per_pack > 0 ? input.units_per_pack : 1,
     nutrition: input.nutrition,
   };
+  // Container config: sólo lo incluimos en el payload si vino
+  // explícitamente (undefined = "no tocar"). Si vino, lo aplicamos.
+  if (input.is_container !== undefined) payload.is_container = input.is_container;
+  if (input.container_base_price !== undefined)
+    payload.container_base_price = input.container_base_price;
+  if (input.price_mode !== undefined) payload.price_mode = input.price_mode;
+  if (input.container_capacity !== undefined) payload.container_capacity = input.container_capacity;
+  if (input.container_min_units !== undefined)
+    payload.container_min_units = input.container_min_units;
+  if (input.container_max_units !== undefined)
+    payload.container_max_units = input.container_max_units;
+  if (input.container_require_full !== undefined)
+    payload.container_require_full = input.container_require_full;
+  if (input.can_be_in_container !== undefined)
+    payload.can_be_in_container = input.can_be_in_container;
 
   // Si es un producto nuevo, lo ubicamos al final de la lista. El admin
   // lo reordena después con las flechas ▲▼ de la tabla.
