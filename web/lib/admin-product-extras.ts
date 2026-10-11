@@ -21,21 +21,22 @@ type ProductImagesRow = {
  * automáticamente como `is_primary = true` SI el producto no tenía ya
  * una.
  *
- * El admin autentica con service-role (admin-actions.ts ya tiene el
- * helper requireAdmin — acá simplificamos usando service role).
+ * IMPORTANTE: Next.js no permite `File[]` como argumento directo de
+ * un server action — los archivos deben viajar dentro de un FormData.
+ * El cliente pasa `formData` con entries `files` (0..N) + entry
+ * `productId` (string).
  */
 export async function uploadProductImages(
-  productId: string,
-  files: File[],
-  altTexts: string[] = []
+  formData: FormData
 ): Promise<{ ok: true; rows: ProductImagesRow[] } | { ok: false; error: string }> {
+  const productId = String(formData.get('productId') ?? '');
+  const files = formData.getAll('files').filter((f): f is File => f instanceof File);
   if (!productId || files.length === 0) {
     return { ok: false, error: 'invalid_input' };
   }
   const supabase = getServiceSupabase();
   if (!supabase) return { ok: false, error: 'db_unavailable' };
 
-  // Verificamos si ya hay primary.
   const { data: existingPrimary } = await supabase
     .from('product_images')
     .select('id')
@@ -43,7 +44,6 @@ export async function uploadProductImages(
     .eq('is_primary', true)
     .maybeSingle();
 
-  // Próximo sort_order: max + 1.
   const { data: last } = await supabase
     .from('product_images')
     .select('sort_order')
@@ -86,7 +86,7 @@ export async function uploadProductImages(
       .insert({
         product_id: productId,
         url: pub.publicUrl,
-        alt: altTexts[i] ?? null,
+        alt: null,
         sort_order: next++,
         is_primary: isPrimary,
       })

@@ -51,10 +51,14 @@ export default function ProductGalleryManager({
       if (fs.length === 0) return;
       setError(null);
       setUploading(true);
-      // El FormData lo exigen los server actions — pero acá recibimos
-      // `files: File[]` directamente. El server action hace su propia
-      // subida múltiple.
-      const result = await uploadProductImages(productId, fs, []);
+      // Empaquetamos los archivos en FormData (los server actions de
+      // Next no aceptan File[] directamente — sólo FormData o tipos
+      // JSON-serializables). Cada archivo va como un entry "files"
+      // separado (FormData.getAll('files') los recupera).
+      const fd = new FormData();
+      fd.append('productId', productId);
+      for (const f of fs) fd.append('files', f);
+      const result = await uploadProductImages(fd);
       if (!result.ok) {
         setError(result.error);
         setUploading(false);
