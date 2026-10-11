@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import {
@@ -20,6 +20,47 @@ const ContainerConfigManagerLazy = dynamic(
   () => import('./ContainerConfigManager'),
   { ssr: false }
 );
+
+/**
+ * Llamada al endpoint que crea un producto vacío como "ancla" para
+ * la galería antes de que el admin termine el form. Devuelve el id
+ * `tmp_*` que luego será reemplazado por el slug real al hacer el
+ * submit final.
+ */
+async function createDraftProductId(): Promise<string> {
+  const res = await fetch('/api/admin/products/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  const json = (await res.json()) as { ok: boolean; productId?: string; error?: string };
+  if (!res.ok || !json.ok || !json.productId) {
+    throw new Error(json.error ?? 'preview_failed');
+  }
+  return json.productId;
+}
+
+/**
+ * Sube archivos sueltos a un producto ya existente. Usado en el submit
+ * final: si el admin tenía archivos "pendientes" (los subió antes de
+ * que el producto existiera), van acá.
+ */
+async function uploadPendingTo(
+  productId: string,
+  files: File[]
+): Promise<void> {
+  if (files.length === 0) return;
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  const res = await fetch(
+    `/api/admin/products/${encodeURIComponent(productId)}/images`,
+    { method: 'POST', body: fd }
+  );
+  if (!res.ok) {
+    const j = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(j.error ?? `upload_failed:${res.status}`);
+  }
+}
 
 type Mode = 'create' | 'edit';
 type Variant = 'retail' | 'wholesale';
@@ -71,6 +112,18 @@ export default function ProductoForm({
     !!initial?.nutrition
   );
 
+  /**
+   * Galería en modo create: como el producto todavía no existe en DB,
+   * creamos un "draft" (id `tmp_*`) apenas el admin agrega la primera
+   * foto. Las fotos suben asociadas a ese id temporal, y el submit
+   * final migra a `upsertProduct` con el id que ya quedó vinculado a
+   * la galería. Si el admin nunca toca la galería, no creamos draft
+   * (evita filas huérfanas en `products`).
+   */
+  const [draftProductId, setDraftProductId] = useState<string | null>(
+    initial?.id && initial.id.startsWith('tmp_') ? initial.id : null
+  );
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -78,7 +131,16 @@ export default function ProductoForm({
     startTransition(async () => {
       try {
         const fd = new FormData();
-        if (initial?.id) fd.append('id', initial.id);
+        // Si estamos en modo create y el admin ya subió fotos de la
+        // galería, las fotos viven bajo `draftProductId` (tmp_*). El
+        // upsert recibe ese id — el server hace un upsert con ese id
+        // exacto (no se renombra en create), preservando todas las
+        // fotos asociadas vía FK.
+        if (initial?.id) {
+          fd.append('id', initial.id);
+        } else if (draftProductId) {
+          fd.append('id', draftProductId);
+        }
         fd.append('name', name);
         fd.append('description', description);
         fd.append('price', price);
@@ -499,21 +561,22 @@ export default function ProductoForm({
             <span className="font-body text-sm text-bone">Visible en el sitio</span>
           </label>
 
-          {/* Galería múltiple — sólo en modo edición, ya que el id del
-              producto existe recién al guardar. Se carga vía props desde
-              /admin/productos/[id] con getProductImages. */}
-          {mode === 'edit' && initial?.id && (
-            <fieldset className="border border-carbon-line bg-carbon-raised/40 p-5">
-              <legend className="px-2 font-body text-[10px] uppercase tracking-ultra text-gold">
-                Galería de imágenes
-              </legend>
-              {/* El componente client se importa dinámicamente vía wrapper
-                  para no meter 'use client' en este form. */}
-              <ProductGalleryManagerLazy
-                productId={initial.id}
-                initialImages={(initial as unknown as { galleryImages?: import('@/lib/gallery').ProductImage[] }).galleryImages ?? []}
-              />
-            </fieldset>
+          {/* Galería múltiple — funciona en AMBOS modos. En edit usa el
+              id del producto existente. En create, si todavía no hay
+              draftProductId, mostramos un placeholder que crea el draft
+              cuando el admin hace click en "Activar galería". */}
+          {!isWholesale && (
+            <GallerySection
+              mode={mode}
+              productId={initial?.id && !initial.id.startsWith('tmp_') ? initial.id : null}
+              draftProductId={draftProductId}
+              initialImages={
+                (initial as unknown as {
+                  galleryImages?: import('@/lib/gallery').ProductImage[];
+                }).galleryImages ?? []
+              }
+              onDraftCreated={setDraftProductId}
+            />
           )}
 
           {/* Config de contenedor — sólo retail por ahora, igual que el
@@ -587,6 +650,103 @@ export default function ProductoForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Sección de galería que maneja AMBOS modos (create / edit):
+ *
+ * - edit: usa el id real del producto.
+ * - create: si todavía no hay draft, el botón "Activar galería" crea
+ *   un producto placeholder (id `tmp_*`) en DB vía REST. Esto es
+ *   necesario porque la FK `product_images.product_id` exige un
+ *   producto existente; no podemos diferir la creación hasta el
+ *   submit final porque la galería debe ser usable ANTES del submit
+ *   (la persona sube sus fotos antes de terminar de cargar el form).
+ *
+ * Si el admin sube fotos y después abandona el form sin guardar, el
+ * producto `tmp_*` queda en DB — tiene is_active=false así que no
+ * aparece en el storefront, y se puede limpiar vía una query SQL
+ * (no prioritario para esta feature).
+ */
+function GallerySection({
+  mode,
+  productId,
+  draftProductId,
+  initialImages,
+  onDraftCreated,
+}: {
+  mode: Mode;
+  productId: string | null;
+  draftProductId: string | null;
+  initialImages: import('@/lib/gallery').ProductImage[];
+  onDraftCreated: (id: string) => void;
+}) {
+  const [activated, setActivated] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function activate() {
+    setErr(null);
+    setCreating(true);
+    try {
+      const id = await createDraftProductId();
+      onDraftCreated(id);
+      setActivated(true);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'preview_failed');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  // En edit siempre está activado.
+  const activeId = mode === 'edit' ? productId : draftProductId;
+  const isReady = mode === 'edit' || activated;
+
+  return (
+    <fieldset className="border border-carbon-line bg-carbon-raised/40 p-5">
+      <legend className="px-2 font-body text-[10px] uppercase tracking-ultra text-gold">
+        Galería de imágenes
+      </legend>
+
+      {!isReady ? (
+        <div className="space-y-2">
+          <p className="font-body text-[11px] leading-relaxed text-bone/55">
+            La galería se guarda por foto subida. Necesitamos crear un
+            producto borrador como ancla para asociar las imágenes. Al
+            confirmar el producto al final del formulario, ese borrador
+            se completa con los datos de este form.
+          </p>
+          <button
+            type="button"
+            onClick={activate}
+            disabled={creating}
+            className="rounded-full border border-gold/40 px-4 py-2 font-body text-[10px] uppercase tracking-ultra text-gold transition hover:bg-gold hover:text-carbon disabled:opacity-50"
+          >
+            {creating ? 'Creando borrador…' : 'Activar galería'}
+          </button>
+          {err && (
+            <p className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 font-body text-xs text-red-300">
+              {err}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="font-body text-[11px] leading-relaxed text-bone/55">
+            {mode === 'create'
+              ? 'Las fotos se asocian a un borrador invisible. Al guardar el producto, las fotos quedan vinculadas a la versión final.'
+              : 'Podés seleccionar varias fotos a la vez desde el selector.'}
+          </p>
+          {/* Lazy load para evitar el bundle inicial del form */}
+          <ProductGalleryManagerLazy
+            productId={activeId as string}
+            initialImages={initialImages}
+          />
+        </div>
+      )}
+    </fieldset>
   );
 }
 
