@@ -1,12 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
-import {
-  uploadProductImages,
-  deleteProductImage,
-  reorderProductImages,
-  setProductPrimaryImage,
-} from '@/lib/admin-product-extras';
 import type { ProductImage } from '@/lib/gallery';
 
 type Props = {
@@ -18,14 +12,15 @@ type Props = {
  * Manager de galería de imágenes para el formulario de producto.
  *
  * Funcionalidades:
- *   - Subir múltiples imágenes a la vez
+ *   - Subir múltiples imágenes a la vez (input con `multiple`)
  *   - Reordenar con flechas ▲▼
  *   - Marcar como principal
  *   - Eliminar (con confirmación)
  *   - Preview inmediato al subir
  *
- * Persistencia contra /admin/product-extras server actions. Service role
- * es el que escribe (las policies RLS sólo permiten authenticated).
+ * Persistencia: usa REST clásico contra /api/admin/products/[id]/images
+ * y /api/admin/product-images/[id] en vez de server actions — los
+ * uploads múltiples via FormData son más predecibles por fetch().
  */
 export default function ProductGalleryManager({
   productId,
@@ -38,7 +33,7 @@ export default function ProductGalleryManager({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sincronizar si el padre nos pasa nuevas imágenes (cambio de producto).
+  // Re-sincronizar si cambia el producto.
   useEffect(() => {
     setImages(
       [...initialImages].sort((a, b) => a.sort_order - b.sort_order)
@@ -51,47 +46,83 @@ export default function ProductGalleryManager({
       if (fs.length === 0) return;
       setError(null);
       setUploading(true);
-      // Empaquetamos los archivos en FormData (los server actions de
-      // Next no aceptan File[] directamente — sólo FormData o tipos
-      // JSON-serializables). Cada archivo va como un entry "files"
-      // separado (FormData.getAll('files') los recupera).
+
       const fd = new FormData();
-      fd.append('productId', productId);
       for (const f of fs) fd.append('files', f);
-      const result = await uploadProductImages(fd);
-      if (!result.ok) {
-        setError(result.error);
+
+      try {
+        const res = await fetch(
+          `/api/admin/products/${encodeURIComponent(productId)}/images`,
+          { method: 'POST', body: fd }
+        );
+        const json = (await res.json()) as {
+          ok: boolean;
+          rows?: ProductImage[];
+          error?: string;
+        };
+        if (!res.ok || !json.ok) {
+          setError(json.error ?? `upload_failed:${res.status}`);
+          setUploading(false);
+          if (inputRef.current) inputRef.current.value = '';
+          return;
+        }
+        setImages((prev) => [...prev, ...(json.rows ?? [])]);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'network_error';
+        setError(msg);
+      } finally {
         setUploading(false);
         if (inputRef.current) inputRef.current.value = '';
-        return;
       }
-      // Optimistic append
-      setImages((prev) => [...prev, ...result.rows]);
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = '';
     },
     [productId]
   );
 
   const handleDelete = async (id: number) => {
     if (!confirm('¿Eliminar esta imagen?')) return;
-    const result = await deleteProductImage(id);
-    if (!result.ok) {
-      setError(result.error ?? 'delete_failed');
-      return;
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/product-images/${encodeURIComponent(String(id))}`,
+        { method: 'DELETE' }
+      );
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setError(json.error ?? `delete_failed:${res.status}`);
+        return;
+      }
+      setImages((prev) => prev.filter((i) => i.id !== id));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'network_error');
     }
-    setImages((prev) => prev.filter((i) => i.id !== id));
   };
 
   const handlePrimary = async (id: number) => {
-    const result = await setProductPrimaryImage(id);
-    if (!result.ok) {
-      setError(result.error ?? 'primary_failed');
-      return;
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/product-images/${encodeURIComponent(String(id))}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_primary: true }),
+        }
+      );
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setError(json.error ?? `primary_failed:${res.status}`);
+        return;
+      }
+      setImages((prev) =>
+        prev.map((i) => ({ ...i, is_primary: i.id === id }))
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'network_error');
     }
-    setImages((prev) =>
-      prev.map((i) => ({ ...i, is_primary: i.id === id }))
-    );
   };
 
   const move = async (idx: number, dir: -1 | 1) => {
@@ -102,12 +133,25 @@ export default function ProductGalleryManager({
     const b = next[target];
     next[idx] = b;
     next[target] = a;
-    // Reasignar sort_order por posición.
     const reordered = next.map((img, i) => ({ ...img, sort_order: i }));
     setImages(reordered);
-    const result = await reorderProductImages(reordered.map((i) => i.id));
-    if (!result.ok) {
-      setError(result.error ?? 'reorder_failed');
+    try {
+      const res = await fetch(
+        `/api/admin/products/${encodeURIComponent(productId)}/images/reorder`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderedIds: reordered.map((i) => i.id) }),
+        }
+      );
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setError(json.error ?? `reorder_failed:${res.status}`);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'network_error');
     }
   };
 
@@ -134,6 +178,10 @@ export default function ProductGalleryManager({
           className="hidden"
         />
       </div>
+
+      <p className="font-body text-[11px] text-bone/55">
+        Podés seleccionar varias fotos a la vez desde el selector.
+      </p>
 
       {error && (
         <p className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 font-body text-xs text-red-300">
