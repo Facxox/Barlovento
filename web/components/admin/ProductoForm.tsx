@@ -568,12 +568,14 @@ export default function ProductoForm({
           {!isWholesale && (
             <GallerySection
               mode={mode}
-              productId={initial?.id && !initial.id.startsWith('tmp_') ? initial.id : null}
+              productId={
+                initial?.id && !initial.id.startsWith('tmp_') ? initial.id : null
+              }
               draftProductId={draftProductId}
               initialImages={
-                (initial as unknown as {
+                ((initial as unknown as {
                   galleryImages?: import('@/lib/gallery').ProductImage[];
-                }).galleryImages ?? []
+                })?.galleryImages) ?? []
               }
               onDraftCreated={setDraftProductId}
             />
