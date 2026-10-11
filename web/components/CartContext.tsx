@@ -82,6 +82,13 @@ type CartAction =
       item: Omit<ContainerCartItem, 'qty'>;
       qty?: number;
     }
+  | {
+      type: 'updateContainerComposition';
+      id: string;
+      composition: CartItemCompositionLine[];
+      price: number;
+      unitsPerPack: number;
+    }
   | { type: 'remove'; id: string }
   | { type: 'qty'; id: string; qty: number }
   | { type: 'clear' }
@@ -118,6 +125,25 @@ function reducer(state: CartState, action: CartAction): CartState {
         ],
       };
     }
+    case 'updateContainerComposition': {
+      // Editar desde el carrito: preserva el id (parentLineId) y la
+      // cantidad; reemplaza composición, precio recalculado y
+      // unitsPerPack (que es Σ children.qty para que el cálculo de
+      // envío siga funcionando).
+      return {
+        items: state.items.map((i) => {
+          if (i.id !== action.id) return i;
+          if (!isContainerItem(i)) return i;
+          return {
+            ...i,
+            composition: action.composition,
+            price: action.price,
+            unitsPerPack: action.unitsPerPack,
+            containerPriceTotal: action.price,
+          };
+        }),
+      };
+    }
     case 'remove':
       return { items: state.items.filter((i) => i.id !== action.id) };
     case 'qty':
@@ -147,6 +173,17 @@ type CartCtx = {
   alfajores: number;
   add: (item: Omit<CartItem, 'qty'>, qty?: number) => void;
   addContainer: (item: Omit<ContainerCartItem, 'qty'>, qty?: number) => void;
+  /**
+   * Editar el contenido de un contenedor ya en el carrito sin cambiar
+   * su id ni la cantidad. Se usa desde el CartDrawer para que la
+   * edición sea in-place (sin remove + add, sin perder la posición).
+   */
+  updateComposition: (
+    id: string,
+    composition: CartItemCompositionLine[],
+    price: number,
+    unitsPerPack: number
+  ) => void;
   remove: (id: string) => void;
   setQty: (id: string, qty: number) => void;
   clear: () => void;
@@ -249,6 +286,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
             );
           }
         },
+        updateComposition: (id, composition, price, unitsPerPack) =>
+          dispatch({
+            type: 'updateContainerComposition',
+            id,
+            composition,
+            price,
+            unitsPerPack,
+          }),
         remove: (id) => dispatch({ type: 'remove', id }),
         setQty: (id, qty) => dispatch({ type: 'qty', id, qty }),
         clear: () => dispatch({ type: 'clear' }),

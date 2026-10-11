@@ -129,6 +129,20 @@ export default function ProductoDetalle({
                     {product.badge}
                   </span>
                 )}
+                {isContainer && (
+                  <span className="ml-3 inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5 text-gold-deep">
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden
+                    >
+                      <circle cx="12" cy="12" r="6" />
+                    </svg>
+                    Pack personalizable
+                  </span>
+                )}
               </p>
               <h1 className="mt-3 font-display text-4xl leading-tight text-ink md:text-5xl font-light">
                 {product.name}
@@ -136,6 +150,22 @@ export default function ProductoDetalle({
               {!isContainer && (
                 <p className="mt-4 font-display text-3xl text-ink/90">
                   {formatMoney(product.price, product.currency)}
+                </p>
+              )}
+              {isContainer && (
+                <p className="mt-4 font-display text-2xl text-ink/85">
+                  Desde{' '}
+                  <span className="text-ink">
+                    {formatMoney(
+                      config.container_base_price != null
+                        ? config.container_base_price
+                        : product.price,
+                      product.currency
+                    )}
+                  </span>
+                  <span className="ml-2 font-body text-xs uppercase tracking-ultra text-ink/55">
+                    + contenido a elección
+                  </span>
                 </p>
               )}
 
@@ -179,51 +209,77 @@ export default function ProductoDetalle({
           </Reveal>
         </div>
 
-        {/* Configurador — debajo de la grilla para tener espacio */}
+        {/* Configurador — ancho completo, debajo de la grilla de producto. */}
         {isContainer && (
-          <div className="mt-16 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
-            <Reveal delay={120}>
-              <div className="border border-ink/15 bg-bone p-6">
-                <p className="font-body text-[10px] uppercase tracking-ultra text-gold-deep">
-                  Acerca del contenedor
-                </p>
-                <h3 className="mt-2 font-display text-2xl text-ink">
-                  Cómo funciona
-                </h3>
-                <ul className="mt-4 space-y-3 font-body text-base text-ink/80 leading-relaxed">
-                  <li className="flex gap-3">
-                    <span aria-hidden className="text-gold-deep font-display text-lg leading-none">1</span>
-                    <span>
-                      Elegí hasta {config.container_capacity ?? 'los'} unidad
-                      {(config.container_capacity ?? 1) === 1 ? '' : 'es'} de los
-                      productos disponibles para llenar este contenedor.
-                    </span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span aria-hidden className="text-gold-deep font-display text-lg leading-none">2</span>
-                    <span>
-                      El precio final se calcula con el modo configurado por el
-                      productor. Verás el desglose en tiempo real.
-                    </span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span aria-hidden className="text-gold-deep font-display text-lg leading-none">3</span>
-                    <span>
-                      Una vez completa tu selección, agregá el contenedor al
-                      carrito. Podés armar varias latas con combinaciones
-                      distintas — cada una es una línea independiente.
-                    </span>
-                  </li>
-                </ul>
-              </div>
-            </Reveal>
-
+          <div className="mt-20 space-y-10">
             <ContainerConfigurator
               product={product}
               config={config}
               children={containerChildren ?? []}
               onAddToCart={handleContainerAdd}
             />
+
+            <Reveal delay={120}>
+              <details className="group border border-ink/15 bg-bone">
+                <summary className="flex cursor-pointer items-center justify-between gap-4 px-6 py-4 list-none focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/40">
+                  <div>
+                    <p className="font-body text-[10px] uppercase tracking-ultra text-gold-deep">
+                      Acerca del contenedor
+                    </p>
+                    <h3 className="mt-1 font-display text-xl text-ink">
+                      Cómo funciona
+                    </h3>
+                  </div>
+                  <svg
+                    className="h-5 w-5 text-ink/60 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </summary>
+                <div className="border-t border-ink/10 px-6 py-5">
+                  <ul className="space-y-3 font-body text-base text-ink/80 leading-relaxed">
+                    <li className="flex gap-3">
+                      <span aria-hidden className="text-gold-deep font-display text-lg leading-none">1</span>
+                      <span>
+                        Elegí {(config.container_capacity ?? 1) === 1
+                          ? 'el alfajor que va adentro'
+                          : `hasta ${config.container_capacity ?? 'los'} unidad${(config.container_capacity ?? 1) === 1 ? '' : 'es'}`}{' '}
+                        de los productos disponibles para personalizar este contenedor.
+                      </span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span aria-hidden className="text-gold-deep font-display text-lg leading-none">2</span>
+                      <span>
+                        El precio final se calcula con el modo configurado por el
+                        productor. Verás el desglose en tiempo real.
+                      </span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span aria-hidden className="text-gold-deep font-display text-lg leading-none">3</span>
+                      <span>
+                        Una vez completa tu selección, agregá el contenedor al
+                        carrito. Podés armar varios con combinaciones distintas —
+                        cada uno es una línea independiente con su propio contenido.
+                      </span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span aria-hidden className="text-gold-deep font-display text-lg leading-none">4</span>
+                      <span>
+                        Si más tarde querés cambiar la selección, podés hacerlo
+                        directamente desde el carrito.
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+              </details>
+            </Reveal>
           </div>
         )}
 

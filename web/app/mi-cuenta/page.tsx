@@ -143,12 +143,34 @@ function OrderRow({ order }: { order: MyOrder }) {
       <p className="mt-1 font-body text-[11px] uppercase tracking-ultra text-bone/50">
         {formatLongDateEs(order.created_at)} · {order.status}
       </p>
-      <ul className="mt-3 space-y-1 font-body text-sm text-bone/75">
-        {items.map((it, idx) => (
-          <li key={`${order.id}-${idx}`}>
-            · {it.qty} x {it.name}
-          </li>
-        ))}
+      <ul className="mt-3 space-y-2 font-body text-sm text-bone/75">
+        {items.map((it, idx) => {
+          const inlineComp = Array.isArray(
+            (it as { composition?: unknown[] }).composition
+          )
+            ? ((it as { composition?: Array<Record<string, unknown>> }).composition ?? [])
+            : [];
+          return (
+            <li key={`${order.id}-${idx}`}>
+              <span>
+                · {it.qty} × {it.name}
+                <span className="ml-2 text-bone/55">
+                  ({formatMoney(Number(it.price), order.currency)} c/u)
+                </span>
+              </span>
+              {inlineComp.length > 0 && (
+                <ul className="ml-4 mt-1 space-y-0.5 border-l border-gold/30 pl-3 text-[12px] text-bone/65">
+                  {inlineComp.map((l, j) => (
+                    <li key={`${idx}-${j}`}>
+                      ↳ {String(l.qty ?? '')} ×{' '}
+                      {String(l.child_name ?? l.child_product_id ?? '')}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </li>
   );

@@ -4,6 +4,10 @@ import { useEffect } from 'react';
 import type { OrderRow } from '@/lib/orders';
 import type { Nutrition } from '@/lib/queries';
 import { receiptThumbUrl, receiptFullUrl } from '@/lib/receiptUrl';
+import {
+  groupOrderContainerItems,
+  type OrderContainerSnapshot,
+} from '@/lib/container-display';
 
 /**
  * Forma mínima del producto que el drawer necesita para enriquecer un
@@ -405,104 +409,79 @@ export default function PedidoDetailDrawer({
           {containerCompositions && containerCompositions.length > 0 && (
             <Section title="Contenedores personalizados">
               {(() => {
-                // Agrupamos por container_product_id + parent_line (vía
-                // container_item_id) para mostrar una sola caja por configuración.
-                type Group = {
-                  key: string;
-                  container_product_id: string;
-                  container_name: string;
-                  container_image: string | null;
-                  items: OrderContainerRow[];
-                  physical_units: number;
-                };
-                const grouped = new Map<string, Group>();
-                for (const row of containerCompositions) {
-                  const containerMeta =
-                    productById[row.container_product_id];
-                  const key = `${row.container_item_id}`;
-                  const cur = grouped.get(key);
-                  if (!cur) {
-                    grouped.set(key, {
-                      key,
-                      container_product_id: row.container_product_id,
-                      container_name: containerMeta
-                        ? containerMeta.description
-                          ? // no tenemos name acá; usamos el id como label
-                            ''
-                          : ''
-                        : '',
-                      container_image: containerMeta?.image ?? null,
-                      items: [row],
-                      physical_units: row.qty,
-                    });
-                  } else {
-                    cur.items.push(row);
-                    cur.physical_units += row.qty;
-                  }
-                }
-                // Si no tenemos los nombres via productById (DrawerProduct
-                // no incluye name), los derivamos de containerItemId o
-                // usamos el nombre embebido en rows de order items.
-                // En cualquier caso, los nombres de children sí los tenemos
-                // (row.child_name). Para el contenedor en sí usamos el
-                // nombre del item de orders.items si está disponible.
-                for (const g of grouped.values()) {
-                  const it = items.find(
-                    (i) => i.id === g.container_product_id
-                  );
-                  g.container_name = it?.name ?? g.container_product_id;
-                }
+                const ordersRows: OrderContainerSnapshot[] = containerCompositions.map(
+                  (c) => ({
+                    order_id: Number(order.id),
+                    container_item_id: c.container_item_id,
+                    container_product_id: c.container_product_id,
+                    child_product_id: c.child_product_id,
+                    child_name: c.child_name,
+                    child_price: Number(c.child_price),
+                    child_image: c.child_image,
+                    qty: c.qty,
+                  })
+                );
+                const groups = groupOrderContainerItems(ordersRows);
                 return (
                   <ul className="space-y-3">
-                    {Array.from(grouped.values()).map((g) => (
-                      <li
-                        key={g.key}
-                        className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4"
-                      >
-                        <div className="mb-3 flex items-center gap-3">
-                          {g.container_image && (
-                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded border border-amber-500/30 bg-carbon">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={g.container_image}
-                                alt={g.container_name}
-                                loading="lazy"
-                                className="h-full w-full object-cover"
-                              />
+                    {groups.map((g) => {
+                      const containerMeta = productById[g.container_product_id];
+                      const it = items.find(
+                        (i) => i.id === g.container_product_id
+                      );
+                      const containerName =
+                        it?.name ?? containerMeta?.description ?? g.container_product_id;
+                      const containerImage = containerMeta?.image ?? null;
+                      const physicalUnits = g.lines.reduce(
+                        (acc, l) => acc + l.qty,
+                        0
+                      );
+                      return (
+                        <li
+                          key={g.container_item_id}
+                          className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4"
+                        >
+                          <div className="mb-3 flex items-center gap-3">
+                            {containerImage && (
+                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded border border-amber-500/30 bg-carbon">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={containerImage}
+                                  alt={containerName}
+                                  loading="lazy"
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-display text-base text-bone">
+                                {containerName}
+                              </p>
+                              <p className="font-body text-xs text-bone/60">
+                                {physicalUnits} unidad
+                                {physicalUnits === 1 ? '' : 'es'} en {g.lines.length}{' '}
+                                línea{g.lines.length === 1 ? '' : 's'} de selección
+                              </p>
                             </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="font-display text-base text-bone">
-                              {g.container_name}
-                            </p>
-                            <p className="font-body text-xs text-bone/60">
-                              {g.physical_units} unidad
-                              {g.physical_units === 1 ? '' : 'es'} en
-                              {' '}{g.items.length} línea
-                              {g.items.length === 1 ? '' : 's'} de selección
-                            </p>
                           </div>
-                        </div>
-                        <ul className="space-y-1 border-t border-amber-500/20 pt-3">
-                          {g.items.map((c, i) => (
-                            <li
-                              key={`${g.key}-${c.child_product_id}-${i}`}
-                              className="flex items-center justify-between gap-3 font-body text-sm text-bone/85"
-                            >
-                              <span className="min-w-0 truncate">
-                                {c.qty} × {c.child_name}
-                              </span>
-                              <span className="font-body text-xs text-bone/55">
-                                {formatMoney(
-                                  c.qty * Number(c.child_price),
-                                  order.currency
-                                )}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </li>
-                    ))}
+                          <ul className="space-y-1 border-t border-amber-500/20 pt-3">
+                            {g.lines.map((c) => (
+                              <li
+                                key={`${g.container_item_id}-${c.child_product_id}`}
+                                className="flex items-center justify-between gap-3 font-body text-sm text-bone/85"
+                              >
+                                <span className="min-w-0 truncate">
+                                  {c.qty} × {c.name}
+                                </span>
+                                <span className="font-body text-xs text-bone/55">
+                                  {formatMoney(c.amount, order.currency)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      );
+                    })}
                   </ul>
                 );
               })()}

@@ -4,10 +4,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart, isContainerItem } from './CartContext';
 import { formatMoney } from './formatMoney';
+import ContainerModal from './ContainerModal';
 import {
   buildCartWhatsAppLink,
   calcShippingCost,
 } from '@/lib/whatsapp-cart-link';
+import { fetchContainerContext, configFromProduct } from '@/lib/container-client';
+import type { Product } from '@/lib/queries-client';
+import type { ContainerCartItem } from './CartContext';
+import type {
+  ContainerChild,
+  ContainerConfig,
+  CompositionLine,
+} from '@/lib/container';
 
 // Cuando el drawer está abierto, bloqueamos el scroll del body sin
 // perder la posición actual. Usamos `overflow: clip` (definido en
@@ -28,10 +37,63 @@ function useBodyScrollLock(locked: boolean) {
 }
 
 export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
-  const { items, isOpen, close, setQty, remove, subtotal, alfajores, clear } =
-    useCart();
+  const {
+    items,
+    isOpen,
+    close,
+    setQty,
+    remove,
+    subtotal,
+    alfajores,
+    clear,
+    updateComposition,
+  } = useCart();
   const router = useRouter();
   const phone = whatsapp.replace(/\D/g, '');
+
+  // Estado para el modal de editar contenedor desde el carrito.
+  // Guarda el productId (no el Product completo) — el modal/ModalContext
+  // se vuelve a hidratar con la info fresh cada vez que se abre.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCtx, setEditCtx] = useState<{
+    product: Product;
+    config: ContainerConfig;
+    children: ContainerChild[];
+    initialComposition: ContainerCartItem['composition'];
+    parentLineId: string;
+  } | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+
+  const openEditContainer = async (line: ContainerCartItem) => {
+    // parentLineId del item original (mantener en la edición).
+    const parentLineId = (line as { parentLineId?: string }).parentLineId ?? line.id;
+    // productId: en el proyecto actual el formato es `cont-<productId>-<hash>`.
+    const productId = parentLineId.startsWith('cont-')
+      ? parentLineId.split('-')[1]
+      : '';
+    if (!productId) return;
+    setEditLoading(true);
+    setEditingId(line.id);
+    const ctx = await fetchContainerContext(productId);
+    setEditLoading(false);
+    if (!ctx || !ctx.product) {
+      // Sin contexto no podemos validar — cerramos el flujo.
+      setEditingId(null);
+      return;
+    }
+    setEditCtx({
+      product: ctx.product,
+      config: configFromProduct(ctx.product),
+      children: ctx.containerChildren,
+      initialComposition: line.composition,
+      parentLineId,
+    });
+  };
+
+  const closeEditContainer = () => {
+    setEditingId(null);
+    setEditCtx(null);
+  };
   // Si el usuario logueado es mayorista, no mostramos Mercado Pago.
   const [customerType, setCustomerType] = useState<'retail' | 'wholesale' | null>(
     null
@@ -189,12 +251,17 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
                       <p className="font-display text-lg text-bone leading-tight">{i.name}</p>
                       <p className="text-bone/60 font-body text-sm mt-1">{formatMoney(i.price, i.currency)}</p>
                       {isContainerItem(i) && i.composition.length > 0 && (
-                        <ul className="mt-1 space-y-0.5 text-[11px] text-bone/55">
+                        <ul className="mt-2 space-y-0.5 rounded-md border border-gold/15 bg-carbon-raised px-3 py-2 text-[11px] text-bone/75">
                           {i.composition
                             .filter((l) => l.qty > 0)
                             .map((l) => (
-                              <li key={l.child_product_id}>
-                                {l.qty} × {l.child_name}
+                              <li
+                                key={l.child_product_id}
+                                className="flex justify-between gap-3"
+                              >
+                                <span>
+                                  {l.qty} × {l.child_name}
+                                </span>
                               </li>
                             ))}
                         </ul>
@@ -211,6 +278,17 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
                           className="h-7 w-7 rounded-full border border-gold/40 text-gold"
                           aria-label="Sumar"
                         >+</button>
+                        {isContainerItem(i) && (
+                          <button
+                            onClick={() => openEditContainer(i)}
+                            disabled={editLoading && editingId === i.id}
+                            className="ml-1 text-bone/70 text-xs underline-offset-4 hover:text-gold hover:underline disabled:opacity-50"
+                          >
+                            {editLoading && editingId === i.id
+                              ? 'Cargando…'
+                              : 'Editar contenido'}
+                          </button>
+                        )}
                         <button
                           onClick={() => remove(i.id)}
                           className="ml-auto text-bone/50 text-xs underline-offset-4 hover:text-gold hover:underline"
@@ -313,6 +391,49 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
           )}
         </div>
       </aside>
+
+      {/* Modal para editar el contenido de un contenedor ya en el carrito */}
+      {editCtx && (
+        <ContainerModal
+          open={!!editCtx}
+          onClose={closeEditContainer}
+          mode="edit"
+          product={editCtx.product}
+          config={editCtx.config}
+          children={editCtx.children}
+          initialComposition={editCtx.initialComposition}
+          parentLineId={editCtx.parentLineId}
+          onConfirm={(composition: CompositionLine[], newTotal: number) => {
+            // Mapeamos la composición a la shape del cart item.
+            const cartComposition = composition
+              .filter((l) => l.qty > 0)
+              .map((l) => {
+                const child = editCtx.children.find(
+                  (c) => c.product.id === l.child_product_id
+                );
+                return {
+                  child_product_id: l.child_product_id,
+                  child_name: child?.product.name ?? l.child_product_id,
+                  qty: l.qty,
+                  unit_price: child?.product.price ?? 0,
+                  currency: child?.product.currency ?? editCtx.product.currency,
+                  child_image: child?.product.image ?? null,
+                };
+              });
+            const unitsPerPack = composition.reduce(
+              (acc, l) => acc + l.qty,
+              0
+            );
+            updateComposition(
+              editCtx.parentLineId,
+              cartComposition,
+              newTotal,
+              unitsPerPack
+            );
+            closeEditContainer();
+          }}
+        />
+      )}
     </>
   );
 }

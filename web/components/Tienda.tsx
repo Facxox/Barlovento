@@ -1,14 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useCart } from './CartContext';
 import { Reveal } from './Reveal';
 import GoldDivider from './GoldDivider';
 import { formatMoney } from './formatMoney';
+import ContainerModal, {
+  containerParentLineId,
+} from './ContainerModal';
+import { fetchContainerContext, configFromProduct } from '@/lib/container-client';
 import { resolveGallery } from '@/lib/gallery';
 import type { Product, Category } from '@/lib/queries';
 import type { ProductImage } from '@/lib/gallery';
+import type { CompositionLine } from '@/lib/container';
+import type { CartItemCompositionLine } from '@/lib/queries-client';
 
 export default function Tienda({
   products,
@@ -21,7 +27,96 @@ export default function Tienda({
   galleryByProduct?: Record<string, ProductImage[]>;
   isWholesale?: boolean;
 }) {
-  const { add } = useCart();
+  const { add, addContainer } = useCart();
+
+  // Estado del modal: cuál producto contenedor se está personalizando.
+  const [modalProduct, setModalProduct] = useState<Product | null>(null);
+  const [modalChildren, setModalChildren] = useState<
+    import('@/lib/container').ContainerChild[]
+  >([]);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [pendingComposition, setPendingComposition] = useState<
+    CompositionLine[] | null
+  >(null);
+  const [pendingTotal, setPendingTotal] = useState<number>(0);
+
+  const openContainerModal = useCallback(
+    async (p: Product) => {
+      if (!p.is_container) {
+        add({
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          currency: p.currency,
+          image: p.image,
+          unitsPerPack: p.units_per_pack ?? 1,
+        });
+        return;
+      }
+      setModalLoading(true);
+      setModalProduct(p);
+      setModalChildren([]);
+      const ctx = await fetchContainerContext(p.id);
+      setModalLoading(false);
+      if (!ctx || !ctx.product) {
+        // Sin contexto, agregamos como producto normal para no bloquear al cliente.
+        add({
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          currency: p.currency,
+          image: p.image,
+          unitsPerPack: p.units_per_pack ?? 1,
+        });
+        setModalProduct(null);
+        return;
+      }
+      setModalChildren(ctx.containerChildren);
+    },
+    [add]
+  );
+
+  const closeContainerModal = useCallback(() => {
+    setModalProduct(null);
+    setModalChildren([]);
+    setPendingComposition(null);
+    setPendingTotal(0);
+  }, []);
+
+  const handleContainerConfirm = useCallback(
+    (composition: CompositionLine[], total: number) => {
+      if (!modalProduct) return;
+      const parentLineId = containerParentLineId(modalProduct.id, composition);
+      const childrenPayload: CartItemCompositionLine[] = composition.map((l) => {
+        const child = modalChildren.find(
+          (c) => c.product.id === l.child_product_id
+        );
+        return {
+          child_product_id: l.child_product_id,
+          child_name: child?.product.name ?? l.child_product_id,
+          qty: l.qty,
+          unit_price: child?.product.price ?? 0,
+          currency: child?.product.currency ?? modalProduct.currency,
+          child_image: child?.product.image ?? null,
+        };
+      });
+      const physicalUnits = composition.reduce((a, l) => a + l.qty, 0);
+      addContainer({
+        kind: 'container',
+        id: parentLineId,
+        parentLineId,
+        name: modalProduct.name,
+        price: total,
+        currency: modalProduct.currency,
+        image: modalProduct.image,
+        unitsPerPack: physicalUnits,
+        composition: childrenPayload,
+        containerPriceTotal: total,
+      });
+      closeContainerModal();
+    },
+    [modalProduct, modalChildren, addContainer, closeContainerModal]
+  );
   // Solo categorías activas que tienen al menos un producto activo. Si el
   // admin borró una categoría, los productos quedan con su slug en products
   // pero no aparece como filtro (mantiene el storefront limpio).
@@ -108,20 +203,25 @@ export default function Tienda({
               labelById={labelById}
               delay={i * 100}
               isWholesale={isWholesale}
-              onAdd={() =>
-                add({
-                  id: p.id,
-                  name: p.name,
-                  price: p.price,
-                  currency: p.currency,
-                  image: p.image,
-                  unitsPerPack: p.units_per_pack ?? 1,
-                })
-              }
+              isContainer={!!p.is_container}
+              onAdd={() => openContainerModal(p)}
             />
           ))}
         </div>
       </div>
+
+      {/* Modal global de Tienda (uno a la vez) */}
+      {modalProduct && (
+        <ContainerModal
+          open={!!modalProduct}
+          onClose={closeContainerModal}
+          mode="add"
+          product={modalProduct}
+          config={configFromProduct(modalProduct)}
+          children={modalChildren}
+          onConfirm={handleContainerConfirm}
+        />
+      )}
     </section>
   );
 }
@@ -133,6 +233,7 @@ function ProductCard({
   delay,
   onAdd,
   isWholesale,
+  isContainer,
 }: {
   product: Product;
   galleryImages: ProductImage[];
@@ -140,6 +241,7 @@ function ProductCard({
   delay: number;
   onAdd: () => void;
   isWholesale: boolean;
+  isContainer: boolean;
 }) {
   const gallery = resolveGallery(galleryImages, product.image);
   const coverUrl = gallery.primary?.url ?? product.image;
@@ -163,7 +265,21 @@ function ProductCard({
                 +{gallery.ordered.length - 1}
               </span>
             )}
-            {product.badge && (
+            {isContainer && (
+              <span className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full bg-gold/95 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-ink shadow-sm">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden
+                >
+                  <circle cx="12" cy="12" r="6" />
+                </svg>
+                Pack personalizable
+              </span>
+            )}
+            {!isContainer && product.badge && (
               <span className="absolute left-4 top-4 inline-flex items-center rounded-full border border-gold/70 bg-cream/90 px-3 py-1 font-body text-[10px] uppercase tracking-ultra text-ink">
                 {product.badge}
               </span>
@@ -181,7 +297,14 @@ function ProductCard({
             </h3>
           </div>
           <p className="font-display text-2xl text-ink/90 whitespace-nowrap">
-            {formatMoney(product.price, product.currency)}
+            {isContainer
+              ? `Desde ${formatMoney(
+                  product.container_base_price != null
+                    ? product.container_base_price
+                    : product.price,
+                  product.currency
+                )}`
+              : formatMoney(product.price, product.currency)}
           </p>
         </div>
 
@@ -190,7 +313,7 @@ function ProductCard({
             onClick={onAdd}
             className="flex-1 rounded-full bg-ink px-4 py-3 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon"
           >
-            Agregar
+            {isContainer ? 'Personalizar y agregar' : 'Agregar'}
           </button>
           <a
             href={`https://wa.me/59899366522?text=${encodeURIComponent(

@@ -192,6 +192,9 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
         qty: i.qty,
         price: i.price,
         line: i.qty * i.price,
+        composition: isContainerItem(i)
+          ? i.composition.filter((l) => l.qty > 0)
+          : [],
       })),
     [items]
   );
@@ -537,14 +540,30 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
           {summary.map((it) => (
             <li
               key={it.id}
-              className="flex items-baseline justify-between gap-4 py-3 font-body text-sm"
+              className="py-3 font-body text-sm"
             >
-              <span className="text-ink">
-                {it.qty} × {it.name}
-              </span>
-              <span className="whitespace-nowrap text-ink/85">
-                {formatUY(it.line)}
-              </span>
+              <div className="flex items-baseline justify-between gap-4">
+                <span className="text-ink">
+                  {it.qty} × {it.name}
+                </span>
+                <span className="whitespace-nowrap text-ink/85">
+                  {formatUY(it.line)}
+                </span>
+              </div>
+              {it.composition.length > 0 && (
+                <ul className="mt-1.5 space-y-0.5 rounded-sm border border-gold/25 bg-gold/5 px-3 py-2 font-body text-xs text-ink/75">
+                  {it.composition.map((l) => (
+                    <li
+                      key={l.child_product_id}
+                      className="flex justify-between gap-3"
+                    >
+                      <span>
+                        ↳ {l.qty} × {l.child_name}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>

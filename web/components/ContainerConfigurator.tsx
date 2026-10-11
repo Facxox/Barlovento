@@ -1,36 +1,46 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
-import { useCart } from './CartContext';
+import { useCallback, useMemo, useState } from 'react';
 import { Reveal } from './Reveal';
+import ContainerCompositionList from './ContainerCompositionList';
+import ContainerModal, {
+  containerParentLineId,
+} from './ContainerModal';
+import type {
+  Product,
+  ContainerCartItem,
+  CartItemCompositionLine,
+} from '@/lib/queries-client';
+import type {
+  ContainerChild,
+  ContainerConfig,
+  CompositionLine,
+} from '@/lib/container';
+import { useCart, isContainerItem } from './CartContext';
 import { formatMoney } from './formatMoney';
-import type { ContainerChild, ContainerConfig, Product } from '@/lib/types-public';
 import {
   effectiveCapacity,
   effectiveMinUnits,
   validateComposition,
-  computeContainerPrice,
 } from '@/lib/container';
-import type { CompositionLine } from '@/lib/container';
 
 /**
- * Configurador visual para productos contenedores.
+ * Configurador para productos contenedores (ficha del producto).
  *
- * Recibe:
- *   - product: el producto contenedor (con is_container = true)
- *   - config:  config validada del contenedor
- *   - children: productos disponibles para colocar (con min_qty/max_qty)
- *   - onAddToCart: el padre arma el CartItem con composición. Lo exponemos
- *     en vez de llamar useCart() directo para mantener este componente
- *     desacoplado y testeable.
+ * Antes era una sección al final de la ficha con protagonismo modesto.
+ * Ahora:
  *
- * Comportamiento:
- *   - Muestra la capacidad y el progreso ("4 / 6").
- *   - Tarjetas con imagen, nombre, precio.
- *   - Botones +/- respetando min/max por child y capacidad global.
- *   - Precio total reactivo con desglose.
- *   - CTA "Agregar al carrito" deshabilitado si la composición no es válida.
- *   - Resumen visible arriba (lista de productos seleccionados).
+ *   - Ocupa ancho completo (full bleed dentro del container).
+ *   - Header grande con eyebrow "Personalizá el contenido de tu
+ *     producto" + progreso destacado.
+ *   - Reusa `ContainerCompositionList`, que automáticamente detecta el
+ *     modo single-select (capacity=1, default del proyecto).
+ *
+ * El botón "Agregar al carrito" sigue funcionando como antes; además,
+ * una vez hay una composición válida se muestra un CTA secundario
+ * "Revisar selección en un modal" que abre el `ContainerModal`
+ * prellenado. Esto cubre "el cliente no debe perder su selección al
+ * pasar por el modal".
  */
 export default function ContainerConfigurator({
   product,
@@ -43,258 +53,151 @@ export default function ContainerConfigurator({
   children: ContainerChild[];
   onAddToCart: (composition: CompositionLine[], total: number) => void;
 }) {
+  const { add, updateComposition } = useCart();
+
+  // Estado controlado de la composición para esta ficha.
+  const [composition, setComposition] = useState<CompositionLine[]>([]);
+  const [total, setTotal] = useState<number>(product.price);
+  const [attempted, setAttempted] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
   const cap = effectiveCapacity(config);
+
+  const handleChange = useCallback(
+    (lines: CompositionLine[], nextPrice: number) => {
+      setComposition(lines);
+      setTotal(nextPrice);
+    },
+    []
+  );
+
+  const totalUnits = composition.reduce((a, l) => a + l.qty, 0);
   const minU = effectiveMinUnits(config);
   const maxU = config.container_max_units ?? cap;
+  const isValidComposition = validateComposition(config, children, composition).ok;
+  const canAdd =
+    isValidComposition && totalUnits >= minU && totalUnits <= maxU;
 
-  // Estado: child_id -> qty (0 por defecto). Inicializamos respetando el
-  // min_qty de cada hijo cuando es >0, así el admin que defina "mínimo 2"
-  // muestra el contador en 2 desde el arranque.
-  const [qty, setQty] = useState<Record<string, number>>(() => {
-    const init: Record<string, number> = {};
-    for (const c of children) {
-      init[c.product.id] = c.min_qty > 0 ? c.min_qty : 0;
-    }
-    return init;
-  });
-  const [attempted, setAttempted] = useState(false);
-
-  const lines: CompositionLine[] = useMemo(() => {
-    return Object.entries(qty)
-      .filter(([, n]) => n > 0)
-      .map(([child_product_id, n]) => ({ child_product_id, qty: n }));
-  }, [qty]);
-
-  const totalUnits = lines.reduce((a, l) => a + l.qty, 0);
-  const remaining = Math.max(0, cap - totalUnits);
-
-  const validation = useMemo(
-    () => validateComposition(config, children, lines),
-    [config, children, lines]
-  );
-  const price = useMemo(
-    () =>
-      computeContainerPrice(
-        config,
-        product.price,
-        children,
-        lines,
-        product.currency
-      ),
-    [config, product.price, product.currency, children, lines]
-  );
-
-  // Si la lista de children cambia (poco probable, pero defensivo),
-  // sincronizamos el estado inicial para que no queden keys muertas.
-  useEffect(() => {
-    setQty((prev) => {
-      const next: Record<string, number> = {};
-      for (const c of children) {
-        next[c.product.id] = prev[c.product.id] ?? (c.min_qty > 0 ? c.min_qty : 0);
-      }
-      return next;
-    });
-  }, [children]);
-
-  // Cantidad total que el cliente lleva al carrito. El contenedor mismo
-  // cuenta como 1 línea con multiplicador qty. Las unidades físicas
-  // (Σ qty por child) valen para cálculo de envío.
-  const totalPhysicalUnits = totalUnits;
-
-  const inc = (c: ContainerChild) => {
-    setQty((prev) => {
-      const cur = prev[c.product.id] ?? 0;
-      if (cur >= cap) return prev;
-      if (c.max_qty != null && cur >= c.max_qty) return prev;
-      // No permitir sumar más allá de la capacidad global
-      const others = Object.entries(prev).reduce(
-        (acc, [pid, n]) => acc + (pid === c.product.id ? 0 : n),
-        0
-      );
-      if (others + cur + 1 > cap) return prev;
-      return { ...prev, [c.product.id]: cur + 1 };
-    });
+  const handleAdd = () => {
+    setAttempted(true);
+    if (!canAdd) return;
+    onAddToCart(composition, total);
   };
 
-  const dec = (c: ContainerChild) => {
-    setQty((prev) => {
-      const cur = prev[c.product.id] ?? 0;
-      if (cur <= 0) return prev;
-      return { ...prev, [c.product.id]: cur - 1 };
-    });
-  };
-
-  const canAdd = validation.ok && totalUnits >= minU && totalUnits <= maxU;
+  // Construimos el parentLineId estable para pasárselo al modal.
+  const previewParentLineId = useMemo(
+    () => containerParentLineId(product.id, composition),
+    [product.id, composition]
+  );
 
   return (
     <Reveal delay={140}>
       <section
         aria-labelledby="container-config-heading"
-        className="border border-ink/15 bg-bone"
+        className="border-y-2 border-gold/30 bg-bone"
       >
-        <header className="border-b border-ink/15 px-5 py-4">
+        <header className="border-b border-ink/15 px-5 py-6 sm:px-10 sm:py-8">
           <p className="font-body text-[10px] uppercase tracking-ultra text-gold-deep">
-            Personalizá tu {product.name}
+            Personalizá el contenido de tu producto
           </p>
-          <h3
+          <h2
             id="container-config-heading"
-            className="mt-1 font-display text-xl text-ink"
+            className="mt-3 font-display text-3xl leading-tight text-ink sm:text-4xl font-light"
           >
-            Elegí qué llevar adentro
-          </h3>
-          <p className="mt-2 font-body text-xs text-ink/65">
-            Tu {product.name.toLowerCase()}:{' '}
-            <span
-              className={[
-                'font-display text-base',
-                totalUnits === cap ? 'text-emerald-700' : 'text-gold-deep',
-              ].join(' ')}
-            >
-              {totalUnits} de {cap}
-            </span>
-            {remaining > 0 && (
-              <span className="text-ink/55">
-                {' '}· te faltan {remaining} unidad{remaining === 1 ? '' : 'es'}
-              </span>
-            )}
-            {remaining === 0 && (
-              <span className="text-emerald-700"> · ¡completa!</span>
-            )}
+            Armá tu {product.name.toLowerCase()} a tu gusto
+          </h2>
+          <p className="mt-3 max-w-2xl font-body text-sm leading-relaxed text-ink/70">
+            Elegí qué llevar adentro. Vas a ver el desglose y el precio en
+            tiempo real antes de agregarlo al carrito. Si después querés
+            cambiarlo, podés editarlo desde el carrito las veces que quieras.
           </p>
-          {config.container_require_full && totalUnits < cap && (
-            <p className="mt-2 rounded-sm bg-amber-50 px-3 py-2 font-body text-[11px] text-amber-800 border border-amber-200">
-              Este contenedor requiere que completes las {cap} unidades antes
-              de agregarlo al carrito.
-            </p>
-          )}
         </header>
 
-        {/* Lista de hijos */}
-        <ul className="divide-y divide-ink/10">
-          {children.map((c) => {
-            const cur = qty[c.product.id] ?? 0;
-            const disabledAdd =
-              cur >= cap ||
-              (c.max_qty != null && cur >= c.max_qty) ||
-              totalUnits >= cap;
-            const disabledDec = cur <= 0;
-            return (
-              <li key={c.product.id} className="flex items-center gap-4 px-5 py-4">
-                <div className="h-16 w-16 shrink-0 overflow-hidden bg-ink/5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={c.product.image ?? '/Logo.jpg'}
-                    alt={c.product.name}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </div>
-                <div className="flex-1">
-                  <p className="font-display text-base text-ink leading-tight">
-                    {c.product.name}
-                  </p>
-                  <p className="mt-1 font-body text-xs text-ink/60">
-                    {formatMoney(c.product.price, c.product.currency)}{' '}
-                    {c.product.currency} c/u
-                    {c.min_qty > 0 && (
-                      <span className="ml-2 text-ink/50">
-                        · mín {c.min_qty}
-                      </span>
-                    )}
-                    {c.max_qty != null && (
-                      <span className="ml-2 text-ink/50">
-                        · máx {c.max_qty}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => dec(c)}
-                    disabled={disabledDec}
-                    aria-label={`Quitar uno de ${c.product.name}`}
-                    className="grid h-10 w-10 place-items-center rounded-full border border-ink/30 text-ink transition hover:border-ink disabled:opacity-30 disabled:hover:border-ink/30"
-                  >
-                    −
-                  </button>
-                  <span className="w-7 text-center font-display text-lg text-ink">
-                    {cur}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => inc(c)}
-                    disabled={disabledAdd}
-                    aria-label={`Sumar uno de ${c.product.name}`}
-                    className="grid h-10 w-10 place-items-center rounded-full border border-gold text-gold transition hover:bg-gold hover:text-cream disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gold"
-                  >
-                    +
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <ContainerCompositionList
+          product={product}
+          config={config}
+          children={children}
+          composition={composition}
+          onChange={handleChange}
+          showTotal
+          showConfirmButton={false}
+          showFooterHint={false}
+          attemptSubmit={attempted}
+        />
 
-        {children.length === 0 && (
-          <p className="px-5 py-6 font-body text-sm text-ink/60">
-            Este contenedor todavía no tiene productos habilitados. Avisános
-            por WhatsApp y lo armamos a tu gusto.
-          </p>
-        )}
-
-        {/* Resumen y CTA */}
-        <div className="border-t border-ink/15 px-5 py-5 space-y-4">
-          {lines.length > 0 && (
-            <ul className="space-y-1.5 font-body text-sm text-ink/80">
-              {price.breakdown.map((b, i) => (
-                <li key={i} className="flex justify-between">
-                  <span>{b.label}</span>
-                  <span className="text-ink/70">{formatMoney(b.amount, price.currency)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="flex items-baseline justify-between border-t border-ink/10 pt-3">
-            <span className="font-body text-[10px] uppercase tracking-ultra text-ink/55">
-              Total
-            </span>
-            <span className="font-display text-2xl text-ink">
-              {formatMoney(price.total, price.currency)}
-            </span>
+        {/* Footer con CTA principal + CTA secundario al modal */}
+        <div className="border-t border-ink/15 px-5 py-6 sm:px-10 sm:py-7 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-body text-[10px] uppercase tracking-ultra text-ink/55">
+                {composition.length > 0 ? 'Tu configuración' : 'Sin selección aún'}
+              </p>
+              <p className="mt-1 font-display text-2xl text-ink">
+                {formatMoney(
+                  composition.length > 0 ? total : product.price,
+                  product.currency
+                )}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {composition.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowModal(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-ink/40 px-6 py-3 font-body text-xs uppercase tracking-ultra text-ink transition hover:border-ink hover:bg-ink hover:text-cream focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/40"
+                >
+                  Revisar selección
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleAdd}
+                disabled={!canAdd}
+                className="inline-flex items-center justify-center gap-3 rounded-full bg-ink px-7 py-3.5 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon disabled:cursor-not-allowed disabled:bg-ink/30 disabled:text-ink/50 disabled:hover:bg-ink/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/40"
+              >
+                Agregar al carrito
+                <span aria-hidden>→</span>
+              </button>
+            </div>
           </div>
 
-          {attempted && !canAdd && validation.errors.length > 0 && (
-            <ul className="space-y-1 rounded-sm border border-red-200 bg-red-50 px-3 py-2 font-body text-xs text-red-700">
-              {validation.errors.map((e, i) => (
-                <li key={i}>• {e}</li>
-              ))}
-            </ul>
-          )}
-
-          <button
-            type="button"
-            disabled={!canAdd || children.length === 0 || totalUnits < minU}
-            onClick={() => {
-              setAttempted(true);
-              if (!canAdd) return;
-              onAddToCart(lines, price.total);
-            }}
-            className="block w-full rounded-full bg-ink px-6 py-3.5 font-body text-xs uppercase tracking-ultra text-cream transition hover:bg-gold hover:text-carbon disabled:cursor-not-allowed disabled:bg-ink/30 disabled:text-ink/50 disabled:hover:bg-ink/30"
-          >
-            Agregar al carrito
-          </button>
-
-          {/* help block: aclarar unidades físicas (que afectan envío) */}
-          {totalPhysicalUnits > 0 && (
+          {composition.length > 0 && (
             <p className="text-center font-body text-[11px] text-ink/55">
-              Esta configuración pesa {totalPhysicalUnits} alfajor
-              {totalPhysicalUnits === 1 ? '' : 'es'} para el cálculo de envío.
+              Esta configuración pesa {composition.reduce((a, l) => a + l.qty, 0)}{' '}
+              alfajor
+              {composition.reduce((a, l) => a + l.qty, 0) === 1 ? '' : 'es'} para
+              el cálculo de envío.
             </p>
           )}
         </div>
       </section>
+
+      {/* Modal secundario para revisar / ajustar la selección. */}
+      <ContainerModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        mode="edit"
+        product={product}
+        config={config}
+        children={children}
+        initialComposition={composition.map((l) => {
+          const child = children.find((c) => c.product.id === l.child_product_id);
+          return {
+            child_product_id: l.child_product_id,
+            child_name: child?.product.name ?? l.child_product_id,
+            qty: l.qty,
+            unit_price: child?.product.price ?? 0,
+            currency: child?.product.currency ?? product.currency,
+            child_image: child?.product.image ?? null,
+          } as CartItemCompositionLine;
+        })}
+        parentLineId={previewParentLineId}
+        onConfirm={(lines, newTotal) => {
+          setComposition(lines);
+          setTotal(newTotal);
+          setShowModal(false);
+        }}
+      />
     </Reveal>
   );
 }
