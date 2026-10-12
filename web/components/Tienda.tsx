@@ -161,7 +161,7 @@ export default function Tienda({
               <p className="mt-4 text-ink/70 font-body leading-relaxed">
                 {isWholesale
                   ? 'Mostramos los precios y productos disponibles para tu cuenta mayorista. Coordinamos el pedido y la entrega directamente por WhatsApp.'
-                  : 'Hacemos envíos a todo el país por encomienda, a cargo del cliente. Coordinamos el despacho apenas confirmamos el pago: el envío se abona cuando te llega.'}
+                  : 'Hacemos envíos a todo el país por encomienda, a cargo del cliente. Coordinamos el despacho apenas confirmamos el pago.'}
               </p>
             </div>
 
