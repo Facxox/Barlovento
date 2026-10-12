@@ -73,10 +73,18 @@ export type ContainerPricing = {
 
 /** Capacidad efectiva del contenedor respetando max (que siempre debe
  *  ser <= capacity). Si max_units está seteado en el contenedor, ése
- *  manda; si no, capacity. Si AMBOS faltan, devolvemos `null` para
- *  que la UI pueda mostrar "configurador no disponible" en vez de
- *  limitar silenciosamente a 1. */
-export function effectiveCapacity(c: ContainerConfig): number {
+ *  manda; si no, capacity.
+ *
+ *  Devuelve `null` cuando ni capacity ni max_units están configurados.
+ *  Esto permite que la UI distinga entre "1 unidad válida" (un pack de
+ *  una unidad) y "contenedor mal configurado" (la admin UI olvidó
+ *  cargar la capacidad). Devolver 1 silenciosamente producía el bug
+ *  en el modal "Armá tu caja" donde un pack de 6 unidades mostraba
+ *  "Elegí hasta 1".
+ *
+ *  Usar `hasContainerCapacity()` para chequear si hay capacidad válida
+ *  antes de mostrar el configurador. */
+export function effectiveCapacity(c: ContainerConfig): number | null {
   const capacity = c.container_capacity && c.container_capacity > 0
     ? c.container_capacity
     : null;
@@ -86,7 +94,13 @@ export function effectiveCapacity(c: ContainerConfig): number {
   if (capacity && max) return Math.min(capacity, max);
   if (capacity) return capacity;
   if (max) return max;
-  return 1;
+  return null;
+}
+
+/** True si el contenedor tiene una capacidad efectiva (>0). Útil para
+ *  gating en UI: mostrar el modal sólo cuando hay capacidad válida. */
+export function hasContainerCapacity(c: ContainerConfig): boolean {
+  return effectiveCapacity(c) != null;
 }
 
 /** Mínimo de unidades que el cliente DEBE seleccionar (configurable,
@@ -117,18 +131,30 @@ export function validateComposition(
   const errors: string[] = [];
   const cap = effectiveCapacity(config);
   const minU = effectiveMinUnits(config);
-  const maxU = config.container_max_units ?? cap;
+  // Si no hay capacidad configurada, treat como max indefinido (Infinity
+  // para que no bloquee la validación de min/max). El caller debe haber
+  // filtrado esta config con `hasContainerCapacity(config)` antes de
+  // permitir que el usuario confirme.
+  const maxU = config.container_max_units ?? cap ?? Infinity;
 
   const totalUnits = composition.reduce((acc, l) => acc + l.qty, 0);
 
   if (totalUnits < minU) {
     errors.push(`Seleccioná al menos ${minU} unidad${minU === 1 ? '' : 'es'}.`);
   }
-  if (totalUnits > maxU) {
+  if (Number.isFinite(maxU) && totalUnits > maxU) {
     errors.push(`El contenedor admite hasta ${maxU} unidades.`);
   }
-  if (config.container_require_full && totalUnits < cap) {
+  if (config.container_require_full && cap != null && totalUnits < cap) {
     errors.push(`Para completar el contenedor elegí ${cap} unidades.`);
+  }
+  // Si el contenedor no tiene capacidad, agregamos un error bloqueante:
+  // esta config no debería llegar a la UI sin el chequeo previo, pero si
+  // llega, al menos el botón confirmar queda deshabilitado.
+  if (cap == null) {
+    errors.push(
+      'Este contenedor no tiene una capacidad definida. Pedinoslo por WhatsApp.'
+    );
   }
 
   // Validar cada hijo

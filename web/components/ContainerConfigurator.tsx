@@ -73,10 +73,14 @@ export default function ContainerConfigurator({
 
   const totalUnits = composition.reduce((a, l) => a + l.qty, 0);
   const minU = effectiveMinUnits(config);
-  const maxU = config.container_max_units ?? cap;
+  // Si cap es null, hacemos que maxU = minU para que las comparaciones
+  // no exploten; canAdd quedará false y el usuario verá la alerta de
+  // "configuración incompleta" del ContainerCompositionList hijo.
+  const maxU = config.container_max_units ?? cap ?? minU;
+  const hasCapacity = cap != null && cap > 0;
   const isValidComposition = validateComposition(config, children, composition).ok;
   const canAdd =
-    isValidComposition && totalUnits >= minU && totalUnits <= maxU;
+    hasCapacity && isValidComposition && totalUnits >= minU && totalUnits <= maxU;
 
   const handleAdd = () => {
     setAttempted(true);

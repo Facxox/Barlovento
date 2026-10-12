@@ -85,9 +85,9 @@ export default function ContainerCompositionList({
    */
   hideUnitPrice?: boolean;
 }) {
-  const cap = effectiveCapacity(config);
+  const capRaw = effectiveCapacity(config);
   const minU = effectiveMinUnits(config);
-  const maxU = config.container_max_units ?? cap;
+  const maxURaw = config.container_max_units ?? capRaw;
   const requireFull = !!config.container_require_full;
 
   const [qty, setQty] = useState<Record<string, number>>(() => {
@@ -172,6 +172,33 @@ export default function ContainerCompositionList({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(lines), price.total]);
+
+  // ----- Guardas de render temprano (después de los hooks) -----
+  // Sin capacidad configurada por el admin: mostramos un panel claro en
+  // lugar del configurador. Antes caía silenciosamente a "Elegí hasta 1".
+  if (capRaw == null || capRaw <= 0) {
+    return (
+      <div className="border border-amber-200 bg-amber-50 p-6">
+        <p className="font-body text-[10px] uppercase tracking-ultra text-amber-700">
+          Configuración incompleta
+        </p>
+        <h3 className="mt-2 font-display text-xl leading-tight text-amber-900">
+          Este contenedor todavía no tiene una capacidad definida
+        </h3>
+        <p className="mt-3 font-body text-sm leading-relaxed text-amber-800">
+          Falta cargar cuántas unidades entran en la caja. Si sos el
+          administrador, editá este producto y completá el paso
+          <strong> "Decí cuántos alfajores entran"</strong> en la sección
+          Productos contenedores. Si sos cliente, escribinos por WhatsApp
+          y te armamos el pack a tu medida.
+        </p>
+      </div>
+    );
+  }
+
+  // Narrowing: a partir de acá, ambos son números.
+  const cap = capRaw as number;
+  const maxU = maxURaw as number;
 
   // ----- Multi-qty handlers -----
   const inc = (c: ContainerChild) => {

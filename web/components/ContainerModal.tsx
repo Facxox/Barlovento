@@ -135,12 +135,18 @@ export default function ContainerModal({
 
   const cap = effectiveCapacity(config);
   const minU = effectiveMinUnits(config);
-  const maxU = config.container_max_units ?? cap;
+  // Si la config no tiene capacidad ni max, usamos minU como tope "dummy"
+  // sólo para que la UI compile; el panel real (ContainerCompositionList)
+  // ya muestra el warning de "Configuración incompleta".
+  const effectiveCap = cap ?? minU;
+  const maxU = config.container_max_units ?? effectiveCap;
   const requireFull = !!config.container_require_full;
   const total = totalUnits(lines);
   const validation = validateComposition(config, children, lines);
+  // Si no hay capacidad válida, el modal nunca puede confirmar (el
+  // configurador hijo ya muestra el warning). Forzamos isValid=false.
   const isValid =
-    validation.ok && total >= minU && total <= maxU;
+    cap != null && validation.ok && total >= minU && total <= maxU;
   const computed = computeContainerPrice(
     config,
     product.price,
@@ -162,6 +168,8 @@ export default function ContainerModal({
   const subheading =
     mode === 'edit'
       ? 'Modificá lo que elegiste o confirmá para mantener tu configuración.'
+      : cap == null
+      ? 'La caja todavía no fue configurada correctamente. Escribinos por WhatsApp para armarla a tu medida.'
       : requireFull
       ? `Elegí ${cap} unidades entre las variedades disponibles.`
       : `Elegí entre ${minU} y ${cap} unidades. Combiná libremente las variedades.`;
@@ -171,6 +179,8 @@ export default function ContainerModal({
   const ctaLabel =
     mode === 'edit'
       ? 'Guardar cambios'
+      : cap == null
+      ? 'Configuración incompleta'
       : requireFull
       ? total === cap
         ? `Confirmar selección · ${formatMoney(displayPrice, product.currency)}`
@@ -408,10 +418,10 @@ export default function ContainerModal({
                   <span
                     className={[
                       'font-display text-lg',
-                      total >= cap ? 'text-emerald-700' : 'text-gold-deep',
+                      total >= effectiveCap ? 'text-emerald-700' : 'text-gold-deep',
                     ].join(' ')}
                   >
-                    {Math.min(total, cap)} / {cap}
+                    {Math.min(total, effectiveCap)} / {effectiveCap}
                   </span>
                 </div>
 
