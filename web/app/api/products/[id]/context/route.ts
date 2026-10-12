@@ -144,6 +144,26 @@ export async function GET(
       fallbackUrl: gallery.fallbackUrl,
     },
     images: images,
+    // Subset del producto con los campos container_* que el
+    // configurador del storefront necesita para calcular capacidad /
+    // mínimos / máximos / precio base sin tener que hacer un fetch
+    // adicional. Sin este bloque, effectiveCapacity() cae al fallback
+    // de "1 unidad" cuando lo correcto es la capacidad real.
+    product: product
+      ? {
+          id: product.id,
+          name: product.name,
+          image: product.image,
+          is_container: product.is_container,
+          can_be_in_container: product.can_be_in_container,
+          container_base_price: product.container_base_price,
+          price_mode: product.price_mode,
+          container_capacity: product.container_capacity,
+          container_min_units: product.container_min_units,
+          container_max_units: product.container_max_units,
+          container_require_full: product.container_require_full,
+        }
+      : null,
     isContainer: !!product?.is_container,
     containerChildren,
   });
