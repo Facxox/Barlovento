@@ -58,6 +58,16 @@ export default function Tienda({
     setModalLoading(true);
     setModalProduct(p);
     setModalChildren([]);
+    setPendingComposition(null);
+    setPendingTotal(0);
+    // Invalidamos el cache del contexto para forzar lectura fresca desde
+    // la DB. Sin esto, si el admin acaba de corregir container_capacity
+    // o container_max_units, el modal mostraría el valor viejo cacheado
+    // durante 30s y daría sensación de "el bug volvió".
+    const { invalidateContainerContextCache } = await import(
+      '@/lib/container-client'
+    );
+    invalidateContainerContextCache(p.id);
     const ctx = await fetchContainerContext(p.id);
     setModalLoading(false);
     if (ctx && ctx.product) {

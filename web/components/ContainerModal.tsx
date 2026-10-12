@@ -94,17 +94,20 @@ export default function ContainerModal({
   const [price, setPrice] = useState<number>(0);
   const [attempted, setAttempted] = useState(false);
 
-  // Reset state interno cada vez que (re)abrimos.
+  // Reset state interno cada vez que (re)abrimos. Incluimos product.id
+  // para forzar el reset también cuando se cambia de producto con el
+  // modal ya montado (modo `add` rápido sobre otro contenedor).
   useEffect(() => {
     if (!open) return;
     setAttempted(false);
+    setPrice(0);
     setLines(
       (initialComposition ?? []).map((l) => ({
         child_product_id: l.child_product_id,
         qty: l.qty,
       }))
     );
-  }, [open, initialComposition]);
+  }, [open, product.id, initialComposition]);
 
   // Focus en cerrar + ESC + scroll lock.
   useEffect(() => {
