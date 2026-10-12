@@ -203,17 +203,59 @@ export async function setContainerConfig(
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = getServiceSupabase();
   if (!supabase) return { ok: false, error: 'db_unavailable' };
+
+  // Leemos primero el estado actual y solo escribimos lo que DIFERENCIÓ
+  // el admin. Sin esto, si el admin marca/desmarca un único toggle (ej.
+  // `is_container`), el autosave del ContainerConfigManager pasaría
+  // container_capacity=null (estado local del form) y pisaría un valor
+  // legítimo guardado. Hacer patch preserva los campos no tocados.
+  const { data: existing, error: readErr } = await supabase
+    .from('products')
+    .select(
+      'is_container, container_base_price, price_mode, container_capacity, container_min_units, container_max_units, container_require_full'
+    )
+    .eq('id', productId)
+    .maybeSingle();
+  if (readErr) return { ok: false, error: readErr.message };
+
+  const patch: Record<string, unknown> = {};
+  if (existing?.is_container !== config.is_container)
+    patch.is_container = config.is_container;
+  if ((existing?.container_base_price ?? null) !== (config.container_base_price ?? null))
+    patch.container_base_price = config.container_base_price;
+  if ((existing?.price_mode ?? null) !== (config.price_mode ?? null))
+    patch.price_mode = config.price_mode;
+  // Para capacity/min/max: si el admin pasó un número explícito, lo
+  // guardamos. Si pasó null, sólo guardamos null si la DB ya era null —
+  // así un null "no editado" no pisa un valor legítimo.
+  if (config.container_capacity != null) {
+    if ((existing?.container_capacity ?? null) !== config.container_capacity)
+      patch.container_capacity = config.container_capacity;
+  } else if (existing?.container_capacity == null) {
+    // Ya era null — no escribimos nada.
+  } else {
+    // Admin explícitamente vació el campo → pisamos a null. Es intencional.
+    patch.container_capacity = null;
+  }
+  if ((existing?.container_min_units ?? 1) !== (config.container_min_units ?? 1))
+    patch.container_min_units = config.container_min_units;
+  if (config.container_max_units != null) {
+    if ((existing?.container_max_units ?? null) !== config.container_max_units)
+      patch.container_max_units = config.container_max_units;
+  } else if (existing?.container_max_units == null) {
+    // ya era null
+  } else {
+    patch.container_max_units = null;
+  }
+  if ((existing?.container_require_full ?? false) !== (!!config.container_require_full))
+    patch.container_require_full = !!config.container_require_full;
+
+  // Si no hay nada que cambiar, omitimos el UPDATE (evita updates vacíos).
+  if (Object.keys(patch).length === 0) return { ok: true };
+
   const { error } = await supabase
     .from('products')
-    .update({
-      is_container: config.is_container,
-      container_base_price: config.container_base_price,
-      price_mode: config.price_mode,
-      container_capacity: config.container_capacity,
-      container_min_units: config.container_min_units,
-      container_max_units: config.container_max_units,
-      container_require_full: config.container_require_full,
-    })
+    .update(patch)
     .eq('id', productId);
   if (error) return { ok: false, error: error.message };
   revalidatePath('/admin/productos');

@@ -177,16 +177,25 @@ export async function upsertProduct(formData: FormData): Promise<Product> {
   };
   // Container config: sólo lo incluimos en el payload si vino
   // explícitamente (undefined = "no tocar"). Si vino, lo aplicamos.
+  // La UI los maneja con autosave en ContainerConfigManager (server
+  // action dedicado); acá sólo propagamos lo que el form principal
+  // incluyó para no pisar un valor legítimo (ej. container_capacity=6)
+  // con null porque el form de cabecera no traía el campo.
   if (input.is_container !== undefined) payload.is_container = input.is_container;
   if (input.container_base_price !== undefined)
     payload.container_base_price = input.container_base_price;
   if (input.price_mode !== undefined) payload.price_mode = input.price_mode;
-  if (input.container_capacity !== undefined) payload.container_capacity = input.container_capacity;
-  if (input.container_min_units !== undefined)
-    payload.container_min_units = input.container_min_units;
-  if (input.container_max_units !== undefined)
+  // Container capacity/min/max son number|null — sólo persistimos si el
+  // form los mandó explícitamente. Si la key no estaba en el FormData
+  // dejamos la fila intacta. Si la key estaba pero vacía, eso es un
+  // "limpiar" legítimo y se aplica como null.
+  if (formData.has('container_capacity'))
+    payload.container_capacity = input.container_capacity;
+  if (formData.has('container_min_units'))
+    payload.container_min_units = input.container_min_units ?? 1;
+  if (formData.has('container_max_units'))
     payload.container_max_units = input.container_max_units;
-  if (input.container_require_full !== undefined)
+  if (formData.has('container_require_full'))
     payload.container_require_full = input.container_require_full;
   if (input.can_be_in_container !== undefined)
     payload.can_be_in_container = input.can_be_in_container;
