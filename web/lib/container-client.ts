@@ -1,10 +1,20 @@
 // Cliente-side fetcher del contexto de un producto contenedor.
 // Reuso de /api/products/[id]/context — devuelve gallery, isContainer y
-// la lista de children con min/max/sort_order.
+// la lista de children con min/max/sort_order, MÁS los campos de
+// container config (capacity, min_units, max_units, require_full,
+// base_price, price_mode) para que configFromProduct() no caiga al
+// fallback 1 cuando faltan.
 //
-// Se cachea por id (Map en memoria del módulo) durante la vida del
-// tab — múltiples componentes que pidan el mismo id sólo disparan un
-// request. La API ya devuelve lectura pública vía RLS, sin auth.
+// Cache:
+//   - Map en memoria del módulo, con TTL de 30s. Permite que cambios
+//     del admin (container_capacity, etc.) se vean pronto sin tener
+//     que hacer hard refresh.
+//   - Single-flight por id: múltiples componentes que pidan el mismo
+//     producto disparan un único fetch.
+//   - invalidateContainerContextCache(id) para forzar refresh desde el
+//     panel admin después de editar un producto.
+//
+// La API devuelve lectura pública vía RLS, sin auth.
 
 import type { ContainerChild, ContainerConfig } from './container';
 import type { Product } from './queries-client';
@@ -34,13 +44,51 @@ export type ContainerContextProduct = Pick<
 >;
 
 const inflight = new Map<string, Promise<ContainerContextResponse | null>>();
-const cache = new Map<string, ContainerContextResponse | null>();
+
+type CacheEntry = {
+  value: ContainerContextResponse | null;
+  /** Epoch ms cuando se cacheó, para invalidar por TTL. */
+  ts: number;
+};
+const cache = new Map<string, CacheEntry>();
+
+/** TTL del cache: si pasó más de este tiempo, lo revalidamos. Es
+ *  importante para que un cambio en admin (container_capacity, etc.)
+ *  se vea al recargar la página aunque el módulo JS quede en memoria. */
+const CACHE_TTL_MS = 30_000;
+
+function readCache(productId: string): ContainerContextResponse | null | undefined {
+  const entry = cache.get(productId);
+  if (!entry) return undefined;
+  if (Date.now() - entry.ts > CACHE_TTL_MS) {
+    cache.delete(productId);
+    return undefined;
+  }
+  return entry.value;
+}
+
+function writeCache(productId: string, value: ContainerContextResponse | null) {
+  cache.set(productId, { value, ts: Date.now() });
+}
+
+/** Invalida manualmente el cache. Útil después de que el admin
+ *  modifique la config desde el panel. */
+export function invalidateContainerContextCache(productId?: string) {
+  if (productId) {
+    cache.delete(productId);
+    inflight.delete(productId);
+  } else {
+    cache.clear();
+    inflight.clear();
+  }
+}
 
 export async function fetchContainerContext(
   productId: string
 ): Promise<ContainerContextResponse | null> {
   if (!productId) return null;
-  if (cache.has(productId)) return cache.get(productId)!;
+  const cached = readCache(productId);
+  if (cached !== undefined) return cached;
   if (inflight.has(productId)) return inflight.get(productId)!;
 
   const p = (async () => {
@@ -57,27 +105,27 @@ export async function fetchContainerContext(
       // El endpoint devuelve los campos container_*. Los mergeamos en un
       // Product "completo" (los demás campos default-eamos) para que
       // configFromProduct() pueda leerlos sin otro fetch.
-      const p = data.product;
+      const partial = data.product;
       const merged: Product = {
-        id: p?.id ?? productId,
-        name: p?.name ?? '',
+        id: partial?.id ?? productId,
+        name: partial?.name ?? '',
         description: '',
         price: 0,
         currency: 'UYU',
         category: '',
-        image: p?.image ?? '',
+        image: partial?.image ?? '',
         badge: null,
         is_active: true,
         sort_order: 0,
         units_per_pack: 1,
         nutrition: null,
         is_container: !!data.isContainer,
-        container_base_price: p?.container_base_price ?? null,
-        price_mode: (p?.price_mode ?? 'base_plus_content') as Product['price_mode'],
-        container_capacity: p?.container_capacity ?? null,
-        container_min_units: p?.container_min_units ?? 1,
-        container_max_units: p?.container_max_units ?? null,
-        container_require_full: !!p?.container_require_full,
+        container_base_price: partial?.container_base_price ?? null,
+        price_mode: (partial?.price_mode ?? 'base_plus_content') as Product['price_mode'],
+        container_capacity: partial?.container_capacity ?? null,
+        container_min_units: partial?.container_min_units ?? 1,
+        container_max_units: partial?.container_max_units ?? null,
+        container_require_full: !!partial?.container_require_full,
         can_be_in_container: false,
       };
       const out: ContainerContextResponse = {
@@ -86,10 +134,10 @@ export async function fetchContainerContext(
         product: merged,
         containerChildren: data.containerChildren ?? [],
       };
-      cache.set(productId, out);
+      writeCache(productId, out);
       return out;
     } catch {
-      cache.set(productId, null);
+      writeCache(productId, null);
       return null;
     } finally {
       inflight.delete(productId);

@@ -73,17 +73,19 @@ export type ContainerPricing = {
 
 /** Capacidad efectiva del contenedor respetando max (que siempre debe
  *  ser <= capacity). Si max_units está seteado en el contenedor, ése
- *  manda; si no, capacity; fallback 1. */
+ *  manda; si no, capacity. Si AMBOS faltan, devolvemos `null` para
+ *  que la UI pueda mostrar "configurador no disponible" en vez de
+ *  limitar silenciosamente a 1. */
 export function effectiveCapacity(c: ContainerConfig): number {
-  if (c.container_capacity && c.container_capacity > 0) {
-    if (c.container_max_units && c.container_max_units > 0) {
-      return Math.min(c.container_capacity, c.container_max_units);
-    }
-    return c.container_capacity;
-  }
-  if (c.container_max_units && c.container_max_units > 0) {
-    return c.container_max_units;
-  }
+  const capacity = c.container_capacity && c.container_capacity > 0
+    ? c.container_capacity
+    : null;
+  const max = c.container_max_units && c.container_max_units > 0
+    ? c.container_max_units
+    : null;
+  if (capacity && max) return Math.min(capacity, max);
+  if (capacity) return capacity;
+  if (max) return max;
   return 1;
 }
 
