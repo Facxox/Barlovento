@@ -290,12 +290,19 @@ function ProductCard({
           </div>
           <p className="font-display text-2xl text-ink/90 whitespace-nowrap">
             {isContainer
-              ? `Desde ${formatMoney(
-                  product.container_base_price != null
-                    ? product.container_base_price
-                    : product.price,
-                  product.currency
-                )}`
+              ? product.price_mode === 'replace'
+                ? formatMoney(
+                    product.container_base_price != null
+                      ? product.container_base_price
+                      : product.price,
+                    product.currency
+                  )
+                : `Desde ${formatMoney(
+                    product.container_base_price != null
+                      ? product.container_base_price
+                      : product.price,
+                    product.currency
+                  )}`
               : formatMoney(product.price, product.currency)}
           </p>
         </div>

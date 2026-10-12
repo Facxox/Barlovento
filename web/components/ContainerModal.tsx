@@ -165,6 +165,9 @@ export default function ContainerModal({
       : requireFull
       ? `Elegí ${cap} unidades entre las variedades disponibles.`
       : `Elegí entre ${minU} y ${cap} unidades. Combiná libremente las variedades.`;
+  // ¿El contenedor tiene precio fijo independiente del contenido?
+  // price_mode = 'replace' hace que el total sea siempre container_base_price.
+  const isFixedPrice = config.price_mode === 'replace';
   const ctaLabel =
     mode === 'edit'
       ? 'Guardar cambios'
@@ -286,6 +289,7 @@ export default function ContainerModal({
                   showConfirmButton={false}
                   showFooterHint={false}
                   attemptSubmit={attempted}
+                  hideUnitPrice={isFixedPrice}
                 />
                 {attempted && !isValid && children.length > 0 && (
                   <ul className="mt-4 space-y-1 rounded-md border border-red-200 bg-red-50/80 px-3 py-2 font-body text-xs text-red-700">
@@ -311,6 +315,29 @@ export default function ContainerModal({
                     Todavía no elegiste nada. Sumá unidades desde el catálogo
                     para empezar.
                   </p>
+                ) : isFixedPrice ? (
+                  // Modo 'replace': el precio es fijo. Mostramos las
+                  // cantidades elegidas sin desglose de precio por unidad.
+                  <ul className="mt-3 space-y-2 font-body text-sm text-ink/85">
+                    {lines.map((l) => {
+                      const child = children.find(
+                        (c) => c.product.id === l.child_product_id
+                      );
+                      return (
+                        <li
+                          key={l.child_product_id}
+                          className="flex items-baseline justify-between gap-3 border-b border-ink/10 pb-2 last:border-b-0 last:pb-0"
+                        >
+                          <span className="min-w-0">
+                            <span className="font-display text-base text-gold-deep">
+                              {l.qty} ×
+                            </span>{' '}
+                            {child?.product.name ?? l.child_product_id}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 ) : (
                   <ul className="mt-3 space-y-2 font-body text-sm text-ink/85">
                     {lines.map((l) => {
@@ -340,6 +367,32 @@ export default function ContainerModal({
                       );
                     })}
                   </ul>
+                )}
+
+                {/* Banner de precio fijo */}
+                {isFixedPrice && (
+                  <div className="mt-4 flex items-start gap-2 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 font-body text-[11px] leading-relaxed text-ink/75">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="mt-0.5 shrink-0 text-gold-deep"
+                      aria-hidden
+                    >
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M9 12h6M12 9v6" />
+                    </svg>
+                    <span>
+                      <strong className="font-medium">Precio fijo.</strong>{' '}
+                      El valor de la caja no varía según los alfajores que
+                      elijas adentro.
+                    </span>
+                  </div>
                 )}
 
                 {/* Capacidad */}

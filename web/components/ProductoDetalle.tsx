@@ -154,18 +154,36 @@ export default function ProductoDetalle({
               )}
               {isContainer && (
                 <p className="mt-4 font-display text-2xl text-ink/85">
-                  Desde{' '}
-                  <span className="text-ink">
-                    {formatMoney(
-                      config.container_base_price != null
-                        ? config.container_base_price
-                        : product.price,
-                      product.currency
-                    )}
-                  </span>
-                  <span className="ml-2 font-body text-xs uppercase tracking-ultra text-ink/55">
-                    + contenido a elección
-                  </span>
+                  {config.price_mode === 'replace' ? (
+                    <>
+                      <span className="text-ink">
+                        {formatMoney(
+                          config.container_base_price != null
+                            ? config.container_base_price
+                            : product.price,
+                          product.currency
+                        )}
+                      </span>
+                      <span className="ml-2 font-body text-xs uppercase tracking-ultra text-ink/55">
+                        · precio fijo
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      Desde{' '}
+                      <span className="text-ink">
+                        {formatMoney(
+                          config.container_base_price != null
+                            ? config.container_base_price
+                            : product.price,
+                          product.currency
+                        )}
+                      </span>
+                      <span className="ml-2 font-body text-xs uppercase tracking-ultra text-ink/55">
+                        + contenido a elección
+                      </span>
+                    </>
+                  )}
                 </p>
               )}
 

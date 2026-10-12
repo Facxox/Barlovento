@@ -59,6 +59,7 @@ export default function ContainerCompositionList({
   confirmLabel = 'Confirmar y agregar',
   showFooterHint = true,
   attemptSubmit,
+  hideUnitPrice = false,
 }: {
   product: Product;
   config: ContainerConfig;
@@ -77,6 +78,12 @@ export default function ContainerCompositionList({
   showFooterHint?: boolean;
   /** Si true, se intentó submit y se muestra la lista de errores. */
   attemptSubmit?: boolean;
+  /**
+   * Si true, oculta el precio por unidad en cada hijo (porque el
+   * contenedor tiene precio fijo `price_mode='replace'` y mostrar
+   * "c/u" sería confuso para el cliente).
+   */
+  hideUnitPrice?: boolean;
 }) {
   const cap = effectiveCapacity(config);
   const minU = effectiveMinUnits(config);
@@ -304,8 +311,12 @@ export default function ContainerCompositionList({
                   {c.product.name}
                 </p>
                 <p className="mt-1 font-body text-xs text-ink/60">
-                  {formatMoney(c.product.price, c.product.currency)}{' '}
-                  <span className="text-ink/50">c/u</span>
+                  {!hideUnitPrice && (
+                    <>
+                      {formatMoney(c.product.price, c.product.currency)}{' '}
+                      <span className="text-ink/50">c/u</span>
+                    </>
+                  )}
                   {c.max_qty != null && (
                     <span className="ml-2 text-ink/50">
                       · máx {c.max_qty}
