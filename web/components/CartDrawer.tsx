@@ -313,7 +313,7 @@ export default function CartDrawer({ whatsapp }: { whatsapp: string }) {
               </div>
               <div className="flex items-baseline justify-between font-body text-sm">
                 <span className="text-bone/70">
-                  Envío ({alfajores} alfajor{alfajores === 1 ? '' : 'es'})
+                  Envío ({alfajores} producto{alfajores === 1 ? '' : 's'})
                 </span>
                 <span className="text-bone/70">
                   {shippingPreview > 0

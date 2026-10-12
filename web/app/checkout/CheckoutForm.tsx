@@ -589,7 +589,7 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
           <span className="text-ink/80">
             {fulfillment === 'pickup'
               ? 'Retiro coordinado por WhatsApp'
-              : `Envío (${alfajores} alfajor${alfajores === 1 ? '' : 'es'})`}
+              : `Envío (${alfajores} producto${alfajores === 1 ? '' : 's'})`}
           </span>
           <span className="text-ink/80">
             {fulfillment === 'pickup'
@@ -934,10 +934,10 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
             </p>
             <ul className="mt-2 space-y-1 font-body text-base text-ink">
               <li>
-                <strong>Hasta 20 alfajores:</strong> $195
+                <strong>Hasta 20 productos:</strong> $195
               </li>
               <li>
-                <strong>Más de 20 alfajores:</strong> $220
+                <strong>Más de 20 productos:</strong> $220
               </li>
             </ul>
             <p className="mt-2 font-body text-sm text-ink/80">
@@ -961,7 +961,7 @@ export default function CheckoutForm({ whatsapp }: { whatsapp: string }) {
           <span className="font-body text-sm leading-relaxed text-ink">
             {fulfillment === 'pickup'
               ? 'Entiendo que el retiro se coordina por WhatsApp después del pago y confirmo que los datos de contacto son correctos.'
-              : 'Entiendo que el envío tiene un costo fijo de $195 o $220 según la cantidad de alfajores y se cobra junto con el pedido. Confirmo que los datos ingresados son correctos.'}
+              : 'Entiendo que el envío tiene un costo fijo de $195 o $220 según la cantidad de productos y se cobra junto con el pedido. Confirmo que los datos ingresados son correctos.'}
           </span>
         </label>
       </div>
