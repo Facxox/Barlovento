@@ -63,6 +63,8 @@ export type GalleryItem = {
   category: string;
   image: string;
   sort_order: number;
+  slug: string;
+  publish_at: string | null;
 };
 export type BarloventoEvent = {
   id: number;

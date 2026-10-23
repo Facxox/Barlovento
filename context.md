@@ -307,7 +307,11 @@ Idéntico a `categories` pero para categorías de galería (elaboracion / produc
 | `category` | text | slug de `gallery_categories` |
 | `image` | text | URL pública del bucket o `/Assets/...` |
 | `sort_order` | integer DEFAULT 0 | |
+| `slug` | text NOT NULL UNIQUE | URL propia `/galeria/<slug>` (destino de QRs impresos). Se genera desde el título con `lib/slug.ts` (migración 0020) |
+| `publish_at` | timestamptz NULL | Publicación programada. NULL = publicada; futura = oculta (RLS + filtro en `getGallery`) |
 | `created_at` | timestamptz | |
+
+RLS (0020): lectura pública solo de publicadas (`publish_at is null or publish_at <= now()`); escritura y lectura de programadas solo para `profiles.is_admin`. La 0020 también corrige `is_admin(uid)` para usar `public.profiles` (con `search_path ''` fallaba).
 
 #### `public.events`
 | col | tipo | notas |
@@ -652,6 +656,7 @@ En `middleware.ts`:
 ### Públicas
 - `/` (home): Hero · Historia · Misión/Visión · Valores · Puntos de venta · ProductosHero · TiendaServer (con detección wholesale) · Eventos · RegalosEmpresariales · GaleriaServer · ContactoServer.
 - `/productos/[id]`: detalle de producto (busca primero en retail, luego wholesale).
+- `/galeria/[slug]`: página propia de una foto de la galería (destino de los QRs). 404 si no existe o está programada a futuro. `/galeria` redirige a `/#galeria`.
 - `/checkout`: formulario de pago MP.
 - `/checkout/success|failure|pending`: páginas estáticas con CTA.
 - `/login`, `/signup`, `/signup/check-email`.
@@ -663,7 +668,7 @@ En `middleware.ts`:
 - `/admin/productos`: tabs retail / wholesale, con reordenar ▲▼, toggle active, clonar a mayorista.
 - `/admin/productos/nuevo`, `/admin/productos/[id]`: ProductoForm (con ImageDropzone + nutrición).
 - `/admin/categorias`, `/admin/categorias-galeria`: CategoriasTable compartida.
-- `/admin/galeria`: GaleriaGrid con dropzone.
+- `/admin/galeria`: GaleriaGrid con dropzone, slug editable, publicación programada (`publish_at`), copiar link y descargar QR (paquete `qrcode`, usa `NEXT_PUBLIC_SITE_URL`).
 - `/admin/eventos`: EventosTable con MultiImageEditor.
 - `/admin/textos`: TextosEditor para los key-values de `site_content`.
 - `/admin/pedidos`: PedidosTable con acciones marcar pagado / no pago / revertir.

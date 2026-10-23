@@ -117,6 +117,10 @@ export type GalleryItem = {
   category: 'elaboracion' | 'producto' | 'ferias' | string;
   image: string;
   sort_order: number;
+  /** URL propia: /galeria/<slug>. Único. */
+  slug: string;
+  /** Publicación programada. null = publicada; fecha futura = oculta. */
+  publish_at: string | null;
 };
 
 export type BarloventoEvent = {
@@ -285,11 +289,47 @@ export async function getGalleryCategories(): Promise<GalleryCategory[]> {
   );
 }
 
+/** Filtro de fotos publicadas (publish_at vacío o ya pasado). RLS hace
+ *  lo mismo para anon, pero un admin logueado navegando la home pasa
+ *  la policy de admin y vería las programadas sin este filtro. */
+function isPublished(g: Pick<GalleryItem, 'publish_at'>, now = new Date()): boolean {
+  return !g.publish_at || new Date(g.publish_at) <= now;
+}
+
 export async function getGallery(): Promise<GalleryItem[]> {
-  const fallback = [...galleryJson].sort(
-    (a, b) => a.sort_order - b.sort_order
-  ) as GalleryItem[];
-  return fromSupabase<GalleryItem[]>('gallery_items', 'sort_order', fallback);
+  const fallback = ([...galleryJson] as GalleryItem[])
+    .filter((g) => isPublished(g))
+    .sort((a, b) => a.sort_order - b.sort_order);
+  return fromSupabase<GalleryItem[]>(
+    'gallery_items',
+    'sort_order',
+    fallback,
+    (q) => q.or(`publish_at.is.null,publish_at.lte.${new Date().toISOString()}`)
+  );
+}
+
+/** Una foto publicada por slug (página /galeria/[slug]). */
+export async function getGalleryItemBySlug(
+  slug: string
+): Promise<GalleryItem | null> {
+  const fromJson =
+    (galleryJson as GalleryItem[]).find(
+      (g) => g.slug === slug && isPublished(g)
+    ) ?? null;
+  const supabase = await getServerSupabase();
+  if (!supabase) return fromJson;
+  try {
+    const { data, error } = await supabase
+      .from('gallery_items')
+      .select('*')
+      .eq('slug', slug)
+      .or(`publish_at.is.null,publish_at.lte.${new Date().toISOString()}`)
+      .maybeSingle();
+    if (error) return fromJson;
+    return (data as GalleryItem | null) ?? null;
+  } catch {
+    return fromJson;
+  }
 }
 
 export async function getEvents(): Promise<BarloventoEvent[]> {

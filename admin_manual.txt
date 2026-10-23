@@ -205,22 +205,44 @@ el flag is_active funcionan igual.
 ----------------------------------------------------------------------
 
 5.1 QUÉ VES
-  - Un botón "+ Nueva imagen".
-  - Una grilla de imágenes ya subidas con su categoría y acciones.
+  - Un formulario arriba con: Imagen, Título, Link (slug), Categoría y
+    "Publicar el" (opcional).
+  - Una grilla de imágenes ya subidas con su categoría, su link
+    (/galeria/...) y acciones. Las programadas muestran la etiqueta
+    "Programada · fecha y hora".
 
 5.2 BOTONES
-  - "+ Nueva imagen"   -> abre el formulario con dropzone.
+  - "Subir" / "Programar" -> sube la imagen (publica ya o en la fecha
+                             elegida).
   - ▲ / ▼              -> reordena.
-  - "Editar"            -> edita título y categoría.
+  - "Editar"            -> edita título, link y fecha de publicación.
+  - "Publicar ahora"    -> (dentro de Editar, solo si está programada)
+                           la publica en el momento.
+  - "Copiar link"       -> copia el link propio de la foto.
+  - "Descargar QR"      -> descarga un PNG con el QR que lleva a la foto.
   - "Borrar"            -> elimina la imagen del storage y de la base.
 
 5.3 PASOS
   Subir una imagen:
-    1. Click "+ Nueva imagen".
+    1. Arrastrá o seleccioná la imagen.
     2. Escribí el título.
-    3. Elegí la categoría.
-    4. Arrastrá o seleccioná la imagen.
-    5. Click "Crear".
+    3. (Opcional) Escribí el link. Si lo dejás vacío se arma solo
+       desde el título: "Stand en la feria" -> /galeria/stand-en-la-feria.
+    4. Elegí la categoría.
+    5. (Opcional) Elegí fecha y hora en "Publicar el".
+    6. Click "Subir" (o "Programar" si elegiste fecha).
+
+  Programar una imagen:
+    - Completá "Publicar el" con la fecha y hora (hora de Uruguay).
+      Hasta ese momento la foto no aparece en el sitio ni su link
+      funciona; después aparece sola, sin hacer nada más.
+    - Para cambiar la fecha o publicarla antes: "Editar".
+
+  Imprimir un QR de una foto:
+    1. Click "Descargar QR" en la foto.
+    2. Se descarga qr-<link>.png, listo para imprimir.
+    IMPORTANTE: una vez impreso el QR, no cambies el link de esa foto
+    (ni la borres): el QR dejaría de funcionar.
 
   Reordenar:
     1. Click ▲ / ▼ en la imagen.

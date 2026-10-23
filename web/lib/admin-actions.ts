@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from './supabase-server';
 import { getServiceSupabase } from './supabase-admin';
 import { uploadImage, deleteImageByUrl } from './storage';
+import { slugify as gallerySlugify } from './slug';
 import type { Product, WholesaleProduct, GalleryItem, BarloventoEvent, SiteContent, Nutrition } from './queries';
 
 // ----------------------------------------------------------------
@@ -74,9 +75,13 @@ export type ProductoInput = {
 export type GalleryInput = {
   id?: number;
   title: string;
-  category: 'elaboracion' | 'producto' | 'ferias';
+  category: string;
   image: string;
   sort_order: number;
+  /** Vacío = se genera desde el título. */
+  slug?: string;
+  /** ISO. Vacío/null = publicar ya. */
+  publish_at?: string | null;
 };
 
 export type EventoInput = {
@@ -670,10 +675,53 @@ export async function cloneProductToWholesale(
 // ----------------------------------------------------------------
 // Gallery
 // ----------------------------------------------------------------
+/** Normaliza `publish_at` que llega del form: ISO válido o null. */
+function parsePublishAt(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw.trim() === '') return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * Devuelve un slug libre a partir de `base` (`base`, `base-2`, `base-3`…).
+ * `excludeId` es la propia foto cuando se edita, para que conservar su
+ * slug no cuente como choque.
+ */
+async function uniqueGallerySlug(
+  supabase: Awaited<ReturnType<typeof requireAdmin>>,
+  raw: string,
+  fallback: string,
+  excludeId?: number
+): Promise<string> {
+  const base = gallerySlugify(raw) || gallerySlugify(fallback) || `foto-${Date.now()}`;
+  const { data, error } = await supabase
+    .from('gallery_items')
+    .select('id, slug')
+    .like('slug', `${base}%`);
+  if (error) throw new Error(`uniqueGallerySlug: ${error.message}`);
+  const taken = new Set(
+    (data ?? [])
+      .filter((r: { id: number }) => r.id !== excludeId)
+      .map((r: { slug: string }) => r.slug)
+  );
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
+function revalidateGallery() {
+  revalidatePath('/');
+  revalidatePath('/admin/galeria');
+  revalidatePath('/galeria/[slug]', 'page');
+  revalidatePath('/sitemap.xml');
+}
+
 /**
  * Recibe los datos dentro de FormData (el `File` debe viajar en FormData,
  * no como argumento directo). Campos:
- *   id (opcional), title, category, image (URL previa), sort_order, imageFile
+ *   id (opcional), title, category, image (URL previa), sort_order,
+ *   slug (opcional), publish_at (ISO, opcional), imageFile
  */
 export async function upsertGalleryItem(
   formData: FormData
@@ -683,11 +731,31 @@ export async function upsertGalleryItem(
   const input: GalleryInput = {
     id: formData.get('id') ? Number(formData.get('id')) : undefined,
     title: (formData.get('title') as string) ?? '',
-    category: (formData.get('category') as GalleryInput['category']) ?? 'elaboracion',
+    category: (formData.get('category') as string) ?? 'elaboracion',
     image: (formData.get('image') as string) ?? '',
     sort_order: Number(formData.get('sort_order') ?? 0),
+    slug: ((formData.get('slug') as string) ?? '').trim(),
+    publish_at: parsePublishAt(formData.get('publish_at')),
   };
   const imageFile = formData.get('imageFile') as File | null;
+
+  // Al editar sin slug explícito se conserva el actual: regenerarlo desde
+  // el título rompería los QRs ya impresos.
+  let currentSlug = '';
+  if (input.id && !input.slug) {
+    const { data: row } = await supabase
+      .from('gallery_items')
+      .select('slug')
+      .eq('id', input.id)
+      .maybeSingle();
+    currentSlug = row?.slug ?? '';
+  }
+  const slug = await uniqueGallerySlug(
+    supabase,
+    input.slug || currentSlug || input.title,
+    input.title,
+    input.id
+  );
 
   let imageUrl = input.image;
   if (imageFile && imageFile.size > 0) {
@@ -700,6 +768,8 @@ export async function upsertGalleryItem(
     category: input.category,
     image: imageUrl,
     sort_order: Number(input.sort_order),
+    slug,
+    publish_at: input.publish_at ?? null,
   };
 
   const { data, error } = await supabase
@@ -713,8 +783,33 @@ export async function upsertGalleryItem(
     await deleteImageByUrl(input.image);
   }
 
-  revalidatePath('/');
-  revalidatePath('/admin/galeria');
+  revalidateGallery();
+  return data as GalleryItem;
+}
+
+/**
+ * Edita título, slug y fecha de publicación de una foto existente sin
+ * tocar la imagen. `publish_at` null = publicar ya.
+ */
+export async function updateGalleryItemMeta(
+  id: number,
+  meta: { title: string; slug: string; publish_at: string | null }
+): Promise<GalleryItem> {
+  const supabase = await requireAdmin();
+  const title = meta.title.trim();
+  if (!title) throw new Error('El título no puede quedar vacío.');
+
+  const slug = await uniqueGallerySlug(supabase, meta.slug || title, title, id);
+
+  const { data, error } = await supabase
+    .from('gallery_items')
+    .update({ title, slug, publish_at: parsePublishAt(meta.publish_at) })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw new Error(`updateGalleryItemMeta: ${error.message}`);
+
+  revalidateGallery();
   return data as GalleryItem;
 }
 
@@ -728,8 +823,7 @@ export async function deleteGalleryItem(id: number): Promise<void> {
   const { error } = await supabase.from('gallery_items').delete().eq('id', id);
   if (error) throw new Error(`deleteGalleryItem: ${error.message}`);
   if (row?.image) await deleteImageByUrl(row.image);
-  revalidatePath('/');
-  revalidatePath('/admin/galeria');
+  revalidateGallery();
 }
 
 // ----------------------------------------------------------------

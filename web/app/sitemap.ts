@@ -1,11 +1,15 @@
 import type { MetadataRoute } from 'next';
-import { getProducts } from '@/lib/queries';
+import { getProducts, getGallery } from '@/lib/queries';
 
 // Site URL canónico. Coincide con `metadataBase` en app/layout.tsx.
 const SITE_URL = 'https://barloventoirresistibles.com.uy';
 
+// Se regenera cada hora para que las fotos programadas de la galería
+// entren al sitemap sin esperar a un redeploy.
+export const revalidate = 3600;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const products = await getProducts();
+  const [products, gallery] = await Promise.all([getProducts(), getGallery()]);
   const now = new Date();
 
   return [
@@ -32,6 +36,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.8,
+    })),
+    ...gallery.map((g) => ({
+      url: `${SITE_URL}/galeria/${g.slug}`,
+      lastModified: now,
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
     })),
   ];
 }
