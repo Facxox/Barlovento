@@ -36,6 +36,7 @@ const scheduleFmt = new Intl.DateTimeFormat('es-UY', {
   year: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
 });
 
 function isScheduled(g: GalleryItem): boolean {
@@ -205,7 +206,8 @@ export default function GaleriaGrid({
         <h1 className="font-display text-3xl text-bone">Galería</h1>
         <p className="mt-1 font-body text-sm text-bone/60">
           {list.length - scheduledCount} imágenes publicadas
-          {scheduledCount > 0 && ` · ${scheduledCount} programadas`}.
+          {scheduledCount > 0 &&
+            ` · ${scheduledCount} programada${scheduledCount === 1 ? '' : 's'}`}.
         </p>
       </header>
 
