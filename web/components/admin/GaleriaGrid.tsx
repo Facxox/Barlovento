@@ -74,6 +74,20 @@ function saveBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }
 
+// iPhone/iPad (incluye iPadOS que se presenta como Mac) y navegadores
+// dentro de apps (WhatsApp, Instagram, Facebook, WebView de Android): ahí
+// <a download> con un archivo generado en la página no descarga — Safari
+// intenta abrirlo como página y muestra "Safari no pudo abrir la página".
+// En esos casos se guarda con el menú de compartir del sistema.
+function downloadsUnreliable(): boolean {
+  const ua = navigator.userAgent;
+  const iOS =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const inApp = /FBAN|FBAV|Instagram|WhatsApp|Line\/|; wv\)/.test(ua);
+  return iOS || inApp;
+}
+
 type QrState = {
   slug: string;
   url: string;
@@ -110,6 +124,8 @@ export default function GaleriaGrid({
   const [notice, setNotice] = useState<string | null>(null);
   const [qr, setQr] = useState<QrState | null>(null);
   const [canShare, setCanShare] = useState(false);
+  const [noDownload, setNoDownload] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!qr) return;
@@ -224,13 +240,15 @@ export default function GaleriaGrid({
     }
   };
 
-  // Abre el modal del QR e intenta descargarlo. Safari (sobre todo iOS) y
-  // los navegadores dentro de apps pueden bloquear la descarga automática
-  // porque ocurre después de un await; el modal deja la imagen visible
-  // (mantener apretado → Guardar) y botones que descargan/comparten en el
-  // mismo click.
+  // Abre el modal del QR. En compu/Android además lo descarga solo; en
+  // iPhone y navegadores dentro de apps no se intenta (ver
+  // downloadsUnreliable) y el modal ofrece "Guardar en Fotos" (menú de
+  // compartir) o mantener apretada la imagen.
   const downloadQr = async (g: GalleryItem) => {
     const url = photoUrl(g.slug);
+    const skipDownload = downloadsUnreliable();
+    setNoDownload(skipDownload);
+    setShareError(null);
     setQr({ slug: g.slug, url });
     try {
       const QRCode = (await import('qrcode')).default;
@@ -245,10 +263,12 @@ export default function GaleriaGrid({
         typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })
       );
       setQr({ slug: g.slug, url, dataUrl, blob });
-      try {
-        saveBlob(blob, `qr-${g.slug}.png`);
-      } catch {
-        // Bloqueada: queda el botón del modal.
+      if (!skipDownload) {
+        try {
+          saveBlob(blob, `qr-${g.slug}.png`);
+        } catch {
+          // Bloqueada: queda el botón del modal.
+        }
       }
     } catch (err: any) {
       setQr({ slug: g.slug, url, error: err?.message ?? 'No pudimos generar el QR.' });
@@ -258,10 +278,14 @@ export default function GaleriaGrid({
   const shareQr = async () => {
     if (!qr?.blob) return;
     const file = new File([qr.blob], `qr-${qr.slug}.png`, { type: 'image/png' });
+    setShareError(null);
     try {
       await navigator.share({ files: [file], title: `QR · /galeria/${qr.slug}` });
-    } catch {
-      // El usuario canceló el menú de compartir.
+    } catch (err: any) {
+      // AbortError = el usuario cerró el menú; no es un error.
+      if (err?.name !== 'AbortError') {
+        setShareError('No se pudo abrir el menú. Mantené apretado el QR → Guardar en Fotos.');
+      }
     }
   };
 
@@ -553,25 +577,53 @@ export default function GaleriaGrid({
             {qr.blob && (
               <>
                 <div className="mt-4 grid gap-2">
-                  <button
-                    onClick={() => saveBlob(qr.blob!, `qr-${qr.slug}.png`)}
-                    className="w-full rounded-full bg-gold px-4 py-2.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-gold-light"
-                  >
-                    Descargar PNG
-                  </button>
-                  {canShare && (
-                    <button
-                      onClick={shareQr}
-                      className="w-full rounded-full border border-gold/60 px-4 py-2.5 font-body text-xs uppercase tracking-ultra text-gold transition hover:bg-gold/10"
-                    >
-                      Compartir / Guardar
-                    </button>
+                  {noDownload ? (
+                    canShare && (
+                      <button
+                        onClick={shareQr}
+                        className="w-full rounded-full bg-gold px-4 py-2.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-gold-light"
+                      >
+                        Guardar en Fotos / Compartir
+                      </button>
+                    )
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => saveBlob(qr.blob!, `qr-${qr.slug}.png`)}
+                        className="w-full rounded-full bg-gold px-4 py-2.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-gold-light"
+                      >
+                        Descargar PNG
+                      </button>
+                      {canShare && (
+                        <button
+                          onClick={shareQr}
+                          className="w-full rounded-full border border-gold/60 px-4 py-2.5 font-body text-xs uppercase tracking-ultra text-gold transition hover:bg-gold/10"
+                        >
+                          Compartir / Guardar
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
+                {shareError && (
+                  <p className="mt-3 font-body text-xs text-red-400">{shareError}</p>
+                )}
                 <p className="mt-3 font-body text-[11px] text-bone/50">
-                  Si no se descargó solo: tocá &quot;Descargar PNG&quot;, o mantené
-                  apretada la imagen (en el celu) / clic derecho (en la compu) →
-                  Guardar imagen.
+                  {noDownload ? (
+                    <>
+                      {canShare
+                        ? 'Tocá "Guardar en Fotos" y elegí "Guardar imagen". '
+                        : ''}
+                      También podés mantener apretado el QR → &quot;Guardar en
+                      Fotos&quot;.
+                    </>
+                  ) : (
+                    <>
+                      Si no se descargó solo: tocá &quot;Descargar PNG&quot;, o
+                      mantené apretada la imagen (en el celu) / clic derecho (en la
+                      compu) → Guardar imagen.
+                    </>
+                  )}
                 </p>
               </>
             )}
