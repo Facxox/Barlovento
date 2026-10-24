@@ -656,7 +656,7 @@ En `middleware.ts`:
 ### Públicas
 - `/` (home): Hero · Historia · Misión/Visión · Valores · Puntos de venta · ProductosHero · TiendaServer (con detección wholesale) · Eventos · RegalosEmpresariales · GaleriaServer · ContactoServer.
 - `/productos/[id]`: detalle de producto (busca primero en retail, luego wholesale).
-- `/galeria/[slug]`: página propia de una foto de la galería (destino de los QRs). 404 si no existe o está programada a futuro. `/galeria` redirige a `/#galeria`.
+- `/galeria/[slug]`: página propia de una foto de la galería (destino de los QRs). Si está programada a futuro responde igual (el QR ya funciona) con "Muy pronto" + cuenta regresiva (`GaleriaCountdown`), sin título ni URL de imagen; al llegar la hora muestra la foto. 404 solo si el slug no existe. `/galeria` redirige a `/#galeria`.
 - `/checkout`: formulario de pago MP.
 - `/checkout/success|failure|pending`: páginas estáticas con CTA.
 - `/login`, `/signup`, `/signup/check-email`.

@@ -279,7 +279,8 @@ export default function GaleriaGrid({
               className={`${inputCls} [color-scheme:dark]`}
             />
             <p className="mt-1 font-body text-[11px] text-bone/40">
-              Vacío = se publica ahora.
+              Vacío = se publica ahora. Si programás, el link y el QR ya
+              funcionan: muestran "Muy pronto" con cuenta regresiva.
             </p>
           </div>
           <div className="sm:col-span-2">

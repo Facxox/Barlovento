@@ -1,5 +1,6 @@
 import 'server-only';
 import { getServerSupabase } from './supabase-server';
+import { getServiceSupabase } from './supabase-admin';
 import productsJson from '@/data/products.json';
 import galleryJson from '@/data/gallery.json';
 import galleryCategoriesJson from '@/data/gallery-categories.json';
@@ -308,16 +309,30 @@ export async function getGallery(): Promise<GalleryItem[]> {
   );
 }
 
-/** Una foto publicada por slug (página /galeria/[slug]). */
-export async function getGalleryItemBySlug(
+/**
+ * Estado de una foto por slug para la página /galeria/[slug]:
+ *   - `published`: se muestra la foto.
+ *   - `scheduled`: el link ya existe (el QR puede estar impreso) pero la
+ *     foto todavía no se publica. Solo se expone `publish_at`: ni título
+ *     ni URL de la imagen salen del server antes de tiempo.
+ *   - null: no existe → 404.
+ */
+export type GalleryPage =
+  | { status: 'published'; item: GalleryItem }
+  | { status: 'scheduled'; publish_at: string };
+
+export async function getGalleryPageBySlug(
   slug: string
-): Promise<GalleryItem | null> {
-  const fromJson =
-    (galleryJson as GalleryItem[]).find(
-      (g) => g.slug === slug && isPublished(g)
-    ) ?? null;
+): Promise<GalleryPage | null> {
+  const fromJson = (galleryJson as GalleryItem[]).find((g) => g.slug === slug);
+  const jsonPage: GalleryPage | null = !fromJson
+    ? null
+    : isPublished(fromJson)
+      ? { status: 'published', item: fromJson }
+      : { status: 'scheduled', publish_at: fromJson.publish_at as string };
+
   const supabase = await getServerSupabase();
-  if (!supabase) return fromJson;
+  if (!supabase) return jsonPage;
   try {
     const { data, error } = await supabase
       .from('gallery_items')
@@ -325,10 +340,22 @@ export async function getGalleryItemBySlug(
       .eq('slug', slug)
       .or(`publish_at.is.null,publish_at.lte.${new Date().toISOString()}`)
       .maybeSingle();
-    if (error) return fromJson;
-    return (data as GalleryItem | null) ?? null;
+    if (error) return jsonPage;
+    if (data) return { status: 'published', item: data as GalleryItem };
+
+    // RLS oculta las programadas al público: consultamos solo la fecha
+    // con service-role para saber si el slug existe.
+    const service = getServiceSupabase();
+    if (!service) return null;
+    const { data: sched } = await service
+      .from('gallery_items')
+      .select('publish_at')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (!sched?.publish_at) return null;
+    return { status: 'scheduled', publish_at: sched.publish_at as string };
   } catch {
-    return fromJson;
+    return jsonPage;
   }
 }
 

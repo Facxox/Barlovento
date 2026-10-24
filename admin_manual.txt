@@ -234,8 +234,11 @@ el flag is_active funcionan igual.
 
   Programar una imagen:
     - Completá "Publicar el" con la fecha y hora (hora de Uruguay).
-      Hasta ese momento la foto no aparece en el sitio ni su link
-      funciona; después aparece sola, sin hacer nada más.
+      Hasta ese momento la foto no aparece en la galería del sitio.
+    - El link y el QR funcionan desde que la subís: antes de la fecha
+      muestran "Muy pronto" con la fecha y una cuenta regresiva (sin
+      título ni imagen). Al llegar la hora, la misma página muestra la
+      foto sola, sin hacer nada más. Podés imprimir el QR ya.
     - Para cambiar la fecha o publicarla antes: "Editar".
 
   Imprimir un QR de una foto:
