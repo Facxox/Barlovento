@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   upsertGalleryItem,
@@ -50,6 +50,38 @@ function photoUrl(slug: string): string {
   return `${base}/galeria/${slug}`;
 }
 
+// data:image/png;base64,... → Blob (sin fetch, por si hay CSP).
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [head, b64] = dataUrl.split(',');
+  const mime = head.match(/data:(.*?);/)?.[1] ?? 'image/png';
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+// Descarga un Blob con un <a download> agregado al DOM (Firefox y algunos
+// navegadores móviles ignoran el click en un <a> suelto o con data: URL).
+function saveBlob(blob: Blob, filename: string) {
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+}
+
+type QrState = {
+  slug: string;
+  url: string;
+  dataUrl?: string;
+  blob?: Blob;
+  error?: string;
+};
+
 const inputCls =
   'mt-2 w-full border-b border-carbon-line bg-transparent px-2 py-2 font-body text-bone focus:border-gold outline-none';
 const labelCls = 'font-body text-[10px] uppercase tracking-ultra text-bone/50';
@@ -76,6 +108,15 @@ export default function GaleriaGrid({
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [qr, setQr] = useState<QrState | null>(null);
+  const [canShare, setCanShare] = useState(false);
+
+  useEffect(() => {
+    if (!qr) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setQr(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [qr]);
 
   // Edición inline de una foto existente.
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -183,20 +224,44 @@ export default function GaleriaGrid({
     }
   };
 
+  // Abre el modal del QR e intenta descargarlo. Safari (sobre todo iOS) y
+  // los navegadores dentro de apps pueden bloquear la descarga automática
+  // porque ocurre después de un await; el modal deja la imagen visible
+  // (mantener apretado → Guardar) y botones que descargan/comparten en el
+  // mismo click.
   const downloadQr = async (g: GalleryItem) => {
+    const url = photoUrl(g.slug);
+    setQr({ slug: g.slug, url });
     try {
       const QRCode = (await import('qrcode')).default;
-      const dataUrl = await QRCode.toDataURL(photoUrl(g.slug), {
+      const dataUrl = await QRCode.toDataURL(url, {
         width: 1024,
         margin: 2,
         errorCorrectionLevel: 'M',
       });
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `qr-${g.slug}.png`;
-      a.click();
+      const blob = dataUrlToBlob(dataUrl);
+      const file = new File([blob], `qr-${g.slug}.png`, { type: 'image/png' });
+      setCanShare(
+        typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })
+      );
+      setQr({ slug: g.slug, url, dataUrl, blob });
+      try {
+        saveBlob(blob, `qr-${g.slug}.png`);
+      } catch {
+        // Bloqueada: queda el botón del modal.
+      }
     } catch (err: any) {
-      setError(err.message ?? 'No pudimos generar el QR.');
+      setQr({ slug: g.slug, url, error: err?.message ?? 'No pudimos generar el QR.' });
+    }
+  };
+
+  const shareQr = async () => {
+    if (!qr?.blob) return;
+    const file = new File([qr.blob], `qr-${qr.slug}.png`, { type: 'image/png' });
+    try {
+      await navigator.share({ files: [file], title: `QR · /galeria/${qr.slug}` });
+    } catch {
+      // El usuario canceló el menú de compartir.
     }
   };
 
@@ -443,6 +508,76 @@ export default function GaleriaGrid({
           </p>
         )}
       </div>
+
+      {qr && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4"
+          onClick={() => setQr(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Código QR"
+        >
+          <div
+            className="w-full max-w-sm border border-carbon-line bg-carbon p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className={labelCls}>Código QR</p>
+                <p className="mt-1 break-all font-body text-xs text-bone/70">{qr.url}</p>
+              </div>
+              <button
+                onClick={() => setQr(null)}
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-carbon-line text-bone/70 hover:border-gold hover:text-gold"
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-4 grid aspect-square place-items-center bg-white">
+              {qr.dataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={qr.dataUrl}
+                  alt={`QR de /galeria/${qr.slug}`}
+                  className="block h-full w-full"
+                />
+              ) : qr.error ? (
+                <p className="p-4 text-center font-body text-sm text-red-600">{qr.error}</p>
+              ) : (
+                <p className="font-body text-sm text-carbon/60">Generando…</p>
+              )}
+            </div>
+
+            {qr.blob && (
+              <>
+                <div className="mt-4 grid gap-2">
+                  <button
+                    onClick={() => saveBlob(qr.blob!, `qr-${qr.slug}.png`)}
+                    className="w-full rounded-full bg-gold px-4 py-2.5 font-body text-xs uppercase tracking-ultra text-carbon transition hover:bg-gold-light"
+                  >
+                    Descargar PNG
+                  </button>
+                  {canShare && (
+                    <button
+                      onClick={shareQr}
+                      className="w-full rounded-full border border-gold/60 px-4 py-2.5 font-body text-xs uppercase tracking-ultra text-gold transition hover:bg-gold/10"
+                    >
+                      Compartir / Guardar
+                    </button>
+                  )}
+                </div>
+                <p className="mt-3 font-body text-[11px] text-bone/50">
+                  Si no se descargó solo: tocá &quot;Descargar PNG&quot;, o mantené
+                  apretada la imagen (en el celu) / clic derecho (en la compu) →
+                  Guardar imagen.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
