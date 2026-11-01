@@ -53,6 +53,9 @@ export default async function Footer() {
 
         <div className="mt-16 flex flex-col gap-2 border-t border-carbon-line pt-6 text-bone/50 text-xs font-body md:flex-row md:items-center md:justify-between">
           <p>© {currentYear} Barlovento · Todos los derechos reservados.</p>
+          <p>
+            <a href="/terminos" className="gold-underline">Términos</a> · <a href="/privacidad" className="gold-underline">Privacidad</a> · <a href="/cookies" className="gold-underline">Cookies</a> · <a href="/cambios-y-devoluciones" className="gold-underline">Cambios y devoluciones</a>
+          </p>
           <p className="tracking-ultra uppercase">Trinidad · Flores · Uruguay</p>
         </div>
         <p className="mt-3 text-left font-body text-sm text-bone/50">
